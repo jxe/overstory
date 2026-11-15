@@ -2,5 +2,5 @@
 // evaluator asks for them, and the checks that a store matches its schema.beetle.
 export { SQLiteStore } from "./store.ts";
 export * from "./introspect.ts";
-export { sqliteSnapshots } from "./snapshot.ts";
+export { readDatabaseRows, sqliteSnapshots } from "./snapshot.ts";
 export { SQLiteWriteStore, type RowEdit } from "./write.ts";

@@ -7,7 +7,7 @@ import { changedCollectionRows, compileLogicalSchema, encodeCollection } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Materialization } from "../../packages/overstoryd/src/beetle-materialized.ts";
+import { CollectionDatabase } from "../../packages/overstoryd/src/collection-databases.ts";
 import { exampleFiles } from "../support/beetle-vectors.ts";
 
 const files = exampleFiles();
@@ -486,7 +486,7 @@ describe("beetle over SQLite", () => {
   }
 
   for (const [path, me, name, input] of mutations) {
-    test(`${name} ${JSON.stringify(input)} as ${me}: a copy caught up from the changed chunks equals one built afresh`, async () => {
+    test(`${name} ${JSON.stringify(input)} as ${me}: a database moved by the changed rows equals one built afresh`, async () => {
       const outcome = runMutation(evaluator(path, me), name, input, { mutationID: "m-1" });
       const logicalSchema = compileLogicalSchema(files[SCHEMA]!);
       const schema = new StoreSchema(logicalSchema.result);
@@ -505,12 +505,11 @@ describe("beetle over SQLite", () => {
       const dir = mkdtempSync(join(tmpdir(), "beetle-copy-"));
       try {
         const layout = schema.layout;
-        const caught = Materialization.build(join(dir, "a"), layout, settled(rows()), "d1", "s");
-        caught.applyChanges(schema, changes, "d2");
-        const fresh = Materialization.build(join(dir, "b"), layout, settled(outcome.rows[SCHEMA]!), "d2", "s");
-        const dump = (m: Materialization) => Object.fromEntries(layout.map((t) => [t.name, m.database.query(`select * from "${t.name}" order by ${t.primaryKey.map((k) => `"${k}"`).join(", ")}`).all()]));
+        const caught = CollectionDatabase.withRows(join(dir, "a"), layout, settled(rows()), "s");
+        caught.database.transaction(() => caught.writeChanges(caught.database, schema, changes))();
+        const fresh = CollectionDatabase.withRows(join(dir, "b"), layout, settled(outcome.rows[SCHEMA]!), "s");
+        const dump = (m: CollectionDatabase) => Object.fromEntries(layout.map((t) => [t.name, m.database.query(`select * from "${t.name}" order by ${t.primaryKey.map((k) => `"${k}"`).join(", ")}`).all()]));
         expect(dump(caught)).toEqual(dump(fresh));
-        expect(caught.directory).toBe("d2");
         caught.close();
         fresh.close();
       } finally {

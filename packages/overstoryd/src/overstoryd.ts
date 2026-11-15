@@ -2,6 +2,7 @@ import { entryChanges, type EntryChanges } from "./updates/document-versions.ts"
 import { AlreadyClaimedError, AuthenticationRequiredError, ExpiredChallengeError, HomeHostUnavailableError, NotFoundError, PermissionDeniedError, PlacementAccountError, RefConflictError, ReservedBoundaryConflictError, ServerBusyError, ServerFaultError, UpdateProtocolError } from "./errors.ts";
 import { PackMaintenance } from "./pack-maintenance.ts";
 import { changedCollectionFolders, snapshotCollections, SNAPSHOT_MIN_CHANGES } from "./collection-snapshots.ts";
+import { CollectionDatabases } from "./collection-databases.ts";
 import { PlacementDeviceKeys, type DeviceKeyCopy, type ListedDevice } from "./placement.ts";
 import { RemoteGroups } from "./remote-groups.ts";
 import { VisitorSessions, type VisitorAuthentication } from "./visitors.ts";
@@ -387,6 +388,8 @@ function executionForm(update: { resolves: readonly unknown[]; trace: ReadonlyAr
 
 export class HostDaemon implements AsyncDisposable {
   private readonly wireSchemas = new CollectionSchemaCache();
+  /** Each collection's database, where its rows are (Performance 007). */
+  readonly collections: CollectionDatabases;
   /** Recently validated graphs by root, which a later candidate's validation starts from. */
   private readonly validatedGraphs = new Recent<ValidatedGraph>(8, { weight: (graph) => graph.objects.size, maxWeight: 200_000 });
   /** Stored profile rows by TreeID (`treeProfile`), committed state only. */
@@ -436,6 +439,7 @@ export class HostDaemon implements AsyncDisposable {
   ) {
     this.db = db;
     this.objects = new ObjectStore(join(dataRoot, "objects"), { cacheBytes: objectCacheBytes() });
+    this.collections = new CollectionDatabases(join(dataRoot, "collections"), (hash) => this.objects.load(hash), this.wireSchemas);
     this.mergeTool = new MergeTool(dataRoot, {
       onTiming: (phase, ms) => phaseTimer()?.add(`worker-${phase}`, ms),
       onCount: (name, value) => phaseTimer()?.count(name, value),
@@ -2827,6 +2831,8 @@ export class HostDaemon implements AsyncDisposable {
   }
 
   private notifyAccepted(update: AcceptedUpdate): void {
+    // Its collections' databases apply the update's log entries before anything reads them.
+    void this.collections.accepted(update);
     this.execution.invalidate();
     for (const listener of [...this.acceptedListeners]) {
       try { listener(update); } catch (error) { console.error("overstoryd accepted-update listener failed", error); }
@@ -2854,7 +2860,11 @@ export class HostDaemon implements AsyncDisposable {
         const from = this.currentUpdate(update.tree);
         if (!from || this.disposed) return null;
         const staged = new Map<ObjectHash, Uint8Array>();
-        const root = await snapshotCollections(from.root, folders, load, staged, this.wireSchemas, this.collectionSnapshotChanges);
+        const file = async (names: readonly string[]) => {
+          const at = await this.collections.at(update.tree, `/${names.join("/")}`, from.root as ObjectHash);
+          return at ? { bytes: at.database.snapshotFile(join(this.dataRoot, "collections")), rows: at.database.rows, rowsHash: at.database.lthash.hash() } : null;
+        };
+        const root = await snapshotCollections(from.root, folders, load, staged, file, this.collectionSnapshotChanges);
         if (!root) return null;
         const change = `snapshot:${root.slice(7)}`;
         const entry = await this.internalEntry(update.tree, from, root, change, staged);
@@ -3392,6 +3402,7 @@ export class HostDaemon implements AsyncDisposable {
   async [Symbol.asyncDispose](): Promise<void> {
     for (const resource of this.dependents.splice(0).reverse()) await resource[Symbol.asyncDispose]();
     this.disposed = true;
+    await this.collections.close();
     await this.provenanceRun;
     clearTimeout(this.deviceKeyTimer);
     clearTimeout(this.remoteGroupTimer);

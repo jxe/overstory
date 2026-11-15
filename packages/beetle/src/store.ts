@@ -16,6 +16,7 @@ import type { Condition } from "./sql.ts";
 import {
   layoutOf,
   logicalFromRows,
+  rowsFromLogical,
   relationshipsOf,
   PERSON_RELATION,
   type LogicalTables,
@@ -517,51 +518,80 @@ export function editedLogical(before: Store, after: Store, edits: ReadonlyArray<
     }
   }
   const wanted = new Set<string>();
-  const gather = (store: Store) => {
-    const rows = new Map<string, Map<string, Row>>();
-    const add = (row: Row) => {
-      if (row.table === PERSON_RELATION) return;
-      let m = rows.get(row.table);
-      if (!m) rows.set(row.table, (m = new Map()));
-      m.set(row.keyText, row);
-    };
-    for (const { table, columns, values } of owners.values()) {
-      for (const row of store.match(table, columns, values)) {
-        add(row);
-        wanted.add(`${table}\0${row.keyText}`);
-        for (const r of schema.relationships) {
-          if (r.source !== table) continue;
-          if (r.through) {
-            for (const join of store.match(r.through.relation, r.through.source.map((p) => p.through), r.through.source.map((p) => row.data[p.source] ?? null))) {
-              add(join);
-              if (r.target !== PERSON_RELATION) for (const far of store.match(r.target, r.through.target.map((p) => p.target), r.through.target.map((p) => join.data[p.through] ?? null))) add(far);
-            }
-          } else if (r.direct && r.cardinality === "many") {
-            for (const target of store.follow(row, r)) add(target);
+  const was = gatherNeighborhoods(before, owners.values(), wanted), is = gatherNeighborhoods(after, owners.values(), wanted);
+  return { before: convertNeighborhoods(schema, was, wanted, now), after: convertNeighborhoods(schema, is, wanted, now) };
+}
+
+type Owner = { table: string; columns: string[]; values: Cell[] };
+
+/**
+ * The rows `owners` name in `store`, each with its neighborhood: its join rows and their
+ * far ends, and the rows its to-many ends reach. Each owner row found is added to `wanted`.
+ */
+function gatherNeighborhoods(store: Store, owners: Iterable<Owner>, wanted: Set<string>): Map<string, Map<string, Row>> {
+  const schema = store.schema;
+  const rows = new Map<string, Map<string, Row>>();
+  const add = (row: Row) => {
+    if (row.table === PERSON_RELATION) return;
+    let m = rows.get(row.table);
+    if (!m) rows.set(row.table, (m = new Map()));
+    m.set(row.keyText, row);
+  };
+  for (const { table, columns, values } of owners) {
+    for (const row of store.match(table, columns, values)) {
+      add(row);
+      wanted.add(`${table}\0${row.keyText}`);
+      for (const r of schema.relationships) {
+        if (r.source !== table) continue;
+        if (r.through) {
+          for (const join of store.match(r.through.relation, r.through.source.map((p) => p.through), r.through.source.map((p) => row.data[p.source] ?? null))) {
+            add(join);
+            if (r.target !== PERSON_RELATION) for (const far of store.match(r.target, r.through.target.map((p) => p.target), r.through.target.map((p) => join.data[p.through] ?? null))) add(far);
           }
+        } else if (r.direct && r.cardinality === "many") {
+          for (const target of store.follow(row, r)) add(target);
         }
       }
     }
-    return rows;
-  };
-  const convert = (rows: Map<string, Map<string, Row>>): LogicalTables => {
-    const data: RowsByTable = Object.fromEntries([...rows].map(([t, m]) => [t, [...m.values()].map((r) => ({ ...r.data }))]));
-    const logical = logicalFromRows(schema.result, schema.layout.filter((t) => t.name in data), data, { now });
-    const out: LogicalTables = {};
-    for (const [model, list] of Object.entries(logical)) {
-      const table = schema.tableOf(model);
-      if (!table) continue;
-      const keyColumns = schema.keyOf(table);
-      const kept = list.filter((row) => {
-        const key = new Map(row.key as Array<[string, unknown]>);
-        return wanted.has(`${table}\0${canonical(keyColumns.map((c) => key.get(c) ?? null))}`);
-      });
-      if (kept.length) out[model] = kept;
-    }
-    return out;
-  };
-  const was = gather(before), is = gather(after);
-  return { before: convert(was), after: convert(is) };
+  }
+  return rows;
+}
+
+/** The logical rows of the `wanted` rows among neighborhoods, each converted from its neighborhood alone. */
+function convertNeighborhoods(schema: StoreSchema, rows: Map<string, Map<string, Row>>, wanted: ReadonlySet<string>, now: number): LogicalTables {
+  const data: RowsByTable = Object.fromEntries([...rows].map(([t, m]) => [t, [...m.values()].map((r) => ({ ...r.data }))]));
+  const logical = logicalFromRows(schema.result, schema.layout.filter((t) => t.name in data), data, { now });
+  const out: LogicalTables = {};
+  for (const [model, list] of Object.entries(logical)) {
+    const table = schema.tableOf(model);
+    if (!table) continue;
+    const keyColumns = schema.keyOf(table);
+    const kept = list.filter((row) => {
+      const key = new Map(row.key as Array<[string, unknown]>);
+      return wanted.has(`${table}\0${canonical(keyColumns.map((c) => key.get(c) ?? null))}`);
+    });
+    if (kept.length) out[model] = kept;
+  }
+  return out;
+}
+
+/**
+ * The logical rows of `keys` (each model's rows by their logical key pairs) as `store`
+ * holds them, each converted from its neighborhood alone: no whole collection is read.
+ * A key with no row is left out.
+ */
+export function logicalRowsByKey(store: Store, keys: Readonly<Record<string, ReadonlyArray<LogicalTables[string][number]["key"]>>>, now = 0): LogicalTables {
+  const schema = store.schema;
+  const owners: Owner[] = [];
+  for (const [model, list] of Object.entries(keys)) {
+    const table = schema.tableOf(model);
+    if (!table || !list.length) continue;
+    const t = schema.byName.get(table)!;
+    const stored = rowsFromLogical(schema.result, schema.layout, { [model]: list.map((key) => ({ key, fields: {}, created: 0, modified: 0 })) } as LogicalTables)[table] ?? [];
+    for (const row of stored) owners.push({ table, columns: t.primaryKey, values: t.primaryKey.map((c) => (row[c] ?? null) as Cell) });
+  }
+  const wanted = new Set<string>();
+  return convertNeighborhoods(schema, gatherNeighborhoods(store, owners, wanted), wanted, now);
 }
 
 /** A write the rows can't take, as a public error code. */

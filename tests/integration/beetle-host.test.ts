@@ -20,7 +20,7 @@ import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, HostAccou
 import { loadDirectoryCollection } from "@ovst/collection-schema";
 import { StoreSchema } from "@ovst/beetle";
 import { rowsFromLogical } from "@ovst/usl";
-import { Materialization } from "../../packages/overstoryd/src/beetle-materialized.ts";
+import { CollectionDatabase } from "../../packages/overstoryd/src/collection-databases.ts";
 import { installAccountHome } from "../helpers/account-home.ts";
 import { hostTree, readTreeConfig } from "../helpers/tree-config.ts";
 import { deviceClient, deviceSession, testAccount, testDevice } from "../helpers/devices.ts";
@@ -126,7 +126,7 @@ async function mutate(name: string, input: unknown, mutationID: string) {
 
 /** Two practices' ids, from the copy's rows. */
 async function practices(): Promise<string[]> {
-  const file = join(dataRoot, "beetle", "materialized", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3");
+  const file = join(dataRoot, "collections", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3");
   const db = new Database(file, { readonly: true });
   try {
     return (db.query(`select id from "Practice" order by id limit 2`).all() as Array<{ id: string }>).map((r) => r.id);
@@ -265,12 +265,15 @@ describe.serial("Beetle on the host", () => {
     const dataHash = hashObject(encodeProtocolDirectory(at));
     const collection = (await loadDirectoryCollection(at, load))!;
     const schema = new StoreSchema(collection.schema.result);
-    const file = join(dataRoot, "beetle", "materialized", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3");
+    const file = join(dataRoot, "collections", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3");
     const copy = new Database(file, { readonly: true });
-    const fresh = Materialization.build(join(sandbox, "fresh"), schema.layout, rowsFromLogical(schema.result, schema.layout, collection.tables), dataHash, "s");
+    const fresh = CollectionDatabase.withRows(join(sandbox, "fresh"), schema.layout, rowsFromLogical(schema.result, schema.layout, collection.tables), "s");
     try {
-      // The copy holds the accepted directory: its transaction committed, no catch-up ran.
-      expect((copy.query("select value from __beetle_materialized where key = 'directory'").get() as { value: string }).value).toBe(dataHash);
+      // The database holds the accepted entry: its transaction committed with the rows the log holds.
+      const meta = (key: string) => (copy.query("select value from __overstory_collection where key = ?").get(key) as { value: string }).value;
+      expect(meta("directory")).toBe(dataHash);
+      expect(meta("head")).toBe(at.collection!.log);
+      expect(Number(meta("rows"))).toBe(collection.state.rows);
       const dump = (db: Database) => Object.fromEntries(schema.layout.map((t) => [t.name, db.query(`select * from "${t.name}" order by ${t.primaryKey.map((k) => `"${k}"`).join(", ")}`).all()]));
       expect(dump(copy)).toEqual(dump(fresh.database));
     } finally {
@@ -288,8 +291,8 @@ describe.serial("Beetle on the host", () => {
       expect(result.error).toBeUndefined();
       expect(result.value.lists.map((l: any) => l.name).sort()).toEqual(["Community care", "Quiet experiments"]);
       expect(result.value.lists.find((l: any) => l.name === "Community care").size).toBeGreaterThan(0);
-      // It read the host's SQLite copy of the collection, built from the accepted rows.
-      expect(existsSync(join(dataRoot, "beetle", "materialized", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3"))).toBe(true);
+      // It read the collection's database on the host.
+      expect(existsSync(join(dataRoot, "collections", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3"))).toBe(true);
     } finally { controller.abort(); }
   }, 30_000);
 

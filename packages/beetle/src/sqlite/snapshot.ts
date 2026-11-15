@@ -52,13 +52,18 @@ export const sqliteSnapshots = {
   read(layout: readonly Table[], bytes: Uint8Array): RowsByTable {
     const database = Database.deserialize(bytes);
     try {
-      const rows: RowsByTable = {};
-      for (const table of layout) {
-        rows[table.name] = (database.query(`select * from ${quote(table.name)}`).all() as Record<string, unknown>[]).map((row) => unstored(table, row));
-      }
-      return rows;
+      return readDatabaseRows(layout, database);
     } finally {
       database.close();
     }
   },
 };
+
+/** The rows an open database holds in `layout`. */
+export function readDatabaseRows(layout: readonly Table[], database: Database): RowsByTable {
+  const rows: RowsByTable = {};
+  for (const table of layout) {
+    rows[table.name] = (database.query(`select * from ${quote(table.name)}`).all() as Record<string, unknown>[]).map((row) => unstored(table, row));
+  }
+  return rows;
+}

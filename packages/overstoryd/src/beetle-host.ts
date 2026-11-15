@@ -45,10 +45,10 @@ import {
   type ViewsRequest,
   type ViewsRuntime,
 } from "@ovst/protocol";
-import { changedCollectionRows, directoryCollectionSchema, loadDirectoryCollection, rowOperationsBetween, type LogicalSchema } from "@ovst/collection-schema";
+import { rowOperationsBetween, type LogicalSchema } from "@ovst/collection-schema";
 import { SQLiteStore, SQLiteWriteStore } from "@ovst/beetle/sqlite";
-import { Materialization, type LogicalChanges } from "./beetle-materialized.ts";
-import { rowsFromLogical, type LogicalTables, type RowsByTable } from "@ovst/usl";
+import { CollectionDatabases, type CollectionDatabase } from "./collection-databases.ts";
+import type { LogicalTables } from "@ovst/usl";
 import type { HostDaemon, UpdateCaller } from "./overstoryd.ts";
 
 type Read = (hash: ObjectHash) => Promise<Uint8Array>;
@@ -75,19 +75,19 @@ export function isBeetlePath(path: string): boolean {
   return path.endsWith(".beetle") || path.endsWith(".md");
 }
 
+/** A bound collection's database as a view or mutation found it. */
+interface Copy {
+  copy: CollectionDatabase;
+  schemas: import("./collection-databases.ts").CollectionSchemas;
+  path: string;
+  directory: ObjectHash;
+}
+
 /** A file as checked at one root: its program, its code version, and what it read. */
 interface Checked {
   program: Program;
   /** SHA-256 over the paths and texts of the file and every file it uses (Beetle §6). */
   version: string;
-}
-
-/** A bound collection at one root: its rows and where they are. */
-interface Loaded {
-  path: string;
-  directory: ObjectHash;
-  rows: RowsByTable;
-  layout: StoreSchema["layout"];
 }
 
 class Lru<V> {
@@ -127,13 +127,9 @@ export interface BeetleHostOptions {
 
 export class BeetleHost implements AsyncDisposable {
   private readonly checked = new Lru<Checked>();
-  private readonly collections = new Lru<Loaded>();
   private readonly receipts: Database;
-  /** The SQLite copies of collections views read, by tree and collection path. */
-  private readonly materialized = new Map<string, Materialization>();
-  private readonly turns = new Map<string, Promise<unknown>>();
 
-  constructor(readonly daemon: HostDaemon, private readonly dataRoot: string, private readonly options: BeetleHostOptions) {
+  constructor(readonly daemon: HostDaemon, dataRoot: string, private readonly options: BeetleHostOptions) {
     mkdirSync(join(dataRoot, "beetle"), { recursive: true });
     this.receipts = new Database(join(dataRoot, "beetle", "receipts.sqlite3"), { create: true, strict: true });
     this.receipts.exec("pragma journal_mode = wal");
@@ -236,93 +232,25 @@ export class BeetleHost implements AsyncDisposable {
     }
   }
 
-  /** A collection directory's rows in its database layout, cached by the directory's hash. */
-  private async loadRows(path: string, at: { directory: ProtocolDirectory; hash: ObjectHash }): Promise<Loaded | null> {
-    let loaded = this.collections.get(at.hash);
-    if (!loaded) {
-      const collection = await loadDirectoryCollection(at.directory, this.read);
-      if (!collection) return null;
-      const store = new StoreSchema(collection.schema.result);
-      loaded = {
-        path,
-        directory: at.hash,
-        rows: rowsFromLogical(collection.schema.result, store.layout, collection.tables),
-        layout: store.layout,
-      };
-      this.collections.set(at.hash, loaded);
-    }
-    return loaded;
-  }
-
-  /** Run `work` as the only change to one copy. */
-  private turn<T>(key: string, work: () => Promise<T>): Promise<T> {
-    const next = (this.turns.get(key) ?? Promise.resolve()).catch(() => {}).then(work);
-    this.turns.set(key, next);
-    return next.finally(() => { if (this.turns.get(key) === next) this.turns.delete(key); });
-  }
-
-  /**
-   * The SQLite copy of the collection at `path`, caught up to `root`: reopened from disk,
-   * moved by the changed rows of the chunks that differ from the directory it last held, or built from the accepted rows.
-   */
-  private materialize(tree: string, path: string, root: ObjectHash, held = false): Promise<Materialization | null> {
-    const key = `${tree}\0${path}`;
-    return held ? this.catchUp(key, tree, path, root) : this.turn(key, () => this.catchUp(key, tree, path, root));
-  }
-
-  /** Hold the copies at `keys` for `work`, one turn after another in key order. */
-  private holding<T>(keys: readonly string[], work: () => Promise<T>): Promise<T> {
-    const [first, ...rest] = [...new Set(keys)].sort();
-    return first === undefined ? work() : this.turn(first, () => this.holding(rest, work));
-  }
-
-  private async catchUp(key: string, tree: string, path: string, root: ObjectHash): Promise<Materialization | null> {
-    {
-      const at = await this.directoryAt(root, path);
-      if (!at?.directory.collection) return null;
-      const schema = at.directory.entries.find((e) => e.name === "schema.beetle")?.file;
-      if (!schema) return null;
-      const folder = join(this.dataRoot, "beetle", "materialized", tree, encodeURIComponent(path));
-      let copy = this.materialized.get(key) ?? Materialization.reopen(folder) ?? undefined;
-      if (copy && copy.schema === schema && copy.directory === at.hash) {
-        this.materialized.set(key, copy);
-        return copy;
-      }
-      if (copy && copy.schema === schema) {
-        try {
-          // Only the tables and chunks that changed are read, and only their rows are moved.
-          const was = decodeProtocolDirectory(await this.read(copy.directory as ObjectHash));
-          const logical = await directoryCollectionSchema(at.directory, this.read);
-          const changes = await changedCollectionRows(logical, was.collection, at.directory.collection, this.read);
-          copy.applyChanges(new StoreSchema(logical.result), changes, at.hash);
-          this.materialized.set(key, copy);
-          return copy;
-        } catch (error) {
-          console.error("overstoryd: a collection copy could not catch up; rebuilding it", error);
-        }
-      }
-      const after = await this.loadRows(path, at);
-      if (!after) return null;
-      copy?.close();
-      copy = Materialization.build(folder, after.layout, after.rows, at.hash, schema);
-      this.materialized.set(key, copy);
-      return copy;
-    }
+  /** The databases of a tree's collections (Performance 007). */
+  private get databases(): CollectionDatabases {
+    return this.daemon.collections;
   }
 
   /**
    * An evaluator for a view at `root` over the SQLite copies, or null when a copy moved past
    * `root` while another was caught up (the caller asks again at the new head).
    */
-  private async sqliteEvaluator(tree: string, root: ObjectHash, checked: Checked, caller: UpdateCaller | undefined, me: string | null, now: Date, people?: Set<string>, held = false): Promise<{ ev: Evaluator; sources: Map<string, { path: string; directory: ObjectHash }>; copies: Map<string, Materialization> } | null> {
-    const copies = new Map<string, { copy: Materialization; path: string; directory: string }>();
+  private async sqliteEvaluator(tree: string, root: ObjectHash, checked: Checked, caller: UpdateCaller | undefined, me: string | null, now: Date, people?: Set<string>, held = false): Promise<{ ev: Evaluator; sources: Map<string, { path: string; directory: ObjectHash }>; copies: Map<string, Copy> } | null> {
+    const copies = new Map<string, Copy & { head: ObjectHash | null }>();
     for (const schemaPath of checked.program.checker.schemas.keys()) {
       const path = schemaPath.slice(0, schemaPath.lastIndexOf("/")) || "/";
-      const copy = await this.materialize(tree, path, root, held);
-      if (copy) copies.set(schemaPath, { copy, path, directory: copy.directory });
+      const found = await this.databases.at(tree, path, root, held);
+      if (found?.past) return null;
+      if (found) copies.set(schemaPath, { copy: found.database, schemas: found.schemas, path, directory: found.directory, head: found.database.head });
     }
-    // Everything below runs without yielding, so no copy changes while the view reads it.
-    if ([...copies.values()].some(({ copy, directory }) => copy.directory !== directory)) return null;
+    // Everything below runs without yielding, so no database changes while the view reads it.
+    if ([...copies.values()].some(({ copy, head }) => copy.head !== head)) return null;
     const person = this.personFields(caller, people);
     const stores = new Map<string, Store>();
     for (const [schemaPath, entry] of checked.program.checker.schemas) {
@@ -330,8 +258,8 @@ export class BeetleHost implements AsyncDisposable {
       const schema = new StoreSchema(entry.result);
       stores.set(schemaPath, found ? new SQLiteStore(schema, found.copy.database, person) : new Store(schema, {}, person));
     }
-    const sources = new Map([...copies].map(([schemaPath, c]) => [schemaPath, { path: c.path, directory: c.directory as ObjectHash }]));
-    return { ev: new Evaluator(checked.program, stores, { me, now, person }), sources, copies: new Map([...copies].map(([schemaPath, c]) => [schemaPath, c.copy])) };
+    const sources = new Map([...copies].map(([schemaPath, c]) => [schemaPath, { path: c.path, directory: c.directory }]));
+    return { ev: new Evaluator(checked.program, stores, { me, now, person }), sources, copies: new Map(copies) };
   }
 
   /** A person's card fields, as the caller may read them. */
@@ -425,7 +353,7 @@ export class BeetleHost implements AsyncDisposable {
       // Each bound collection's copy is held from its reads to its commit: no view or other
       // mutation catches it up while this one's transaction is open.
       const paths = [...checked.program.checker.schemas.keys()].map((schemaPath) => schemaPath.slice(0, schemaPath.lastIndexOf("/")) || "/");
-      const receipt = await this.holding(paths.map((path) => `${tree}\0${path}`), () => this.mutateAt(tree, head, checked, request, context, subject));
+      const receipt = await this.databases.holding(paths.map((path) => CollectionDatabases.key(tree, path)), () => this.mutateAt(tree, head, checked, request, context, subject));
       if (receipt) return receipt;
     }
     throw new BeetleRefusal("unavailable", "The tree kept changing while the mutation ran", 503, true);
@@ -438,13 +366,6 @@ export class BeetleHost implements AsyncDisposable {
    */
   private async mutateAt(tree: string, head: { id: string; root: string }, checked: Checked, request: MutationCallRequest, context: { user: { profile: string } | null; caller?: UpdateCaller }, subject: string): Promise<MutationResultReceipt | null> {
     const caller = context.caller!;
-    // The logical models of each bound collection.
-    const models = new Map<string, LogicalSchema>();
-    for (const schemaPath of checked.program.checker.schemas.keys()) {
-      const path = schemaPath.slice(0, schemaPath.lastIndexOf("/")) || "/";
-      const at = await this.directoryAt(head.root as ObjectHash, path);
-      if (at?.directory.collection) models.set(schemaPath, await directoryCollectionSchema(at.directory, this.read));
-    }
     const now = this.options.now?.() ?? new Date();
     const run = await this.sqliteEvaluator(tree, head.root as ObjectHash, checked, caller, context.user?.profile ?? null, now, undefined, true);
     if (!run) return null;
@@ -463,12 +384,12 @@ export class BeetleHost implements AsyncDisposable {
       return null; // run it again over the copies at the new head
     }
     // Each changed collection's writes go into a transaction on its copy's own file.
-    const copyOf = new Map<Store, Materialization>();
+    const copyOf = new Map<Store, CollectionDatabase>();
     for (const [schemaPath, store] of run.ev.stores) {
-      const copy = run.copies.get(schemaPath);
+      const copy = run.copies.get(schemaPath)?.copy;
       if (copy) copyOf.set(store, copy);
     }
-    const writing = new Set<Materialization>();
+    const writing = new Set<CollectionDatabase>();
     const writeTo = (store: Store): WriteStore => {
       const copy = copyOf.get(store);
       if (!copy) return new OverlayStore(store);
@@ -484,10 +405,10 @@ export class BeetleHost implements AsyncDisposable {
         throw error;
       }
       const operations: RowOperation[] = [];
-      const settled: Array<{ copy: Materialization; path: string; schema: StoreSchema; changes: LogicalChanges }> = [];
+      const settled: Copy[] = [];
       for (const [schemaPath, { before: was, after: written }] of Object.entries(outcome.changed)) {
         const source = run.sources.get(schemaPath);
-        const logical = models.get(schemaPath);
+        const logical: LogicalSchema | undefined = run.copies.get(schemaPath)?.schemas.logical;
         if (!source || !logical) throw new BeetleRefusal("invalid", "A mutation writes only collections in its tree", 422);
         // Only the rows the mutation touched, and the rows that hold them, become logical rows.
         const touched = editedLogical(was, written, written.edits(), now.getTime());
@@ -496,11 +417,7 @@ export class BeetleHost implements AsyncDisposable {
         if (!ops) throw new BeetleRefusal("internal-error", "The mutation's changes can't be stated as row operations", 500);
         operations.push(...ops);
         const copy = run.copies.get(schemaPath);
-        if (copy && writing.has(copy)) {
-          const changes: LogicalChanges = {};
-          for (const model of new Set([...Object.keys(touched.before), ...Object.keys(next)])) changes[model] = { before: touched.before[model] ?? [], after: next[model] ?? [] };
-          settled.push({ copy, path: source.path, schema: was.schema, changes });
-        }
+        if (copy && writing.has(copy.copy)) settled.push(copy);
       }
       const isDeleted = (table: string, key: unknown) => (outcome.deleted[table] ?? []).some((k) => stableJSONString(k) === stableJSONString(key));
       const rows: RowWrite[] = Object.entries(outcome.writes).flatMap(([table, keys]) => keys.map((key) => ({ table, key: stableJSONString(key), ...(isDeleted(table, key) ? { deleted: true as const } : {}) })))
@@ -519,15 +436,19 @@ export class BeetleHost implements AsyncDisposable {
         this.receipts.query("delete from receipts where tree = ? and subject = ? and mutation_id = ?").run(tree, subject, request.mutationID);
         return null;
       }
-      // Accepted: each copy's transaction commits at the accepted collection's directory.
+      // Accepted: each database's transaction commits as the accepted log entry holds the rows.
       const root = this.daemon.update(affected)?.root as ObjectHash | undefined;
-      for (const { copy, path, schema, changes } of settled) {
+      for (const { copy, schemas, path } of settled) {
         const at = root ? await this.directoryAt(root, path) : null;
-        if (at) copy.commitWrite(schema, changes, at.hash);
+        const log = at?.directory.collection?.log as ObjectHash | undefined;
+        if (!at || !log || !await this.databases.commitAccepted(copy, schemas, log, at.hash)) {
+          copy.rollbackWrite();
+          this.databases.forget(tree, path);
+        }
       }
       return this.settle(tree, subject, request.mutationID, rows, requestDigest, affected);
     } finally {
-      // Whatever didn't commit is rolled back; the copy then catches up from the log.
+      // Whatever didn't commit is rolled back; the database then follows the log.
       for (const copy of writing) copy.rollbackWrite();
     }
   }
@@ -587,9 +508,6 @@ export class BeetleHost implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
-    await Promise.allSettled([...this.turns.values()]);
-    for (const copy of this.materialized.values()) copy.close();
-    this.materialized.clear();
     this.receipts.close();
   }
 }
