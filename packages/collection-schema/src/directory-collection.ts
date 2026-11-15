@@ -99,6 +99,45 @@ function logicalEntryNames(names: Iterable<string>): Set<string> {
   return new Set([...names].flatMap((name) => name === "_index.md" ? [] : [name.endsWith(".md") ? name.slice(0, -3) : name]));
 }
 
+/** Name every row of `tables` (plain) beside a folder's entries: its main model and each model's rows as children. Throws {@link ProtocolCollectionError}. */
+export function nameCollectionRows(entries: Iterable<string>, schema: LogicalSchema, tables: LogicalTables): Pick<DirectoryCollection, "main" | "rows"> {
+  return nameRows(logicalEntryNames(entries), schema, tables);
+}
+
+/**
+ * Require changed rows (new forms, plain) to name distinct children beside a folder's
+ * entries, as {@link checkCollectionNames} does for every row: `named` gives the stable
+ * keys of a model's rows with a name, as the collection is with the changes. With
+ * `entries`, the folder's entry names are checked against its main model's rows by name
+ * too. Throws {@link ProtocolCollectionError}.
+ */
+export function checkChangedRowNames(
+  entries: Iterable<string> | null,
+  schema: LogicalSchema,
+  rows: ReadonlyArray<{ model: string; row: LogicalRow }>,
+  named: (model: string, name: string) => string[],
+): void {
+  const main = schema.result.models.find((m) => m.main)?.name ?? null;
+  const taken = entries ? logicalEntryNames(entries) : null;
+  if (taken) {
+    for (const model of schema.models) {
+      if (model.name !== main && taken.has(model.name)) throw new ProtocolCollectionError("constraint", `The folder has both an entry and a model named ${model.name}`);
+    }
+    if (main) for (const name of taken) if (named(main, name).length) throw new ProtocolCollectionError("constraint", `Two children of the folder are named ${name}`);
+  }
+  for (const { model: name, row } of rows) {
+    const model = schema.models.find((m) => m.name === name);
+    if (!model) continue;
+    const childName = collectionRowName(model, row);
+    const stableKey = logicalRowKey(row);
+    const where = model.name === main ? "the folder" : model.name;
+    if (model.name === main && schema.models.some((m) => m.name !== main && m.name === childName)) {
+      throw new ProtocolCollectionError("constraint", `Two children of ${where} are named ${childName}`);
+    }
+    if (named(model.name, childName).some((key) => key !== stableKey)) throw new ProtocolCollectionError("constraint", `Two children of ${where} are named ${childName}`);
+  }
+}
+
 /** Require rows to name distinct children beside a folder's entries, as a
  * host will on accepting them. Throws {@link ProtocolCollectionError}. */
 export function checkCollectionNames(entries: Iterable<string>, schema: LogicalSchema, tables: LogicalTables): void {

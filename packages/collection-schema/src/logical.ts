@@ -83,19 +83,25 @@ const canonicalText = (v: Value) => JSON.stringify(v);
 class Validator {
   readonly diagnostics: LogicalDiagnostic[] = [];
   readonly models: Map<string, LogicalModel>;
-  /** Each model's row keys, by the canonical JSON of the key value a reference holds. */
-  readonly keys = new Map<string, Set<string>>();
+  /** Whether a model has a row whose key, as a reference holds it, has this canonical JSON. */
+  readonly hasKey: (model: string, reference: string) => boolean;
   readonly enums = new Map<string, Set<string>>();
   rowSteps = 0;
-  collectionSteps = COLLECTION_SCHEMA_LIMITS["collection-steps"];
+  collectionSteps: number = COLLECTION_SCHEMA_LIMITS["collection-steps"];
   model = "";
   row = "";
 
-  constructor(readonly schema: LogicalSchema, tables: LogicalTables) {
+  constructor(readonly schema: LogicalSchema, tables: LogicalTables | ((model: string, reference: string) => boolean)) {
     this.models = new Map(schema.models.map((m) => [m.name, m]));
     for (const m of schema.result.models) if (m.rows === "fixed") this.enums.set(m.name, new Set(m.schemaRows.map((r) => r.name)));
-    for (const model of schema.models) {
-      this.keys.set(model.name, new Set((tables[model.name] ?? []).map((r) => canonicalText(referenceTo(model, r)))));
+    if (typeof tables === "function") {
+      this.hasKey = tables;
+    } else {
+      const keys = new Map<string, Set<string>>();
+      for (const model of schema.models) {
+        keys.set(model.name, new Set((tables[model.name] ?? []).map((r) => canonicalText(referenceTo(model, r)))));
+      }
+      this.hasKey = (model, reference) => keys.get(model)?.has(reference) ?? false;
     }
   }
 
@@ -141,7 +147,7 @@ class Validator {
     }
     const target = this.models.get(field.type)!;
     if (!this.keyValue(target, value, path)) return false;
-    return this.keys.get(target.name)!.has(canonicalText(value))
+    return this.hasKey(target.name, canonicalText(value))
       || this.report("unknown-row", path, `No ${target.name} row has the key ${canonicalText(value)}`);
   }
 
@@ -248,6 +254,64 @@ export function checkLogicalTables(schema: LogicalSchema, tables: LogicalTables)
       limit: error.limit,
       message: error.limit === "row-steps" ? "Validating the row exceeds its step budget" : "Validating the collection exceeds its step budget",
     });
+  }
+  return v.diagnostics;
+}
+
+/** What a check of changed rows asks about the collection as it is with them. */
+export interface ChangedRowLookup {
+  /** Whether `model` has a row whose key, as a reference holds it, has this canonical JSON. */
+  hasKey(model: string, reference: string): boolean;
+  /** The stable keys of `model`'s rows whose `field` holds `value`. */
+  holding(model: string, field: string, value: LogicalRow["fields"][string]): string[];
+  /** The rows that still refer to the row of `model` with this stable key. */
+  referrers(model: string, stableKey: string): Array<{ model: string; row: string }>;
+}
+
+/** A row an accepted change sets to its new form (plain, dates as text), or removes. */
+export interface ChangedRow {
+  model: string;
+  key: LogicalRow["key"];
+  row: LogicalRow | null;
+}
+
+/**
+ * Validate a collection's changed rows against the schema (spec 06 §2.5) as the collection
+ * is with them, asking `lookup` about the rest: each new form's key, types and arity,
+ * required fields, references to existing rows and enum values, and `unique` fields; and
+ * that no row still refers to a removed one. The same rows give the same diagnostic codes
+ * as {@link checkLogicalTables}; the collection's step budget, a bound on checking every
+ * row, isn't spent.
+ */
+export function checkChangedRows(schema: LogicalSchema, changes: readonly ChangedRow[], lookup: ChangedRowLookup): LogicalDiagnostic[] {
+  const v = new Validator(schema, (model, reference) => lookup.hasKey(model, reference));
+  v.collectionSteps = Number.POSITIVE_INFINITY;
+  const fail = (model: string, message: string) => [{ model, row: "", code: "unknown-member" as const, path: "", message }];
+  for (const change of changes) if (!v.models.has(change.model)) return fail(change.model, `The schema has no model ${change.model} with data rows`);
+  try {
+    for (const change of changes) {
+      const model = v.models.get(change.model)!;
+      if (!change.row) {
+        v.model = model.name;
+        v.row = logicalRowKey(change);
+        for (const referrer of lookup.referrers(model.name, v.row)) {
+          v.model = referrer.model;
+          v.row = referrer.row;
+          v.report("unknown-row", "", `No ${model.name} row has the key ${canonicalText(referenceTo(model, change))}`);
+        }
+        continue;
+      }
+      v.row_(model, change.row);
+      for (const field of model.fields) {
+        if (!field.unique || !Object.hasOwn(change.row.fields, field.name)) continue;
+        const other = lookup.holding(model.name, field.name, change.row.fields[field.name]!).find((key) => key !== v.row);
+        if (other !== undefined) v.report("duplicate-value", pointer("/fields", field.name), `The row ${other} has the same ${field.name}`);
+      }
+      if (v.diagnostics.length >= MAX_DIAGNOSTICS) return v.diagnostics;
+    }
+  } catch (error) {
+    if (!(error instanceof BudgetExceeded)) throw error;
+    v.diagnostics.push({ model: v.model, row: v.row, code: "budget-exceeded", path: "", limit: error.limit, message: "Validating the row exceeds its step budget" });
   }
   return v.diagnostics;
 }

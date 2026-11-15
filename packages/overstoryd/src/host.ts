@@ -1139,7 +1139,7 @@ export async function serveHost(options: {
           }
           const tree = resolved.tree;
           const load = (hash: ObjectHash) => overstoryd.object(hash);
-          const projection = new ProtocolProjection({ root: tree.ref, load });
+          const projection = new ProtocolProjection({ root: tree.ref, load, collectionRows: (path) => overstoryd.collections.namedRows(tree.id, path, tree.ref as ObjectHash) });
           const resolution = await projection.resolve(resolved.path, requestLocator.stableKey);
           if (resolution.kind === "missing") return pageNotFound();
           const logicalPath = resolution.path;
@@ -1217,7 +1217,7 @@ export async function serveHost(options: {
           const wantsMarkdown = request.headers.get("accept")?.includes("text/markdown");
           // A folder's page is its source, byte for byte.
           if (wantsMarkdown && logical.body) return markdown(source);
-          const collectionTables = await projection.collectionTables(logical.directory);
+          const collectionTables = await projection.collectionTables(logical.directory, logicalPath);
           const physicalChildren = (await Promise.all(logical.directory.entries
             // A collection's schema is its contract, not one of its children.
             .filter((entry) => entry.name !== "_index.md" && !(logical.directory.collection && isCollectionSchemaName(entry.name)))

@@ -21,12 +21,14 @@ export {
   loadDirectoryCollection,
   ProtocolCollectionError,
   checkCollectionNames,
+  checkChangedRowNames,
+  nameCollectionRows,
   type CollectionRowNode,
   type DirectoryCollection,
 } from "./directory-collection.ts";
 export { mergeCollectionRows, mergeMembers, type RowFieldConflict, type TextMerge } from "./row-merge.ts";
 export { deriveRowOperations, rowOperationsBetween } from "./row-diff.ts";
-export { changedCollectionRows, compileLogicalSchema, checkLogicalTables, encodeCollection, loadCollection, LogicalCollectionError, plainRows, plainTables, treeTables, type EncodedCollection, type LogicalDiagnostic, type LogicalSchema } from "./logical.ts";
+export { changedCollectionRows, checkChangedRows, compileLogicalSchema, checkLogicalTables, type ChangedRow, type ChangedRowLookup, encodeCollection, loadCollection, LogicalCollectionError, plainRows, plainTables, treeTables, type EncodedCollection, type LogicalDiagnostic, type LogicalSchema } from "./logical.ts";
 export {
   appendRowChanges,
   applyRowChanges,

@@ -14,12 +14,17 @@ import {
   type ProtocolDirectory,
   type ProtocolDirectoryEntry,
 } from "@ovst/protocol";
-import { collectionRowProperties, loadDirectoryCollection, type CollectionSchemaCache } from "@ovst/collection-schema";
+import { collectionRowProperties, loadDirectoryCollection, type CollectionRowNode, type CollectionSchemaCache } from "@ovst/collection-schema";
 
 export interface ProtocolProjectionOptions {
   root: ObjectHash;
   load(hash: ObjectHash): Promise<Uint8Array>;
   schemas?: CollectionSchemaCache;
+  /**
+   * A collection folder's rows at `root`, named, from the host's database of it; undefined
+   * when it can't answer, and the folder's log is read instead.
+   */
+  collectionRows?(path: string): Promise<{ main: string | null; rows: Map<string, CollectionRowNode[]> } | null | undefined>;
 }
 
 /** One row of a logical collection, as a page. */
@@ -79,8 +84,9 @@ export class ProtocolProjection {
   /** The validated tables of a collection directory, one per model with
    * data rows: the main model's are the directory's children (`table: null`),
    * each other's a child named after its model. */
-  async collectionTables(directory: ProtocolDirectory): Promise<ProtocolCollectionTable[] | null> {
-    const collection = await loadDirectoryCollection(directory, this.options.load, this.options.schemas);
+  async collectionTables(directory: ProtocolDirectory, path?: string): Promise<ProtocolCollectionTable[] | null> {
+    const named = path !== undefined ? await this.options.collectionRows?.(path) : undefined;
+    const collection = named !== undefined ? named : await loadDirectoryCollection(directory, this.options.load, this.options.schemas);
     if (!collection) return null;
     return [...collection.rows].map(([model, rows]) => ({
       table: model === collection.main ? null : model,
@@ -108,7 +114,7 @@ export class ProtocolProjection {
       const folderPath = `/${folder.join("/")}`;
       const parent = await resolveProtocolLogicalNode(this.options.root, folderPath, this.options.load);
       if (parent?.kind !== "directory" || !parent.directory.collection) return null;
-      const tables = await this.collectionTables(parent.directory);
+      const tables = await this.collectionTables(parent.directory, folderPath);
       if (!tables) return null;
       if (table === null) {
         const found = tables.find((t) => t.table === segment);

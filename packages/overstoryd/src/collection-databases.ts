@@ -10,23 +10,45 @@
 // log into memory.
 
 import { Database } from "bun:sqlite";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { canonical, logicalRowsByKey, StoreSchema } from "@ovst/beetle";
 import { readDatabaseRows, SQLiteStore } from "@ovst/beetle/sqlite";
 import {
   decodeProtocolDirectory,
   decodeProtocolLog,
+  encodedRow,
+  encodeProtocolDirectory,
+  hashObject,
   LtHash,
   logicalRowKey,
   rowHashElement,
+  type Hash,
   type LogicalRow,
   type ObjectHash,
   type ProtocolDirectory,
   type ProtocolLog,
   type RowChange,
+  type RowOperation,
 } from "@ovst/protocol";
-import { directoryCollectionSchema, plainRows, treeTables, type CollectionSchemaCache, type LogicalSchema } from "@ovst/collection-schema";
+import {
+  applyRowOperations,
+  checkChangedRowNames,
+  checkChangedRows,
+  collectionRowName,
+  directoryCollectionSchema,
+  encodedLogEntry,
+  LogicalCollectionError,
+  nameCollectionRows,
+  plainRows,
+  ProtocolCollectionError,
+  treeTables,
+  type ChangedRow,
+  type ChangedRowLookup,
+  type CollectionRowNode,
+  type CollectionSchemaCache,
+  type LogicalSchema,
+} from "@ovst/collection-schema";
 import { logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable, type Table } from "@ovst/usl";
 import { changedCollectionFolders } from "./collection-snapshots.ts";
 
@@ -371,6 +393,221 @@ export function changedKeys(logical: LogicalSchema, changes: readonly RowChange[
   return keys;
 }
 
+/** How many log entries the host built or checked and hasn't yet seen accepted are kept. */
+const PENDING = 64;
+/** How far back a candidate's new log entries are followed to an entry the host holds. */
+const NEW_ENTRIES = 1_000;
+
+/** A row as one of a tree's entries in the log: its form there, by model and stable key. */
+const id = (model: string, stableKey: string) => `${model}\0${stableKey}`;
+
+/**
+ * A collection as of one log entry: its database, at that entry or one before it in the
+ * same chain, and the rows the entries after that changed (plain, null when removed).
+ * Valid only while the database is at an entry in `chain`.
+ */
+class CollectionView {
+  constructor(
+    readonly database: CollectionDatabase,
+    readonly schemas: CollectionSchemas,
+    readonly head: ObjectHash | null,
+    readonly position: { rows: number; lthash: LtHash },
+    readonly overlay: ReadonlyMap<string, LogicalRow | null>,
+    readonly chain: ReadonlySet<ObjectHash | null>,
+  ) {}
+
+  get valid(): boolean {
+    return this.chain.has(this.database.head);
+  }
+
+  private get logical(): LogicalSchema {
+    return this.schemas.logical;
+  }
+
+  private model(name: string) {
+    return this.logical.models.find((m) => m.name === name);
+  }
+
+  /** The rows of `keys` (plain) as of this view: changed ones from the overlay, the rest from the database. */
+  rowsByKey(keys: Readonly<Record<string, ReadonlyArray<LogicalRow["key"]>>>): LogicalTables {
+    const out: LogicalTables = {};
+    const wanted: Record<string, LogicalRow["key"][]> = {};
+    for (const [model, list] of Object.entries(keys)) {
+      for (const key of list) {
+        const changed = this.overlay.get(id(model, logicalRowKey({ key })));
+        if (changed === undefined) (wanted[model] ??= []).push(key);
+        else if (changed) (out[model] ??= []).push(changed as LogicalTables[string][number]);
+      }
+    }
+    for (const [model, list] of Object.entries(this.database.rowsByKey(this.schemas.store, wanted))) (out[model] ??= []).push(...list);
+    return out;
+  }
+
+  /** The stored primary key values of a row of `model` with `key`. */
+  private storedKey(model: string, key: LogicalRow["key"]): { table: Table; values: unknown[] } | null {
+    const name = this.schemas.store.tableOf(model);
+    const table = name ? this.schemas.store.byName.get(name) : undefined;
+    if (!table) return null;
+    const row = rowsFromLogical(this.schemas.store.result, this.schemas.store.layout, { [model]: [{ key, fields: {}, created: 0, modified: 0 }] } as LogicalTables)[table.name]?.[0];
+    if (!row) return null;
+    return { table, values: table.primaryKey.map((c) => stored(row[c] ?? null)) };
+  }
+
+  /** A stable key from a model table's row, whose key columns are the key fields'. */
+  private stableKeyOf(model: string, row: Record<string, unknown>): string | null {
+    const logical = this.model(model);
+    if (!logical) return null;
+    const key = logical.keyFields.map((f) => [f.name, row[f.name] ?? null] as [string, unknown]);
+    return logicalRowKey({ key: key as LogicalRow["key"] });
+  }
+
+  /** Whether a row of `model` with `key` is there. */
+  exists(model: string, key: LogicalRow["key"]): boolean {
+    const changed = this.overlay.get(id(model, logicalRowKey({ key })));
+    if (changed !== undefined) return changed !== null;
+    const found = this.storedKey(model, key);
+    if (!found) return false;
+    return this.database.database.query(`select 1 from ${quote(found.table.name)} where ${found.table.primaryKey.map((c) => `${quote(c)} is ?`).join(" and ")} limit 1`).get(...found.values as never[]) !== null;
+  }
+
+  /** The stable keys of `model`'s rows whose stored `column` holds `value`, as of this view. */
+  private rowsWhere(model: string, column: string, value: unknown, matches: (row: LogicalRow) => boolean): string[] {
+    const name = this.schemas.store.tableOf(model);
+    const table = name ? this.schemas.store.byName.get(name) : undefined;
+    const out = new Set<string>();
+    if (table) {
+      const rows = this.database.database.query(`select ${table.primaryKey.map(quote).join(", ")} from ${quote(table.name)} where ${quote(column)} is ?`).all(stored(value) as never) as Array<Record<string, unknown>>;
+      for (const row of rows) {
+        const key = this.stableKeyOf(model, row);
+        if (key !== null && this.overlay.get(id(model, key)) === undefined) out.add(key);
+      }
+    }
+    for (const [at, row] of this.overlay) {
+      const [rowModel, key] = at.split("\0") as [string, string];
+      if (rowModel === model && row && matches(row)) out.add(key);
+    }
+    return [...out];
+  }
+
+  /** The column a model's own `field` is stored in, and the value it stores for `value`. */
+  private storedField(model: string, field: string, value: unknown): { column: string; value: unknown } | null {
+    const logical = this.model(model);
+    const name = this.schemas.store.tableOf(model);
+    const table = name ? this.schemas.store.byName.get(name) : undefined;
+    const columns = table?.fields.find((f) => f.name === field)?.columns;
+    if (!logical || !table || columns?.length !== 1) return null;
+    const row = { key: logical.keyFields.map((f) => [f.name, null]), fields: { [field]: value }, created: 0, modified: 0 };
+    const storedRow = rowsFromLogical(this.schemas.store.result, this.schemas.store.layout, { [model]: [row] } as unknown as LogicalTables)[table.name]?.[0];
+    return { column: columns[0]!, value: storedRow?.[columns[0]!] ?? null };
+  }
+
+  lookup(): ChangedRowLookup & { named(model: string, name: string): string[] } {
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    return {
+      hasKey: (model, reference) => {
+        const logical = this.model(model);
+        if (!logical) return false;
+        const value = JSON.parse(reference) as unknown;
+        const key = (logical.keyFields.length === 1 ? [[logical.keyFields[0]!.name, value]] : value) as LogicalRow["key"];
+        return Array.isArray(key) && this.exists(model, key);
+      },
+      holding: (model, field, value) => {
+        const where = this.storedField(model, field, value);
+        if (!where) return [];
+        return this.rowsWhere(model, where.column, where.value, (row) => same(row.fields[field], value));
+      },
+      referrers: (model, stableKey) => this.referrers(model, JSON.parse(stableKey) as LogicalRow["key"]),
+      named: (model, name) => {
+        const logical = this.model(model);
+        if (!logical) return [];
+        const matches = (row: LogicalRow) => {
+          try { return collectionRowName(logical, row) === name; } catch { return false; }
+        };
+        if (logical.path && !logical.key.includes(logical.path)) {
+          const where = this.storedField(model, logical.path, name);
+          return where ? this.rowsWhere(model, where.column, where.value, matches) : [];
+        }
+        // Named by a key: the row with that key, if there is one and it is named so.
+        const keys: LogicalRow["key"][] = [];
+        if (name.startsWith("~row-")) {
+          try {
+            const text = new TextDecoder().decode(Uint8Array.from(atob(name.slice(5).replaceAll("-", "+").replaceAll("_", "/")), (c) => c.charCodeAt(0)));
+            keys.push(JSON.parse(text) as LogicalRow["key"]);
+          } catch { /* not a key's name */ }
+        } else if (logical.keyFields.length === 1) {
+          keys.push([[logical.keyFields[0]!.name, name]] as LogicalRow["key"]);
+        }
+        const out: string[] = [];
+        for (const key of keys) {
+          const [row] = this.rowsByKey({ [model]: [key] })[model] ?? [];
+          if (row && matches(row as LogicalRow)) out.push(logicalRowKey({ key }));
+        }
+        return out;
+      },
+    };
+  }
+
+  /**
+   * The rows that still refer to the row of `model` with `key`, as of this view: rows of a
+   * table whose foreign key names it, and the rows that hold it as a member through a join
+   * table. A row the overlay changed is checked in its own new form instead.
+   */
+  private referrers(model: string, key: LogicalRow["key"]): Array<{ model: string; row: string }> {
+    const target = this.storedKey(model, key);
+    if (!target) return [];
+    const store = this.schemas.store;
+    const out = new Map<string, { model: string; row: string }>();
+    for (const table of store.layout) {
+      for (const fk of table.foreignKeys) {
+        if (fk.table !== target.table.name) continue;
+        const values = fk.refColumns.map((c) => target.values[target.table.primaryKey.indexOf(c)] ?? null);
+        const where = fk.columns.map((c) => `${quote(c)} is ?`).join(" and ");
+        if (table.ends) {
+          // A join row: its other end's row holds this one as a member, if that end holds the field.
+          const end = table.ends.find((e) => e.columns.length === fk.columns.length && e.columns.every((c, i) => c === fk.columns[i]));
+          const other = end && table.ends.find((e) => e !== end);
+          if (!other || !this.model(other.model)?.fields.some((f) => f.name === other.field)) continue;
+          const holderTable = store.byName.get(store.tableOf(other.model) ?? "");
+          if (!holderTable) continue;
+          for (const row of this.database.database.query(`select ${other.columns.map(quote).join(", ")} from ${quote(table.name)} where ${where}`).all(...values as never[]) as Array<Record<string, unknown>>) {
+            const holder: Record<string, unknown> = {};
+            holderTable.primaryKey.forEach((c, i) => { holder[c] = row[other.columns[i]!]; });
+            const stableKey = this.stableKeyOf(other.model, holder);
+            if (stableKey !== null && this.overlay.get(id(other.model, stableKey)) === undefined) out.set(id(other.model, stableKey), { model: other.model, row: stableKey });
+          }
+          continue;
+        }
+        const referring = store.modelOfTable(table.name);
+        if (!this.model(referring)) continue;
+        for (const row of this.database.database.query(`select ${table.primaryKey.map(quote).join(", ")} from ${quote(table.name)} where ${where}`).all(...values as never[]) as Array<Record<string, unknown>>) {
+          const stableKey = this.stableKeyOf(referring, row);
+          if (stableKey !== null && this.overlay.get(id(referring, stableKey)) === undefined) out.set(id(referring, stableKey), { model: referring, row: stableKey });
+        }
+      }
+    }
+    return [...out.values()];
+  }
+}
+
+/** A row change as plain rows. */
+function plainChange(logical: LogicalSchema, change: RowChange): ChangedRow {
+  const key = plainRows(logical, change.model, [{ key: change.key, fields: {}, created: 0, modified: 0 } as LogicalRow])[0]!.key as LogicalRow["key"];
+  return { model: change.model, key, row: change.row ? plainRows(logical, change.model, [change.row])[0] as LogicalRow : null };
+}
+
+/** A plain row change as the log holds it (Date fields tagged). */
+function treeChange(logical: LogicalSchema, change: ChangedRow): RowChange {
+  const [key] = treeTables(logical, { [change.model]: [{ key: change.key, fields: {}, created: 0, modified: 0 }] } as LogicalTables)[change.model]!;
+  const row = change.row ? treeTables(logical, { [change.model]: [change.row] } as LogicalTables)[change.model]![0]! : null;
+  return { model: change.model, key: key!.key, row };
+}
+
+/** Thrown for changes a collection's schema refuses, as row replay's own errors say. */
+function refused(error: unknown): never {
+  if (error instanceof ProtocolCollectionError) throw new Error(`Invalid row operation: ${error.message}`);
+  throw error;
+}
+
 /** A collection's database as asked for at one root. */
 export interface CollectionAt {
   database: CollectionDatabase;
@@ -387,6 +624,12 @@ export class CollectionDatabases {
   private readonly turns = new Map<string, Promise<unknown>>();
   /** Each tree's newest accepted update still being applied to its databases. */
   private readonly advancing = new Map<string, Promise<void>>();
+  /** Log entries this host built or checked that aren't yet a database's, by entry hash. */
+  private readonly pending = new Map<ObjectHash, CollectionView>();
+  /** The trees whose databases on disk have all been opened. */
+  private readonly scanned = new Set<string>();
+  /** How often row replay and collection checks ran on a database, and how often on a whole log instead. */
+  readonly counts = { replayed: 0, replayedFromLog: 0, checked: 0, checkedWhole: 0 };
 
   constructor(
     private readonly root: string,
@@ -594,6 +837,221 @@ export class CollectionDatabases {
       throw error;
     }
     return database;
+  }
+
+  /** Open every database of `tree` left on disk, so that one can be found by the entry it is at. */
+  private openTree(tree: string): void {
+    if (this.scanned.has(tree)) return;
+    this.scanned.add(tree);
+    const folder = join(this.root, tree);
+    if (!existsSync(folder)) return;
+    for (const name of readdirSync(folder)) {
+      const key = CollectionDatabases.key(tree, decodeURIComponent(name));
+      if (this.open.has(key)) continue;
+      const database = CollectionDatabase.reopen(join(folder, name));
+      if (database) this.open.set(key, database);
+    }
+  }
+
+  /**
+   * The collection of `directory` as of its log entry `head`: a database of `tree` at that
+   * entry, or an entry this host built or checked on one. Null when neither holds it.
+   */
+  private viewAt(tree: string, directory: ProtocolDirectory, head: ObjectHash | null, schemas: CollectionSchemas): CollectionView | null {
+    const schemaFile = directory.entries.find((e) => e.name === "schema.beetle")?.file;
+    const pending = head ? this.pending.get(head) : undefined;
+    if (pending) return pending.valid && pending.database.schema === schemaFile ? pending : null;
+    this.openTree(tree);
+    for (const [key, database] of this.open) {
+      if (!key.startsWith(`${tree}\0`) || database.head !== head || database.schema !== schemaFile || !head) continue;
+      return new CollectionView(database, schemas, head, { rows: database.rows, lthash: database.lthash }, new Map(), new Set([head]));
+    }
+    return null;
+  }
+
+  /** Keep a view for its entry, the newest `PENDING` of them. */
+  private keep(view: CollectionView): void {
+    if (!view.head) return;
+    this.pending.delete(view.head);
+    this.pending.set(view.head, view);
+    while (this.pending.size > PENDING) this.pending.delete(this.pending.keys().next().value!);
+  }
+
+  /**
+   * The view after `changes` (plain, each row once) on `view`, checked as accepting them
+   * requires: each changed row against the schema and the rest of the collection, row
+   * names, and the row count and rows hash, which `expect` gives when the entry exists.
+   * Throws {@link ProtocolCollectionError} for changes the collection refuses.
+   */
+  private extend(view: CollectionView, entries: Iterable<string> | null, changes: readonly ChangedRow[], expect?: { hash: ObjectHash; entry: ProtocolLog }): { view: CollectionView; entry: { hash: ObjectHash; bytes?: Uint8Array } } {
+    const { logical } = view.schemas;
+    const overlay = new Map(view.overlay);
+    for (const change of changes) overlay.set(id(change.model, logicalRowKey(change)), change.row);
+    const next = new CollectionView(view.database, view.schemas, null, view.position, overlay, view.chain);
+    const lookup = next.lookup();
+    const diagnostics = checkChangedRows(logical, changes, lookup);
+    if (diagnostics.length > 0) throw new ProtocolCollectionError("constraint", new LogicalCollectionError(diagnostics).message);
+    checkChangedRowNames(entries, logical, changes.flatMap((c) => (c.row ? [{ model: c.model, row: c.row }] : [])), lookup.named);
+    const keys: Record<string, LogicalRow["key"][]> = {};
+    for (const change of changes) (keys[change.model] ??= []).push(change.key);
+    const before = view.rowsByKey(keys);
+    const tree = changes.map((change) => treeChange(logical, change));
+    const after = positionAfter(view.schemas, { head: view.head, rows: view.position.rows, lthash: view.position.lthash, directory: "" }, before, tree);
+    let entry: { hash: ObjectHash; bytes?: Uint8Array };
+    if (expect) {
+      if (after.rows !== expect.entry.rows || after.lthash.hash() !== expect.entry.rowsHash) throw new ProtocolCollectionError("constraint", `Log entry ${expect.hash} doesn't hold the rows its count and rows hash say`);
+      entry = { hash: expect.hash };
+    } else {
+      const encoded = encodedLogEntry({ type: "log", previous: view.head as Hash | null, rows: after.rows, rowsHash: after.lthash.hash(), changes: tree });
+      entry = { hash: encoded.hash as ObjectHash, bytes: encoded.bytes };
+    }
+    const chain = new Set(view.chain);
+    chain.add(entry.hash);
+    const result = new CollectionView(view.database, view.schemas, entry.hash, { rows: after.rows, lthash: after.lthash }, overlay, chain);
+    this.keep(result);
+    return { view: result, entry };
+  }
+
+  /**
+   * Row replay (spec 10 §4.1) over `tree`'s databases: the operations apply to just the
+   * rows they name, read from the database at the directory's log entry, and are checked
+   * against the rest of the collection there, so no whole collection is read. Null when no
+   * database of the tree is at that entry; the caller replays from the log instead.
+   */
+  async replay(tree: string, directoryHash: ObjectHash, operations: readonly RowOperation[], read: Load, at: number): Promise<{ directory: ObjectHash; generated: Map<ObjectHash, Uint8Array> } | null> {
+    const directory = decodeProtocolDirectory(await read(directoryHash));
+    const collection = directory.collection;
+    if (!collection) return null;
+    let logical: LogicalSchema;
+    try {
+      logical = await directoryCollectionSchema(directory, read, this.schemas);
+    } catch (error) {
+      return refused(error);
+    }
+    if (logical.fingerprint !== collection.modelFingerprint) return null;
+    // Everything from here runs without yielding, so no database moves under it.
+    const view = this.viewAt(tree, directory, collection.log as ObjectHash, { logical, store: new StoreSchema(logical.result) });
+    if (!view) {
+      this.counts.replayedFromLog++;
+      return null;
+    }
+    this.counts.replayed++;
+    const keys: Record<string, LogicalRow["key"][]> = {};
+    for (const operation of operations) {
+      try { (keys[operation.model] ??= []).push(JSON.parse(operation.row) as LogicalRow["key"]); } catch { throw new Error("Invalid row operation: its row is not a stable key"); }
+    }
+    const current = view.rowsByKey(keys);
+    const applied = applyRowOperations(logical, current, operations, at);
+    const changes: ChangedRow[] = [];
+    for (const [model, list] of Object.entries(keys)) {
+      const was = new Map((current[model] ?? []).map((row) => [logicalRowKey(row as LogicalRow), row as LogicalRow]));
+      const is = new Map((applied[model] ?? []).map((row) => [logicalRowKey(row as LogicalRow), row as LogicalRow]));
+      for (const stableKey of new Set(list.map((key) => logicalRowKey({ key })))) {
+        const before = was.get(stableKey), after = is.get(stableKey);
+        if (!before && !after) continue;
+        if (before && after && encodedRow(treeChange(logical, { model, key: after.key, row: after }).row!).hash === encodedRow(treeChange(logical, { model, key: before.key, row: before }).row!).hash) continue;
+        changes.push({ model, key: (after ?? before)!.key, row: after ?? null });
+      }
+    }
+    const generated = new Map<ObjectHash, Uint8Array>();
+    let log = collection.log as ObjectHash;
+    if (changes.length > 0) {
+      let extended;
+      try {
+        extended = this.extend(view, null, changes);
+      } catch (error) {
+        return refused(error);
+      }
+      generated.set(extended.entry.hash, extended.entry.bytes!);
+      log = extended.entry.hash;
+    }
+    const bytes = encodeProtocolDirectory({ ...directory, collection: { ...collection, log: log as Hash } });
+    const hash = hashObject(bytes);
+    generated.set(hash, bytes);
+    return { directory: hash, generated };
+  }
+
+  /**
+   * Check a candidate's collection directory against `tree`'s databases (collections §1):
+   * each new log entry back to one the host holds is applied to the rows there and checked,
+   * and the folder's entries are checked against its rows' names. False when no database or
+   * entry the host holds is reached; the caller checks the whole collection instead.
+   * Throws {@link ProtocolCollectionError} for a collection the host refuses.
+   */
+  async check(tree: string, directory: ProtocolDirectory, read: Load): Promise<boolean> {
+    const collection = directory.collection;
+    if (!collection) return true;
+    const logical = await directoryCollectionSchema(directory, read, this.schemas);
+    if (logical.fingerprint !== collection.modelFingerprint) throw new ProtocolCollectionError("source", "collection.modelFingerprint doesn't match the folder's schema.beetle");
+    const schemas = { logical, store: new StoreSchema(logical.result) };
+    const entries: Array<{ hash: ObjectHash; entry: ProtocolLog }> = [];
+    let base: CollectionView | null = null;
+    for (let at: ObjectHash | null = collection.log as ObjectHash; entries.length <= NEW_ENTRIES;) {
+      base = this.viewAt(tree, directory, at, schemas);
+      if (base || !at) break;
+      const entry = decodeProtocolLog(await read(at));
+      if (!("changes" in entry)) {
+        this.counts.checkedWhole++;
+        return false;
+      }
+      entries.push({ hash: at, entry });
+      at = entry.previous as ObjectHash | null;
+    }
+    // Everything from here runs without yielding, so no database moves under it.
+    if (!base || !base.valid || entries.some(({ entry }, i) => entry.previous !== (entries[i + 1]?.hash ?? base!.head))) {
+      this.counts.checkedWhole++;
+      return false;
+    }
+    this.counts.checked++;
+    let view: CollectionView = base;
+    for (const { hash, entry } of entries.reverse()) {
+      if (entry.previous !== view.head) return false;
+      if (entry.previous !== null && !("changes" in entry && entry.changes.length)) throw new ProtocolCollectionError("constraint", `Log entry ${hash} changes no row`);
+      view = this.extend(view, null, (entry as { changes: RowChange[] }).changes.map((change) => plainChange(logical, change)), { hash, entry }).view;
+    }
+    checkChangedRowNames(directory.entries.map((e) => e.name), logical, [], view.lookup().named);
+    return true;
+  }
+
+  /**
+   * A collection's rows at `root`, named as its folder's children: read from its database
+   * when that is at `root`'s entry. Null when there is no collection there; undefined when
+   * the database has moved past `root`, which the caller reads from the log instead.
+   */
+  async namedRows(tree: string, path: string, root: ObjectHash): Promise<{ main: string | null; rows: Map<string, CollectionRowNode[]> } | null | undefined> {
+    const found = await this.at(tree, path, root);
+    if (!found) return null;
+    if (found.past) return undefined;
+    const at = await this.directoryAt(root, path);
+    if (!at || found.database.head !== at.directory.collection?.log) return undefined;
+    return nameCollectionRows(at.directory.entries.map((e) => e.name), found.schemas.logical, found.database.allRows(found.schemas.store));
+  }
+
+  /**
+   * The row a path below a collection folder names at `root` (reading and watching §1.2.4),
+   * `rest` being the path's names below the folder: the main model's row by name, or another
+   * model's row by its model and name, as the log holds it (Date fields tagged). "table" for
+   * a path that names a model's table; an empty list for a name no row has. Undefined when
+   * the database isn't at `root`'s entry, which the caller reads from the log instead.
+   */
+  async rowAt(tree: string, path: string, root: ObjectHash, rest: readonly string[]): Promise<Array<{ model: string; row: LogicalRow }> | "table" | undefined> {
+    const found = await this.at(tree, path, root);
+    if (!found || found.past) return undefined;
+    const at = await this.directoryAt(root, path);
+    const head = at?.directory.collection?.log as ObjectHash | undefined;
+    if (!at || !head || found.database.head !== head) return undefined;
+    const { logical } = found.schemas;
+    const main = logical.result.models.find((m) => m.main)?.name ?? null;
+    const tableNamed = rest[0] !== main && logical.models.some((m) => m.name === rest[0]);
+    if (tableNamed && rest.length === 1) return "table";
+    const [model, name] = tableNamed ? [rest[0]!, rest[1]] : [main, rest[0]];
+    if (!model || name === undefined || rest.length !== (tableNamed ? 2 : 1)) return [];
+    const view = new CollectionView(found.database, found.schemas, head, { rows: found.database.rows, lthash: found.database.lthash }, new Map(), new Set([head]));
+    const [stableKey] = view.lookup().named(model, name);
+    if (stableKey === undefined) return [];
+    const [row] = view.rowsByKey({ [model]: [JSON.parse(stableKey) as LogicalRow["key"]] })[model] ?? [];
+    if (!row) return [];
+    return [{ model, row: treeTables(logical, { [model]: [row] } as LogicalTables)[model]![0]! }];
   }
 
   /** Forget a database whose rows a failed write left unknown; it is reopened or rebuilt when next asked for. */

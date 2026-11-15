@@ -61,7 +61,21 @@ rows hash (collections §1, data model §5).
   still gathered and checked for conflicts by the evaluator, whose reads are SQL; the plan's
   temp facts table and conflict query weren't needed for that. A Supplies mutation takes 13
   to 14 ms end to end (12 to 13 before).
-- Not yet: the host's database as the working form, the switch.
+- The host's database is the working form (step 1): every collection on the host has one,
+  `<data>/collections/<tree>/<path>` (`collection-databases.ts`), recording its log entry,
+  row count and LtHash state. Each accepted update applies its new entries to it as it is
+  accepted, checked against each entry's count and rows hash; a missing or broken one is
+  rebuilt from the newest snapshot file and the entries after it. Row replay and a
+  candidate's new entries are checked there by changed row (`checkChangedRows`,
+  `checkChangedRowNames`: references, `unique`, names, rows still referring to a removed
+  one), and the rows hash moves per changed row; Beetle views and mutations, path reads of
+  a row and public pages at the head read it; a snapshot's file is `VACUUM INTO` of it.
+  The whole-log load remains only for a basis no database is at (an older root, or a new
+  collection's first entry), and in the merge worker and Story Sync.
+  `tests/integration/overstoryd/collection-databases.test.ts`. Measured 2026-11-15:
+  `collection-sync.ts` row edit median 119 ms (479 before, main 441), note edit 75 ms,
+  adding the collection 487 ms; a Supplies mutation 3 to 4 ms (13 to 14 before).
+- Not yet: the switch.
 
 ## Entry times with the content — 2026-11-10
 

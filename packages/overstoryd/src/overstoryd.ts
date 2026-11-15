@@ -66,6 +66,7 @@ import {
   type PairingOffer,
   type TreeSnapshot,
   type CandidateUpdate,
+  type CollectionRowReplay,
   type UpdateConflictResult,
   type UpdateRequest,
   type UpdateResponse,
@@ -814,6 +815,12 @@ export class HostDaemon implements AsyncDisposable {
       if (entry?.directory && entry.name === component) { directory = decodeProtocolDirectory(await read(entry.directory)); continue; }
       if (entry || !directory.collection) return { objects };
       const rest = components.slice(index);
+      // At the head, the collection's database answers; an older root reads its log.
+      if (this.currentUpdate(treeID)?.root === root) {
+        const found = await this.collections.rowAt(treeID, `/${components.slice(0, index).join("/")}`, root, rest);
+        if (found === "table") return { objects };
+        if (found) return { objects, rows: found };
+      }
       const collection = await loadDirectoryCollection(directory, read, this.wireSchemas);
       if (!collection) return { objects };
       const tableNamed = rest[0] !== collection.main && collection.rows.has(rest[0]!);
@@ -2064,7 +2071,7 @@ export class HostDaemon implements AsyncDisposable {
    * derived objects join the element's own, and `derived` records each derived
    * candidate for its result.
    */
-  private async deriveRoots(sent: DerivableUpdateRequest, baseRoot: ObjectHash | null): Promise<{ request: UpdateRequest; derived: Array<ObjectHash | undefined> }> {
+  private async deriveRoots(sent: DerivableUpdateRequest, baseRoot: ObjectHash | null, treeID: string): Promise<{ request: UpdateRequest; derived: Array<ObjectHash | undefined> }> {
     const derived: Array<ObjectHash | undefined> = [];
     const updates: CandidateUpdate[] = [];
     const supplied = new Map<ObjectHash, Uint8Array>();
@@ -2080,7 +2087,7 @@ export class HostDaemon implements AsyncDisposable {
       if (root === null || update.trace === null) throw new UpdateProtocolError("unsupported-operation", `Update ${updates.length} (${update.change}) leaves roots out without a basis`);
       let result: Awaited<ReturnType<typeof deriveTrace>>;
       try {
-        result = await deriveTrace(root, update.trace, (hash) => this.objects.load(hash, supplied), entryTimeOf(update.at), replayCollectionRows);
+        result = await deriveTrace(root, update.trace, (hash) => this.objects.load(hash, supplied), entryTimeOf(update.at), this.rowReplay(treeID));
       } catch (error) {
         if (error instanceof UnsupportedDerivation) throw new UpdateProtocolError("unsupported-operation", error.message);
         throw error;
@@ -2167,7 +2174,7 @@ export class HostDaemon implements AsyncDisposable {
     }
     const traced = request.base !== null && request.updates.some((update) => update.trace !== null);
     if (traced && subject === null) throw new PermissionDeniedError("Write access is not allowed");
-    const { request: stated, derived } = await this.deriveRoots(sent, baseRoot);
+    const { request: stated, derived } = await this.deriveRoots(sent, baseRoot, treeID);
     request = stated;
     const firstRoot = baseRoot;
     const finish = (results: UpdateResult[]) => derived.some((root) => root !== undefined) ? this.derivedResults(results, derived, firstRoot) : Promise.resolve(results);
@@ -2218,7 +2225,7 @@ export class HostDaemon implements AsyncDisposable {
           for (const object of await this.objects.reconstructDeltas(root, update.deltas, objects, new Set(update.objects.map(object => object.hash))))
             objects.set(object.hash, object.bytes);
           if (update.trace !== null) {
-            const plain: boolean = plainSoFar && !update.resolves.length && await this.fastForward(root, update, open, objects);
+            const plain: boolean = plainSoFar && !update.resolves.length && await this.fastForward(treeID, root, update, open, objects);
             plainSoFar &&= plain;
             if (!plain) {
               const candidate = await this.candidate(treeID, update, await this.history.resolutionKeys(treeID, update.resolves));
@@ -2234,7 +2241,7 @@ export class HostDaemon implements AsyncDisposable {
           // trace so an ordinary accepted prefix does not force its new tail
           // through the sidecar, while causal prefixes still do.
           plainSoFar &&= update.trace !== null && !update.resolves.length &&
-            await this.fastForward(root, update, open, objects);
+            await this.fastForward(treeID, root, update, open, objects);
         }
         preflight.prefix.push(await this.candidate(treeID, update, []));
         root = update.candidate;
@@ -2344,6 +2351,7 @@ export class HostDaemon implements AsyncDisposable {
   private readonly plainTraces = new WeakMap<object, Awaited<ReturnType<typeof checkPlainTrace>>>();
 
   private async fastForward(
+    treeID: string,
     root: ObjectHash,
     update: CandidateUpdate,
     open: readonly LogDecision[],
@@ -2360,7 +2368,7 @@ export class HostDaemon implements AsyncDisposable {
     // to acceptance. It depends only on the trace and the objects it names.
     let checked = this.plainTraces.get(update.trace);
     if (!checked) {
-      checked = await checkPlainTrace(update.trace, (hash) => this.objects.load(hash, objects), entryTimeOf(update.at), replayCollectionRows);
+      checked = await checkPlainTrace(update.trace, (hash) => this.objects.load(hash, objects), entryTimeOf(update.at), this.rowReplay(treeID));
       this.plainTraces.set(update.trace, checked);
     }
     if (!checked.plain) return miss(checked.reason);
@@ -2424,7 +2432,7 @@ export class HostDaemon implements AsyncDisposable {
       for (const operation of frame.operations)
         if (isRowOperation(operation) && operation.at !== undefined && Date.parse(operation.at) > latest)
           throw new Error(`Row operation ${operation.key} is dated in the future`);
-    await this.validateGraph(request.candidate, proposed, tree.ref);
+    await this.validateGraph(request.candidate, proposed, tree.ref, treeID);
     markPhase("validate-graph");
     await policy.validateCandidate(request.candidate, proposed);
     markPhase("validate-candidate");
@@ -2492,7 +2500,7 @@ export class HostDaemon implements AsyncDisposable {
       const direct = basis.entry === head.hash && !basis.prefix.length;
       let root: ObjectHash, decisions: LogDecision[], evidence: unknown;
       let question: MergeQuestion | null = null, answered: ObjectHash | undefined;
-      const carried = request.trace !== null && direct && !guards.length && await this.fastForward(current.root, request, open, proposed)
+      const carried = request.trace !== null && direct && !guards.length && await this.fastForward(tree.id, current.root, request, open, proposed)
         ? await this.history.carry(open, request.candidate, proposed) : null;
       if (carried) {
         root = request.candidate;
@@ -2704,7 +2712,7 @@ export class HostDaemon implements AsyncDisposable {
       validateAccepted: async (remoteTree, root, objects) => {
         await checkEffects(remoteTree.ref, root, objects);
         if (root === request.candidate) return;
-        await this.validateGraph(root, objects, remoteTree.ref);
+        await this.validateGraph(root, objects, remoteTree.ref, remoteTree.id);
         await this.validateReservedBoundaries(remoteTree, root, objects);
         if (remoteTree.canonicalPath === "/" || this.administeringGroup(remoteTree.id)) {
           const facts = await this.candidateProfile(remoteTree.id, root, objects, profiles);
@@ -3371,11 +3379,24 @@ export class HostDaemon implements AsyncDisposable {
     this.accounts.enableMembers(members);
   }
 
-  private async validateGraph(root: ObjectHash, proposed: ReadonlyMap<ObjectHash, Uint8Array>, acceptedBasis?: ObjectHash): Promise<void> {
+  /**
+   * Row replay over `tree`'s collection databases (Performance 007): only the rows the
+   * operations name are read. A directory whose log entry no database holds, such as an
+   * older basis, is replayed from its log.
+   */
+  private rowReplay(tree: string): CollectionRowReplay {
+    return async (directory, operations, read, at) =>
+      (await this.collections.replay(tree, directory, operations, read, at)) ?? replayCollectionRows(directory, operations, read, at);
+  }
+
+  private async validateGraph(root: ObjectHash, proposed: ReadonlyMap<ObjectHash, Uint8Array>, acceptedBasis?: ObjectHash, tree?: string): Promise<void> {
     // acceptedBasis comes from the server's current tree, never from worker or
     // client assertions. A staged proof is only inherited once that root has
     // actually become accepted (and therefore durable).
     const collection = async (directory: ReturnType<typeof decodeProtocolDirectory>, load: (hash: string) => Promise<Uint8Array>) => {
+      // A collection whose new log entries follow one of the tree's databases is checked
+      // there, row by changed row; any other is loaded and checked whole.
+      if (tree && await this.collections.check(tree, directory, load as (hash: ObjectHash) => Promise<Uint8Array>)) return;
       await loadDirectoryCollection(directory, load, this.wireSchemas);
     };
     let basis = acceptedBasis ? this.validatedGraphs.get(acceptedBasis) : undefined;

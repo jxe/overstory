@@ -16,7 +16,7 @@ import { protocol003 } from "./steps/034-protocol-003.ts";
 export const steps = (plans: readonly TreePlan[] = []) => [deviceClients, protocol003(plans)];
 
 /** Caches and records that name old roots or update ids; each rebuilds, or starts empty. */
-const STALE = ["provenance", "materialized", "entry-times.sqlite3", "entry-times.sqlite3-wal", "entry-times.sqlite3-shm",
+const STALE = ["provenance", "materialized", "beetle/materialized", "collections", "entry-times.sqlite3", "entry-times.sqlite3-wal", "entry-times.sqlite3-shm",
   "exec/mutation-receipts.sqlite3", "exec/mutation-receipts.sqlite3-wal", "exec/mutation-receipts.sqlite3-shm"];
 
 /** The product's own checks, once the batch has committed. */

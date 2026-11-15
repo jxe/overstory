@@ -115,12 +115,9 @@ After the switch a collection is never held as table and rows chunks on the host
 ## Steps
 
 The log, rows hash, path reads, host snapshots, Story Sync's replica side, Swift's log
-reading and mutations as SQL transactions are built
+reading, mutations as SQL transactions and the host's database as the working form are
+built
 ([status](../../status.md#performance-007-collections-as-a-log-of-row-changes--2026-11-12)).
 
-1. Host: the database as the working form. Accepting an update of row operations applies
-   its entry to the host's SQLite copy in the same step, a cold load reads the copy instead
-   of replaying the log, and a snapshot is `VACUUM INTO` of it; the in-memory states and the
-   catch-up before views go.
-2. Switch: the Protocol 003 migration turns each existing collection into a log; this
+1. Switch: the Protocol 003 migration turns each existing collection into a log; this
    branch merges after the flag day.

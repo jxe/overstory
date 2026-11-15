@@ -18,15 +18,30 @@ head's answers "not active". Checked programs are cached by root and path.
 ## Rows
 
 Views read each collection a program binds (a `schema.beetle` it uses) from the host's
-SQLite copy of it, `<data>/beetle/materialized/<tree>/<path>/_store.sqlite3` in the
-schema's database layout (`beetle-materialized.ts`). Before a view runs, the copy is caught
-up to the head from the collection directory it last held: only tables whose hash changed
-are read, and of those only the chunks the two versions don't share
-(`changedCollectionRows`), and each changed logical row rewrites just what it owns (its
-row, its join rows, the positions of rows it holds in order). A one-row change costs about
-one chunk. A copy that is new, unreadable or from another schema is built from the
-accepted rows. It is a cache,
-written without waiting on the disk. The view reads it through `@ovst/beetle/sqlite`'s
+database of it (Performance 007, `collection-databases.ts`):
+`<data>/collections/<tree>/<path>/_store.sqlite3`, in the schema's database layout. It is
+the collection's log applied, and records the log entry it is at, its row count and its
+rows hash state. Every collection on the host has one, whether or not Beetle runs there.
+Each accepted update applies its new log entries to the databases of the collections it
+moved as it is accepted, each entry checked against its row count and rows hash, and
+whatever reads a tree's databases waits for that: a view finds its database at the head.
+A database that is missing, from another schema, or doesn't follow its log is rebuilt
+from the newest snapshot entry's file (checked once against its rows hash) and the
+entries after it; no whole log is replayed into memory. Commits don't wait on the disk:
+the log is what the tree holds, and a database behind it applies the entries it lacks.
+
+Accepting row operations reads the same databases (`CollectionDatabases.replay` and
+`check`). The operations apply to just the rows they name, read from the database at the
+basis's entry; each changed row is checked against the schema and against the rest of
+the collection there by query (the rows it refers to exist, no other row has its `unique`
+values or its name, no row still refers to a removed one), and the rows hash moves by
+the changed rows alone. A trace's later frames and a candidate's new entries build on
+entries the host checked and hasn't accepted yet. A basis no database is at, such as an
+older root, is replayed from its log. Path reads of a row, and a collection's rows on a
+public page, are read from the database at the head; an older root reads its log. A
+snapshot's file is the database (`VACUUM INTO`), without its own record.
+
+The view reads it through `@ovst/beetle/sqlite`'s
 `SQLiteStore`, which asks SQLite only for what the view reaches: a `for` over a table is
 narrowed by its conditions, translated to SQL (`sql.ts`: comparisons with null-safe `is`,
 `and`/`or`/`not`, membership through relationships and lists, rules inlined, arithmetic,
@@ -63,15 +78,15 @@ evaluator.
 
 ## Mutations
 
-A mutation holds the copies of the collections it binds (no view or other mutation
-catches them up meanwhile), gathers its facts over them at the head, and writes into a
-SQL transaction on each changed copy's own second connection (`SQLiteWriteStore`,
+A mutation holds the databases of the collections it binds (no view, mutation or
+accepted update moves them meanwhile), gathers its facts over them at the head, and writes
+into a SQL transaction on each changed database's own second connection (`SQLiteWriteStore`,
 `begin immediate`, SQLite's foreign key checks off because deletes follow the layout's
-foreign keys themselves). Views keep reading the copy as it was until the transaction
-commits. When its update is accepted, the changed rows are rewritten as the accepted log
-holds them (stamped times included), the copy records the accepted collection directory,
-and the transaction commits, so the copy is what catching up would have made and no
-catch-up runs. Otherwise it rolls back. Its row operations come from the
+foreign keys themselves). Views keep reading the database as it was until the transaction
+commits. When its update is accepted, the rows of its accepted log entry are written as
+the entry holds them (stamped times included), the database records the entry, its row
+count and rows hash, and the transaction commits, so it is what applying the entry would
+have made. Otherwise it rolls back, and the database follows the log. Its row operations come from the
 rows it touched (`editedLogical`): each written row's own logical row and the rows a
 relationship holds it in (a join row's owner, an ordered connection's holder), each
 converted from just its neighborhood, before and after, and stamped with the mutation's
