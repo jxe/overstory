@@ -2,6 +2,7 @@ import { entryChanges, type EntryChanges } from "./updates/document-versions.ts"
 import { AlreadyClaimedError, AuthenticationRequiredError, ExpiredChallengeError, HomeHostUnavailableError, NotFoundError, PermissionDeniedError, PlacementAccountError, RefConflictError, ReservedBoundaryConflictError, ServerBusyError, ServerFaultError, UpdateProtocolError } from "./errors.ts";
 import { PackMaintenance } from "./pack-maintenance.ts";
 import { changedCollectionFolders, snapshotCollections, SNAPSHOT_MIN_CHANGES } from "./collection-snapshots.ts";
+import { ChangeFeed, type ChangeRecord, type FeedConsumer } from "./change-feed.ts";
 import { CollectionDatabases } from "./collection-databases.ts";
 import { PlacementDeviceKeys, type DeviceKeyCopy, type ListedDevice } from "./placement.ts";
 import { RemoteGroups } from "./remote-groups.ts";
@@ -409,6 +410,8 @@ export class HostDaemon implements AsyncDisposable {
   private readonly accounts: AccountDirectory;
   private observationListeners = new Map<string, Set<(record: ObservationRecord) => void>>();
   private readonly acceptedListeners = new Set<(update: AcceptedUpdate) => void>();
+  /** Every accepted update, published once after its commit (Performance 010 step 3). */
+  private readonly feed = new ChangeFeed();
   private readonly dependents: AsyncDisposable[] = [];
   private updateLocks = new Map<string, Promise<void>>();
   /** Recently replayed transitions by update id (`acceptedTransition`). */
@@ -440,6 +443,9 @@ export class HostDaemon implements AsyncDisposable {
     this.db = db;
     this.objects = new ObjectStore(join(dataRoot, "objects"), { cacheBytes: objectCacheBytes() });
     this.collections = new CollectionDatabases(join(dataRoot, "collections"), (hash) => this.objects.load(hash), this.wireSchemas);
+    this.collections.followed = (tree) => this.collectionFollower(tree).caughtUp();
+    this.feed.listen((record) => this.published(record));
+    this.feed.consume("collection snapshots", (batch) => this.snapshotAfter(batch), { onFailure: "skip", lagWarning: 100, slowMs: 5_000 });
     this.mergeTool = new MergeTool(dataRoot, {
       onTiming: (phase, ms) => phaseTimer()?.add(`worker-${phase}`, ms),
       onCount: (name, value) => phaseTimer()?.count(name, value),
@@ -2831,21 +2837,53 @@ export class HostDaemon implements AsyncDisposable {
     return () => this.acceptedListeners.delete(listener);
   }
 
+  /** Publish an accepted update to the change feed, with the collection folders acceptance found it moved. */
   private notifyAccepted(update: AcceptedUpdate): void {
-    // The collection folders it moved, from the walk acceptance already made.
-    const folders = this.acceptedStore.takeChanges(update.id)?.collections.map(folderNames);
-    // Its collections' databases apply the update's log entries before anything reads them.
-    void this.collections.accepted(update, folders);
+    const collections = this.acceptedStore.takeChanges(update.id)?.collections.map(folderNames);
+    this.feed.publish({ ordinal: Number(update.id), update, ...(collections ? { collections } : {}) });
+  }
+
+  /** What runs as each accepted update is published, before any consumer reads the feed. */
+  private published(record: ChangeRecord): void {
+    const { update } = record;
     this.execution.invalidate();
     for (const listener of [...this.acceptedListeners]) {
       try { listener(update); } catch (error) { console.error("overstoryd accepted-update listener failed", error); }
     }
     this.packing.notify();
-    const record = this.observations.get(update.id);
-    if (record) this.notifyObservation(record);
+    const observation = this.observations.get(update.id);
+    if (observation) this.notifyObservation(observation);
     // A configuration may name a remote group this host has no copy of yet.
     if (this.get(update.tree)?.kind === "tree-configuration") void this.remoteGroups.prefetch(this.namedRemoteGroups());
-    else void this.snapshotCollectionsAfter(update, folders);
+    // Its collections' databases apply the update's log entries before anything reads them.
+    this.collectionFollower(update.tree, record.ordinal - 1);
+  }
+
+  /** Each tree's collections follower: a feed consumer that moves the tree's collection databases along its log. */
+  private readonly collectionFollowers = new Map<string, FeedConsumer>();
+
+  private collectionFollower(tree: string, from?: number): FeedConsumer {
+    let follower = this.collectionFollowers.get(tree);
+    if (!follower) {
+      follower = this.feed.consume(`collections ${tree}`, (batch) => this.collections.followUpdates(batch), {
+        onFailure: "skip", match: (record) => record.update.tree === tree, from, lagWarning: 100, slowMs: 1_000,
+      });
+      this.collectionFollowers.set(tree, follower);
+    }
+    return follower;
+  }
+
+  /** Snapshot the collections a batch of updates moved, tree by tree, from each tree's head. */
+  private async snapshotAfter(batch: readonly ChangeRecord[]): Promise<void> {
+    const trees = new Map<string, { update: AcceptedUpdate; folders: Map<string, string[]> }>();
+    const load = (hash: ObjectHash) => this.objects.load(hash);
+    for (const { update, collections } of batch) {
+      if (this.get(update.tree)?.kind === "tree-configuration") continue;
+      const folders = trees.get(update.tree)?.folders ?? new Map<string, string[]>();
+      for (const names of collections ?? await changedCollectionFolders(update.previous?.root ?? null, update.root, load)) folders.set(names.join("/"), names);
+      trees.set(update.tree, { update, folders });
+    }
+    for (const { update, folders } of trees.values()) if (folders.size) await this.snapshotCollectionsAfter(update, [...folders.values()]);
   }
 
   /**
@@ -3418,6 +3456,7 @@ export class HostDaemon implements AsyncDisposable {
   async [Symbol.asyncDispose](): Promise<void> {
     for (const resource of this.dependents.splice(0).reverse()) await resource[Symbol.asyncDispose]();
     this.disposed = true;
+    await this.feed.dispose();
     await this.collections.close();
     await this.provenanceRun;
     clearTimeout(this.deviceKeyTimer);

@@ -633,8 +633,6 @@ export interface CollectionAt {
 export class CollectionDatabases {
   private readonly open = new Map<string, CollectionDatabase>();
   private readonly turns = new Map<string, Promise<unknown>>();
-  /** Each tree's newest accepted update still being applied to its databases. */
-  private readonly advancing = new Map<string, Promise<void>>();
   /** Log entries this host built or checked that aren't yet a database's, by entry hash. */
   private readonly pending = new Map<ObjectHash, CollectionView>();
   /** The trees whose databases on disk have all been opened. */
@@ -670,25 +668,31 @@ export class CollectionDatabases {
   }
 
   /**
-   * Apply an accepted update to the databases of the collections it moved, as it is
-   * accepted. Anything that reads a database of the tree waits for this first. `known`
-   * is the folders acceptance found, when it found them; otherwise they are walked for.
+   * Apply one tree's accepted updates, in order, to the databases of the collections they
+   * moved: the change feed's collections follower for that tree hands them over. Updates
+   * a follower fell behind on are coalesced: each database moves once, to the last root.
+   * A database that can't follow is logged and left; `at` moves it when it is read.
    */
-  accepted(update: { tree: string; root: string; previous?: { root: string } | null }, known?: readonly string[][]): Promise<void> {
-    const prior = this.advancing.get(update.tree) ?? Promise.resolve();
-    const next = prior.then(async () => {
-      const folders = known ?? await changedCollectionFolders((update.previous?.root ?? null) as ObjectHash | null, update.root as ObjectHash, this.read);
-      for (const names of folders) {
-        const path = `/${names.join("/")}`;
-        await this.turn(CollectionDatabases.key(update.tree, path), () => this.catchUp(update.tree, path, update.root as ObjectHash));
+  async followUpdates(records: ReadonlyArray<{ update: { tree: string; root: string; previous?: { root: string } | null }; collections?: string[][] }>): Promise<void> {
+    const last = records[records.length - 1];
+    if (!last) return;
+    const paths = new Set<string>();
+    for (const { update, collections } of records) {
+      const folders = collections ?? await changedCollectionFolders((update.previous?.root ?? null) as ObjectHash | null, update.root as ObjectHash, this.read);
+      for (const names of folders) paths.add(`/${names.join("/")}`);
+    }
+    const { tree, root } = last.update;
+    for (const path of paths) {
+      try {
+        await this.turn(CollectionDatabases.key(tree, path), () => this.catchUp(tree, path, root as ObjectHash));
+      } catch (error) {
+        console.error(`overstoryd: the collection database at ${tree}${path} could not follow its log`, error);
       }
-    }).catch((error) => {
-      console.error(`overstoryd: a collection database of ${update.tree} could not follow its log`, error);
-    });
-    this.advancing.set(update.tree, next);
-    void next.finally(() => { if (this.advancing.get(update.tree) === next) this.advancing.delete(update.tree); });
-    return next;
+    }
   }
+
+  /** What `at` waits for first: the tree's follower having applied every update published so far. */
+  followed: (tree: string) => Promise<void> = async () => {};
 
   /**
    * The database of the collection at `path`, at `root`'s entry of its log: reopened,
@@ -697,7 +701,7 @@ export class CollectionDatabases {
    * caller already holds its turn.
    */
   async at(tree: string, path: string, root: ObjectHash, held = false): Promise<CollectionAt | null> {
-    await this.advancing.get(tree);
+    await this.followed(tree);
     const key = CollectionDatabases.key(tree, path);
     return held ? this.catchUp(tree, path, root) : this.turn(key, () => this.catchUp(tree, path, root));
   }
@@ -1074,7 +1078,7 @@ export class CollectionDatabases {
   }
 
   async close(): Promise<void> {
-    await Promise.allSettled([...this.advancing.values(), ...this.turns.values()]);
+    await Promise.allSettled([...this.turns.values()]);
     for (const database of this.open.values()) database.close();
     this.open.clear();
   }
