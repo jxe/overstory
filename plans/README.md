@@ -135,10 +135,10 @@ can be dictated in one go. A recording without commands stays one paragraph.
 
 ## Soon
 
-**[Filesystem 026: the host refuses Markdown files that read as pages](soon/filesystem-026-markdown-files-go.md).**
-Clients always write pages and the host's conversion code is gone (2026-11-16). Left: the host
-refuses a Markdown file entry that reads as a page, once its tests stop writing `note.md` as a
-file. Take it with Performance 010.
+**[Filesystem 026: moves and copies in page bodies, and no Markdown files](soon/filesystem-026-markdown-files-go.md).**
+Clients always write pages (2026-11-16). Left: page edits with moves or copies go as
+snapshots in both clients, which makes merges with a peer worse; then the host refuses
+Markdown file entries that read as pages.
 
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
