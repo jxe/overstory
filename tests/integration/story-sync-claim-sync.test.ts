@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { entryText } from "../helpers/entry-text.ts";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -83,6 +84,6 @@ async function hostedFile(client: ProtocolClient, tree: string, name: string): P
     const { tree: descriptor } = await client.descriptor(tree);
     const snapshot = await client.snapshot(tree, descriptor.root);
     const entry = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find((candidate) => candidate.name === name);
-    return entry?.file ? new TextDecoder().decode(snapshot.objects.get(entry.file)!) : undefined;
+    return entryText(entry, snapshot.objects);
   } catch { return undefined; }
 }

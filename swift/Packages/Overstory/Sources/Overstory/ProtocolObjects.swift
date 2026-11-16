@@ -174,19 +174,20 @@ public struct ProtocolDirectoryEntry: Hashable, Codable, Sendable {
         return entry
     }
 
-    /// The entry for Markdown `bytes` named `name`: in a tree that holds pages
-    /// (`pages`), the page they read as, else a file, as directory format §3
-    /// reads them. `store` keeps an object's bytes and returns its hash.
-    public static func markdown(name: String, bytes: Data, pages: Bool, store: (Data) throws -> String) rethrows -> ProtocolDirectoryEntry {
-        if pages, ProtocolPage.isPageName(name), let page = ProtocolPage.parse(bytes), let encoded = try? page.encoded() {
+    /// The entry for Markdown `bytes` named `name`: the page they read as, or a
+    /// file when the name is not a page's or the front matter doesn't parse, as
+    /// directory format §3 reads them. `store` keeps an object's bytes and
+    /// returns its hash.
+    public static func markdown(name: String, bytes: Data, store: (Data) throws -> String) rethrows -> ProtocolDirectoryEntry {
+        if ProtocolPage.isPageName(name), let page = ProtocolPage.parse(bytes), let encoded = try? page.encoded() {
             return ProtocolDirectoryEntry(name: name, page: try store(encoded))
         }
         return ProtocolDirectoryEntry(name: name, file: try store(bytes))
     }
 
     /// `markdown`, stamped against `previous` at `at` (`stamped`).
-    public static func markdown(name: String, bytes: Data, pages: Bool, previous: ProtocolDirectoryEntry?, at: Int, source: Int? = nil, store: (Data) throws -> String) rethrows -> ProtocolDirectoryEntry {
-        let entry = try markdown(name: name, bytes: bytes, pages: pages, store: store)
+    public static func markdown(name: String, bytes: Data, previous: ProtocolDirectoryEntry?, at: Int, source: Int? = nil, store: (Data) throws -> String) rethrows -> ProtocolDirectoryEntry {
+        let entry = try markdown(name: name, bytes: bytes, store: store)
         return stamped(entry.kind!, name: name, object: entry.hash!, previous: previous, at: at, source: source)
     }
 }
@@ -750,21 +751,6 @@ public enum ProtocolObjectGraph {
             throw ProtocolValidationError.unreachableObject(unreachable)
         }
         return objects
-    }
-}
-
-public extension ProtocolObjectGraph {
-    /// Whether any directory reachable from `root` holds a page entry: a
-    /// placement reads Markdown as pages once the root it builds on does
-    /// (directory format §3). Directories missing from `objects` hold none.
-    static func holdsPages(_ root: String, in objects: [String: ProtocolObject]) -> Bool {
-        var seen = Set<String>()
-        func visit(_ hash: String) -> Bool {
-            guard seen.insert(hash).inserted, case let .directory(entries, _)? = objects[hash] else { return false }
-            if entries.contains(where: { $0.page != nil }) { return true }
-            return entries.contains { entry in entry.directory.map(visit) ?? false }
-        }
-        return visit(root)
     }
 }
 

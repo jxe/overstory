@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { HANDLE_PATH, decodeRunRequest, type RunRequest, agentBundleID, agentDevice, buildAgentLink, generateAgentCode, openDeviceSessionByDevice, parseAgentLink, decodeCandidateUpdateJSON, describeTransitionPayload, canonicalOverstoryLocator, canonicalHTTPURL, deviceKeyFromSeed, generateOverstoryID, generateDeviceKeySeed, openDeviceSession, resourceRuleKey, configurationCheckoutPath, editProfileConfigurationFile, HostAccountStore, HostPlacementStore, readStorySyncAccess, storyDataRoot, loadProfileConfigurations, parseAccountDevicesConfiguration, parseMountsYAML, readTreeConfigGraph, saveCurrentAccountDeviceID, snapshotTreeConfig, treeHoldsPages, directoryStamper, decodeProtocolDirectory, entryTimeOf, type AccessRule, type HostPlacementRecord, type ProfileConfigurationSnapshot, type ObjectHash, type ResourceAccessRule, type TreeConfigKind, type TreeConfigValues, ProtocolClient, setProtocolClientName } from "@ovst/protocol";
+import { HANDLE_PATH, decodeRunRequest, type RunRequest, agentBundleID, agentDevice, buildAgentLink, generateAgentCode, openDeviceSessionByDevice, parseAgentLink, decodeCandidateUpdateJSON, describeTransitionPayload, canonicalOverstoryLocator, canonicalHTTPURL, deviceKeyFromSeed, generateOverstoryID, generateDeviceKeySeed, openDeviceSession, resourceRuleKey, configurationCheckoutPath, editProfileConfigurationFile, HostAccountStore, HostPlacementStore, readStorySyncAccess, storyDataRoot, loadProfileConfigurations, parseAccountDevicesConfiguration, parseMountsYAML, readTreeConfigGraph, saveCurrentAccountDeviceID, snapshotTreeConfig, directoryStamper, decodeProtocolDirectory, entryTimeOf, type AccessRule, type HostPlacementRecord, type ProfileConfigurationSnapshot, type ObjectHash, type ResourceAccessRule, type TreeConfigKind, type TreeConfigValues, ProtocolClient, setProtocolClientName } from "@ovst/protocol";
 import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { constants as osConstants } from "node:os";
@@ -1337,7 +1337,7 @@ async function cloudPlacementsReady(
     // Against the host's root, so unchanged entries keep its times; a bare
     // scan would date every file by its mtime and lose `created`.
     const localSnapshot = await snapshotDirectory(target.path, new Map(), [], undefined, undefined, skip,
-      await treeHoldsPages(remote.root as ObjectHash, load), { at: Date.now(), basis: basisDirectories(remote.root as ObjectHash, load) });
+      { at: Date.now(), basis: basisDirectories(remote.root as ObjectHash, load) });
     if (localSnapshot.root !== remote.root) return { ready: false, reason: `${target.relativePath} differs from the host` };
   }
   return { ready: true };

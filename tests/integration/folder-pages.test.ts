@@ -27,7 +27,7 @@ beforeAll(async () => {
   host = await serveHost({
     dataRoot: join(sandbox, "host"),
     accounts: [testAccount("owner", token, { communityWriter: true })],
-    publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0, pages: true,
+    publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0,
   });
   const owner = await deviceClient(host.url, token);
   const profile = (await owner.account()).account.profileTree!;
@@ -60,22 +60,19 @@ async function waitFor(read: () => Promise<boolean>, timeout = 5_000): Promise<v
   throw new Error("Timed out");
 }
 
-test("a writer's Story Sync converts a tree to pages once the host has pages-v1, and then sends front-matter edits as pages", async () => {
+test("a placed folder's Markdown is pages on the host, and front-matter edits go up as pages", async () => {
   process.env.STORY_HOME = state;
   const running = await serveStorySyncControl({ port: 0 });
   const client = new StorySyncRESTClient({ baseURL: running.url });
   try {
-    const before = await entries();
-    expect([...before.values()].every((entry) => entry.file)).toBe(true);
     await client.synchronizeNow();
-    await client.synchronizeNow();
-    await waitFor(async () => !!(await entries()).get("a.md")?.page);
-    const converted = await entries();
-    expect(converted.get("b.md")?.page).toBeDefined();
-    expect(converted.get("notes.txt")?.file).toBeDefined();
+    const placed = await entries();
+    expect(placed.get("a.md")?.page).toBeDefined();
+    expect(placed.get("b.md")?.page).toBeDefined();
+    expect(placed.get("notes.txt")?.file).toBeDefined();
     const owner = await deviceClient(host.url, token);
-    expect(decodeProtocolPage(await owner.object(tree, converted.get("a.md")!.page!)).properties).toEqual([["title", "A"], ["status", "draft"]]);
-    // Converting changed nothing on disk.
+    expect(decodeProtocolPage(await owner.object(tree, placed.get("a.md")!.page!)).properties).toEqual([["title", "A"], ["status", "draft"]]);
+    // The file on disk is left as written.
     expect(await readFile(join(folder, "a.md"), "utf8")).toBe(source);
 
     await writeFile(join(folder, "a.md"), source.replace("status: draft", "status: done"));

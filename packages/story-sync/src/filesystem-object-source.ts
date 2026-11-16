@@ -45,8 +45,6 @@ export class FilesystemObjectSource implements AsyncDisposable {
   private audit?: Promise<void>;
   private timer?: ReturnType<typeof setInterval>;
   private tracked?: () => Promise<TrackedRoot | null>;
-  /** Whether the folder's Markdown reads as pages (directory format §3). */
-  private pages = false;
 
   constructor(readonly root: string, databasePath: string, private readonly options: {
     exclusions: () => readonly string[];
@@ -75,11 +73,6 @@ export class FilesystemObjectSource implements AsyncDisposable {
   /** Drop directory rows at and beneath `absolute`: their encodings followed rules that changed. */
   invalidateDirectories(absolute: string): void {
     this.rows.forgetDirectoriesBeneath(absolute);
-  }
-
-  /** Read the folder's Markdown files as pages from now on, or as files. */
-  setPageMode(pages: boolean): void {
-    this.pages = pages;
   }
 
   /** Where the folder's tracked root comes from; without one, every ignored path is left out. */
@@ -147,7 +140,7 @@ export class FilesystemObjectSource implements AsyncDisposable {
       // Boundaries affect directory encodings, not the file rows audited here.
       const exclusions = this.options.exclusions();
       const skip = await this.skip(this.root, exclusions, await this.trackedLookup());
-      await snapshotDirectory(this.root, new Map(), exclusions, undefined, index, skip, this.pages);
+      await snapshotDirectory(this.root, new Map(), exclusions, undefined, index, skip);
       for (const path of [...this.rows.storedObjectPaths("file"), ...this.rows.storedObjectPaths("page")]) {
         if (!audited.has(path)) this.rows.forgetObject(path);
       }

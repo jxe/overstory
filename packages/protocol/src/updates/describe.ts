@@ -20,6 +20,17 @@ function lines(sign: string, text: string): string[] {
   return parts.map((line) => `  ${sign} ${line}`);
 }
 
+/** The lines `after` changes in `before`: what lies between their common first and last lines. */
+function changedLines(before: string, after: string): string[] {
+  const split = (text: string) => { const parts = text.split("\n"); if (parts.length > 1 && parts.at(-1) === "") parts.pop(); return parts; };
+  const old = split(before), next = split(after);
+  let start = 0;
+  while (start < old.length && start < next.length && old[start] === next[start]) start++;
+  let end = 0;
+  while (end < old.length - start && end < next.length - start && old[old.length - 1 - end] === next[next.length - 1 - end]) end++;
+  return [...old.slice(start, old.length - end).map((line) => `  - ${line}`), ...next.slice(start, next.length - end).map((line) => `  + ${line}`)];
+}
+
 /** A delta read against its base text: copies collapse to their size and base lines; inserts print, after the base bytes they replace. */
 function deltaLines(base: Uint8Array, instructions: readonly ObjectDeltaInstruction[]): string[] {
   const starts = [0];
@@ -116,7 +127,9 @@ export async function describeTransitionPayload(input: {
       if (next?.page && item && !described.has(next.page)) {
         // A page's object is CBOR; it reads as the file it is written as.
         described.add(next.page);
-        out.push("", `page ${path} (${form(item, prior?.file ?? prior?.page ?? prior?.directory)})`, ...lines("+", loose.decode(protocolContentBytes("page", item.bytes))));
+        const text = loose.decode(protocolContentBytes("page", item.bytes));
+        out.push("", `page ${path} (${form(item, prior?.file ?? prior?.page ?? prior?.directory)})`,
+          ...(item.delta ? changedLines(loose.decode(protocolContentBytes("page", item.delta.bytes)), text) : lines("+", text)));
       } else if (next?.file && item && !described.has(next.file)) {
         described.add(next.file);
         out.push("", `file ${path} (${form(item, prior?.file ?? prior?.page ?? prior?.directory)})`);

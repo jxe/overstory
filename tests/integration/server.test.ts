@@ -399,13 +399,14 @@ describe("story-sync standard reads", () => {
     const { tree: current } = await reads.descriptor(tree);
     const snapshot = await reads.snapshot(tree, current.root);
     const text = [...snapshot.objects.values()].map((bytes) => new TextDecoder().decode(bytes));
-    expect(text).toContain("A note\n");
-    expect(text).toContain("Child\n");
+    // note.md is a page; its body holds the text.
+    expect(text.some((object) => object.includes("A note\n"))).toBe(true);
+    expect(text.some((object) => object.includes("Child\n"))).toBe(true);
     const page = await reads.pathRead(tree, current.root, "/sub/child");
     const sub = decodeProtocolDirectory(snapshot.objects.get(decodeProtocolDirectory(snapshot.objects.get(current.root)!).entries.find((entry) => entry.name === "sub")!.directory!)!);
     expect(new Set(page.keys())).toEqual(new Set([current.root,
       decodeProtocolDirectory(snapshot.objects.get(current.root)!).entries.find((entry) => entry.name === "sub")!.directory!,
-      sub.entries.find((entry) => entry.name === "child.md")!.file!]));
+      sub.entries.find((entry) => entry.name === "child.md")!.page!]));
     const photoHash = hashObject(new Uint8Array([1, 2, 3, 4, 5]));
     expect(hashObject(await reads.object(tree, photoHash))).toBe(photoHash);
   });
@@ -420,8 +421,8 @@ describe("story-sync standard reads", () => {
       expect(current.root).toBe(accepted.root);
       expect(current.update).toBe(accepted.update);
       const objects = await reads.pathRead(tree, current.root, "/note");
-      const note = decodeProtocolDirectory(objects.get(current.root)!).entries.find((entry) => entry.name === "note.md")!.file!;
-      expect(new TextDecoder().decode(objects.get(note)!)).toBe("A note\n");
+      const note = decodeProtocolDirectory(objects.get(current.root)!).entries.find((entry) => entry.name === "note.md")!.page!;
+      expect(new TextDecoder().decode((await import("@ovst/protocol")).decodeProtocolPage(objects.get(note)!).body)).toBe("A note\n");
     } finally {
       await writeFile(join(treeDir, "note.md"), "A note\n");
     }

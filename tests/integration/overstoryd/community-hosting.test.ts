@@ -1,4 +1,6 @@
 import { activationElement, decodeProtocolDirectory, encodeProtocolDirectory, generateOverstoryID, hashObject, inviteCodeDigest, sha256, HostAccountStore, ProtocolClient } from "@ovst/protocol";
+import YAML from "yaml";
+import { entryText } from "../../helpers/entry-text.ts";
 import { LocalAccountService } from "../../../packages/story-sync/src/account-service.ts";
 import { afterAll, beforeAll, describe, expect, test, spyOn } from "bun:test";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -83,7 +85,7 @@ describe("client-generated profile and account bootstrap", () => {
     const head = await owner.descriptor(community.id);
     const snapshot = await owner.snapshot(community.id, head.tree.root);
     const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-    return new TextDecoder().decode(snapshot.objects.get(root.entries.find((entry) => entry.name === "_index.md")!.file!)!);
+    return entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!;
   }
 
   /**
@@ -131,39 +133,34 @@ describe("client-generated profile and account bootstrap", () => {
     return { before: invited_source, after: acceptedSource, digest, profile: `overstory://${identity.profileTree}/`, request, client };
   }
 
+  /** The community's members as `source`'s front matter holds them: a page keeps values and order, not formatting. */
+  const membersOf = (source: string) => (YAML.parse(source.replaceAll("\r\n", "\n").split("---\n")[1]!) as { members: Record<string, string>[] }).members;
+  /** `before`'s members with the invited entry claimed: `profile` set, `inviteDigest` gone, the rest unchanged. */
+  const claimedMembers = (before: string, handle: string, profile: string) =>
+    membersOf(before).map((member) => member.handle === handle && member.inviteDigest ? { handle, profile } : member);
+
   test("an invitation code claims a community slot and replaces it with the proven Profile TreeID", async () => {
     const handle = "invited-person";
-    const { before, after, digest, profile } = await inviteAndClaim(handle, "abcdefghijklmnopqrstuv", (source, digest) =>
+    const { before, after, profile } = await inviteAndClaim(handle, "abcdefghijklmnopqrstuv", (source, digest) =>
       source.replace("members:\n", `members:\n  - handle: ${JSON.stringify(handle)}\n    inviteDigest: ${JSON.stringify(digest)}\n`));
     // Only the entry changed.
-    expect(after).toBe(before.replace(`handle: ${JSON.stringify(handle)}\n    inviteDigest: ${JSON.stringify(digest)}`, `profile: ${JSON.stringify(profile)}\n    handle: ${JSON.stringify(handle)}`));
+    expect(membersOf(after)).toEqual(claimedMembers(before, handle, profile));
   });
 
   test("a claim finds its invitation in a reformatted member list and changes nothing else", async () => {
     // A flow-style map with the keys reversed, a comment before it and one after its values.
     const flow = await inviteAndClaim("flow-guest", "flowflowflowflowflowfl", (source, digest) =>
       source.replace("members:\n", `members:\n  # invited by hand\n  - { inviteDigest: '${digest}', handle: flow-guest }  # pending\n`));
-    expect(flow.after).toBe(flow.before.replace(`{ inviteDigest: '${flow.digest}', handle: flow-guest }`, `{ profile: ${JSON.stringify(flow.profile)}, handle: "flow-guest" }`));
-    expect(flow.after).toContain("  # invited by hand\n");
-    expect(flow.after).toContain("  # pending\n");
+    expect(membersOf(flow.after)).toEqual(claimedMembers(flow.before, "flow-guest", flow.profile));
 
     // The whole document in CRLF, the dash on its own line, plain values.
     const crlf = await inviteAndClaim("crlf-guest", "crlfcrlfcrlfcrlfcrlfcr", (source, digest) =>
       source.replace("members:\n", `members:\n  -\n    inviteDigest: ${digest}\n    handle: crlf-guest\n`).replaceAll("\r\n", "\n").replaceAll("\n", "\r\n"));
     expect(crlf.before).not.toMatch(/[^\r]\n/);
-    expect(crlf.after).toBe(crlf.before.replace(`inviteDigest: ${crlf.digest}\r\n    handle: crlf-guest`, `profile: ${JSON.stringify(crlf.profile)}\r\n    handle: "crlf-guest"`));
+    expect(membersOf(crlf.after)).toEqual(claimedMembers(crlf.before, "crlf-guest", crlf.profile));
     // The earlier claims' members are still read from the reformatted list.
     expect(running.overstoryd.accountByHandle("flow-guest")).not.toBeNull();
     expect(running.overstoryd.accountByHandle("owner")).not.toBeNull();
-
-    // Later tests author the community with LF line endings again.
-    const community = running.overstoryd.community();
-    const head = await owner.descriptor(community.id);
-    const snapshot = await owner.snapshot(community.id, head.tree.root);
-    const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-    const bytes = new TextEncoder().encode(crlf.after.replaceAll("\r\n", "\n"));
-    const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(bytes), created: 0, modified: 0 } : entry) });
-    await owner.submitUpdate(community.id, head.tree.update, { root: hashObject(rootBytes), objects: new Map([...snapshot.objects, [hashObject(bytes), bytes], [hashObject(rootBytes), rootBytes]]) }, { ifCurrent: head.tree.update });
   });
 
   test("a duplicated invitation entry is refused and claims nothing", async () => {
@@ -172,9 +169,7 @@ describe("client-generated profile and account bootstrap", () => {
       source.replace("members:\n", `members:\n  - handle: ${handle}\n    inviteDigest: ${digest}\n  - { handle: ${handle}, inviteDigest: ${digest} }\n`)))
       .rejects.toThrow("Invitation entry changed; ask the administrator to renew it");
     expect(running.overstoryd.accountByHandle(handle)).toBeNull();
-    const source = await communityIndex();
-    expect(source).toContain(`  - handle: ${handle}\n`);
-    expect(source).toContain(`  - { handle: ${handle}, inviteDigest: `);
+    expect(membersOf(await communityIndex()).filter((member) => member.handle === handle && member.inviteDigest)).toHaveLength(2);
   });
 
   test("does not expose the legacy snapshot-upload claim route", async () => {
@@ -719,8 +714,7 @@ describe("membership does not administer the host", () => {
     const head = await client.descriptor(tree);
     const snapshot = await client.snapshot(tree, head.tree.root);
     const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-    const index = root.entries.find((entry) => entry.name === "_index.md")!.file!;
-    const bytes = new TextEncoder().encode(rewrite(new TextDecoder().decode(snapshot.objects.get(index)!)));
+    const bytes = new TextEncoder().encode(rewrite(entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!));
     const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(bytes), created: 0, modified: 0 } : entry) });
     return { head, candidate: { root: hashObject(rootBytes), objects: new Map([...snapshot.objects, [hashObject(bytes), bytes], [hashObject(rootBytes), rootBytes]]) } };
   }

@@ -432,8 +432,7 @@ public actor WorkingTree {
                 return WorkingTreeNode(path: node.path, kind: .boundary, boundaryTree: tree.rawValue)
             }
         }
-        return WorkingTreeState(tree: state.tree, nodes: replacement.pages ? keepingPageSpellings(nodes) : nodes,
-                                pages: replacement.pages ? true : nil)
+        return WorkingTreeState(tree: state.tree, nodes: keepingPageSpellings(nodes))
     }
 
     /// A page reads back from many files: where this replica's source already
@@ -499,7 +498,7 @@ public actor WorkingTree {
         let url = directory.split(separator: "/").reduce(pageFolder) { $0.appending(path: String($1)) }.appending(path: entry.name)
         guard let bytes = try? Data(contentsOf: url) else { return nil }
         var object: Data?
-        let rebuilt = ProtocolDirectoryEntry.markdown(name: entry.name, bytes: bytes, pages: entry.page != nil) { encoded in
+        let rebuilt = ProtocolDirectoryEntry.markdown(name: entry.name, bytes: bytes) { encoded in
             object = encoded
             return ProtocolObjectCodec.hash(encoded)
         }
@@ -732,10 +731,9 @@ public actor WorkingTree {
             // Another load may have finished, or an install moved on, while this one read.
             guard let slot = next.nodes.firstIndex(where: { $0.path == directory.path }),
                   next.nodes[slot].subtree == directory.hash else { continue }
-            let (node, children, pages) = try spliced(next.nodes[slot], hash: directory.hash, objects: objects)
+            let (node, children) = try spliced(next.nodes[slot], hash: directory.hash, objects: objects)
             next.nodes[slot] = node
             next.nodes.append(contentsOf: children)
-            if pages { next.pages = true }
             for object in objects { stored[object.hash] = object.bytes }
         }
         guard !stored.isEmpty else { return }
@@ -753,8 +751,8 @@ public actor WorkingTree {
     }
 
     /// The unloaded directory `current` once its object `hash` and `objects`
-    /// are read: the node itself, its children, and whether they hold pages.
-    private func spliced(_ current: WorkingTreeNode, hash: String, objects: [ProtocolObjectEnvelope]) throws -> (WorkingTreeNode, [WorkingTreeNode], Bool) {
+    /// are read: the node itself and its children.
+    private func spliced(_ current: WorkingTreeNode, hash: String, objects: [ProtocolObjectEnvelope]) throws -> (WorkingTreeNode, [WorkingTreeNode]) {
         let path = current.path
         let graph = ProtocolSnapshot(root: hash, objects: objects)
         let replacement = try SnapshotBridge.replacement(snapshot: graph, tree: treeID(), update: control.acceptedUpdate ?? "lazy",
@@ -777,8 +775,8 @@ public actor WorkingTree {
             directory.times = body.times
             directory.pageID = WorkingTreeSemantics.pageID(in: source)
         }
-        let children = try state(from: WorkingTreeSystemReplacement(root: hash, update: replacement.update, nodes: nodes, pages: replacement.pages)).nodes
-        return (directory, children, replacement.pages)
+        let children = try state(from: WorkingTreeSystemReplacement(root: hash, update: replacement.update, nodes: nodes)).nodes
+        return (directory, children)
     }
 
     func deleteRebuildableIndexes() throws {

@@ -1,6 +1,6 @@
 # Apps 011: Widgets in Story
 
-**Order:** after [Apps 015](apps-015-the-view-language.md) (Beetle). Joe's own widgets can be
+**Order:** after [Apps 019](apps-019-beetle-in-story.md) steps 1 and 2 (Beetle in Story). Joe's own widgets can be
 built and tried while [Apps 010](../later/apps-010-activation-and-lending.md) lands. Widgets from
 other people wait for Apps 010.
 
@@ -19,7 +19,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
 
 - **A widget is a Beetle view**, from a `.beetle` file or a page's view blocks, plus the
   mutations it names as actions.
-  - Story evaluates it on the device with Apps 015's Swift evaluator; no JavaScript runs
+  - Story evaluates it on the device with Apps 019's Swift evaluator; no JavaScript runs
     for widgets. (Client plugins, [Apps 014](../later/apps-014-client-plugins.md), are the
     only place Story would ever run code, and they are a later, separate decision.)
   - A SwiftUI renderer draws the `{type, props, children, key}` tree.
@@ -79,7 +79,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
 ## 2. Drawing a widget in Story
 
 - Story checks a widget's `.beetle` file (or page) and the files it uses at the pinned version of its
-  tree, and evaluates it with Apps 015's Swift evaluator.
+  tree, and evaluates it with Apps 019's Swift evaluator.
 - **Re-evaluation works like this:**
   - A state or row change reevaluates only the expansions that read it.
   - There's at most one evaluation per frame, and generation numbers drop stale ones.
@@ -110,7 +110,8 @@ discussion. Where it says *query* or *endpoint*, read *view*
 
 ## 5. Checking and editor tooling (from Apps 003)
 
-- `story check` and editor highlighting are Apps 015 step 6. Later, one language service
+- `beetle` checks and formats, and `packages/beetle/editors` has tree-sitter, Zed and VS Code
+  support; Story's highlighting is Apps 019 step 5. Later, one language service
   for VS Code and Zed over the same checker, with completion for models, fields and
   mutations.
 
@@ -124,16 +125,6 @@ site, served by overstoryd and later from a host such as Vercel.
   - The browser never receives raw SQLite or unrelated private rows.
 - If the Supplies site ever moves off its current home, migrating its real data needs a
   reviewed identity map, durable redirects, side-by-side staging and a tested rollback.
-
-## Code to bring in line with the spec (Joe, 2026-11-11)
-
-The spec addresses views by file path with the extension
-([locators §7](../../docs/overstory-spec/1.6-locators.md#7-view-addresses)),
-now `views/list.beetle`, the view at `views/list` (a `.beetle` file is a node's body, like a
-`.md` file). `.mdx` files are plain file entries since 0eefc9c7 (Protocol 003 branch). Still
-to do in code:
-
-- A view block's unnamed view receives its page's query string.
 
 ## Verify
 

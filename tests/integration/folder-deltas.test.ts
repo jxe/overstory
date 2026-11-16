@@ -9,7 +9,7 @@ import { StorySyncDaemon } from "@ovst/story-sync";
 import { serveHost } from "@ovst/overstoryd";
 import { resolveSnapshot, snapshotDirectory } from "@ovst/fs";
 import {
-  HostAccountStore, decodeProtocolDirectory, hashObject,
+  HostAccountStore, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolPage, hashObject, parsePage,
   type UpdateRequest,
 } from "@ovst/protocol";
 import { deviceClient, testAccount, testDevice } from "../helpers/devices.ts";
@@ -74,16 +74,19 @@ async function accepted(path: string): Promise<string> {
   const current = await owner.descriptor(tree);
   const root = decodeProtocolDirectory(await owner.object(tree, current.tree.root));
   const entry = root.entries.find((candidate) => candidate.name === path)!;
-  return new TextDecoder().decode(await owner.object(tree, entry.file!));
+  return new TextDecoder().decode(decodeProtocolPage(await owner.object(tree, entry.page!)).body);
 }
 
-test("a folder edit to a large Markdown file submits a delta against the accepted file, and overstoryd accepts it", async () => {
+/** The hash of the page Markdown `source` reads as: deltas apply to the page object. */
+const pageHash = (source: string) => hashObject(encodeProtocolPage(parsePage(new TextEncoder().encode(source))!));
+
+test("a folder edit to a large Markdown page submits a delta against the accepted page, and overstoryd accepts it", async () => {
   process.env.STORY_HOME = state;
   const daemon = await StorySyncDaemon.openControl({ autoSync: false });
   try {
     await daemon.synchronizeNow();
     const source = large("An edited middle line.");
-    const bytes = new TextEncoder().encode(source), file = hashObject(bytes);
+    const file = pageHash(source);
     await recording(async (requests) => {
       await writeFile(join(folder, "large.md"), source);
       await daemon.synchronizeNow();
@@ -116,14 +119,14 @@ test("a change chained on an unsettled change sends deltas after exact retry", a
       // follows its answer, repeating the settled head without objects.
       expect(requests).toHaveLength(2);
       expect(requests[0]!.updates).toHaveLength(1);
-      expect(requests[0]!.updates[0]!.deltas.map((delta) => delta.result)).toContain(hashObject(new TextEncoder().encode(first)));
+      expect(requests[0]!.updates[0]!.deltas.map((delta) => delta.result)).toContain(pageHash(first));
       const chain = requests[1]!;
       expect(chain.updates).toHaveLength(2);
       const [head, chained] = chain.updates;
       expect(head!.change).toBe(requests[0]!.updates[0]!.change);
-      const delta = chained!.deltas.find(delta => delta.result === hashObject(new TextEncoder().encode(second)));
-      expect(delta?.base).toBe(hashObject(new TextEncoder().encode(first)));
-      expect(chained!.objects.map((object) => object.hash)).not.toContain(hashObject(new TextEncoder().encode(second)));
+      const delta = chained!.deltas.find(delta => delta.result === pageHash(second));
+      expect(delta?.base).toBe(pageHash(first));
+      expect(chained!.objects.map((object) => object.hash)).not.toContain(pageHash(second));
     });
     expect(await accepted("large.md")).toBe(second);
     expect(await readFile(join(folder, "large.md"), "utf8")).toBe(second);

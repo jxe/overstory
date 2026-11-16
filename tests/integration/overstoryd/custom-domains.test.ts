@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import YAML from "yaml";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -23,9 +24,10 @@ let domainURL: string;
 
 async function setDomains(domains: string[]): Promise<void> {
   await editTreeFile(alice, profile, "_index.md", (text) => {
-    const withoutDomains = text.replace(/^domains: .*\n/m, "");
-    const line = domains.length ? `domains: [${domains.map((name) => JSON.stringify(name)).join(", ")}]\n` : "";
-    return withoutDomains.replace(/^---\n/, `---\n${line}`);
+    // The index is a page, so its front matter reads back in its canonical spelling.
+    const [, front, ...body] = text.split("---\n");
+    const { domains: _, ...rest } = YAML.parse(front!) as Record<string, unknown>;
+    return `---\n${YAML.stringify(domains.length ? { domains, ...rest } : rest)}---\n${body.join("---\n")}`;
   });
 }
 

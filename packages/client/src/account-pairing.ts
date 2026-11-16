@@ -122,7 +122,7 @@ export async function connectDevice(
   });
   if (exists) {
     // Against the host's root, so unchanged entries keep its times.
-    const local = await resolveSnapshot(await snapshotDirectory(checkout, undefined, undefined, undefined, undefined, undefined, undefined,
+    const local = await resolveSnapshot(await snapshotDirectory(checkout, undefined, undefined, undefined, undefined, undefined,
       { at: Date.now(), basis: basisDirectories(snapshot.root, async (hash) => snapshot.objects.get(hash)!) }));
     if (local.root !== snapshot.root) {
       throw new ProtocolError("conflict", "The existing account checkout has different contents. Preserve and reconcile it before connecting this device.", 409);

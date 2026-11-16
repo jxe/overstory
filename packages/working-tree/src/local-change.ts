@@ -163,17 +163,19 @@ export function prepareSourceChange(input: {
   const objects = new Map(graph.objects);
   let file = "", bodyStart = 0;
   // A directory's first body, added by this generation: where and what.
-  type AddedBody = {parentPath: string; parent: string; file: string};
+  type AddedBody = {parentPath: string; parent: string; value: {file: string} | {page: string}};
   let addedBody: AddedBody | undefined;
   function replace(hash: string, depth: number, previous: string, source: string): string {
     const bytes = objects.get(hash);
     if (!bytes) throw new Error("Missing directory basis");
     const directory = decodeProtocolDirectory(bytes), entry = directory.entries.find(e => e.name === parts[depth]);
     if (!entry && depth === parts.length - 1 && parts[depth] === "_index.md" && previous === "") {
-      const produced = encoder.encode(source), file = hashObject(produced);
-      objects.set(file, produced);
-      addedBody = {parentPath: depth === 0 ? "/" : "/" + parts.slice(0, depth).join("/"), parent: hash, file};
-      directory.entries.push(stampedEntry("file", "_index.md", file, undefined, atMs));
+      // Markdown is a page unless its front matter doesn't parse (data model §9).
+      const page = parsePage(encoder.encode(source));
+      const produced = page ? encodeProtocolPage(page) : encoder.encode(source), object = hashObject(produced);
+      objects.set(object, produced);
+      addedBody = {parentPath: depth === 0 ? "/" : "/" + parts.slice(0, depth).join("/"), parent: hash, value: page ? {page: object} : {file: object}};
+      directory.entries.push(stampedEntry(page ? "page" : "file", "_index.md", object, undefined, atMs));
       directory.entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
       const next = encodeProtocolDirectory(directory), root = hashObject(next); objects.set(root, next); return root;
     }
@@ -269,7 +271,7 @@ export function prepareSourceChange(input: {
     // Assigned inside replace(), so read it through its declared type.
     const added = addedBody as AddedBody | undefined;
     if (!file && added)
-      operations = [{key: `add-${frame}`, kind: "addEntry", destination: {parent: {material: {kind: "basis", path: added.parentPath, object: added.parent}}, name: "_index.md"}, value: {file: added.file}}];
+      operations = [{key: `add-${frame}`, kind: "addEntry", destination: {parent: {material: {kind: "basis", path: added.parentPath, object: added.parent}}, name: "_index.md"}, value: added.value}];
     // A generation without operations cannot be a frame; the whole record is
     // then a snapshot.
     if (!operations.length) evidence = false;

@@ -242,8 +242,7 @@ public enum SnapshotBridge {
         }
 
         try visitDirectory(snapshot.root, path: "/")
-        return WorkingTreeSystemReplacement(root: snapshot.root, update: update, cursor: cursor, nodes: nodes, acceptedAt: acceptedAt,
-                                            pages: ProtocolObjectGraph.holdsPages(snapshot.root, in: objects))
+        return WorkingTreeSystemReplacement(root: snapshot.root, update: update, cursor: cursor, nodes: nodes, acceptedAt: acceptedAt)
     }
 
     public static func inferredMediaType(for name: String) -> String? {

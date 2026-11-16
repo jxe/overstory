@@ -100,13 +100,6 @@ export function serveMaintenance(port: number, hostname: string): ReturnType<typ
 }
 
 /** `OVERSTORYD_TRUSTED_PROXY_HOPS`: how many reverse proxies in front of the listener append to `X-Forwarded-For`; zero when unset. */
-/** `OVERSTORYD_PAGES`: `1` for every tree, or tree IDs separated by commas. */
-function pagesOption(value: string | undefined): boolean | string[] {
-  const trimmed = value?.trim();
-  if (!trimmed) return false;
-  if (trimmed === "1") return true;
-  return trimmed.split(",").map((tree) => tree.trim()).filter(Boolean);
-}
 
 /**
  * `OVERSTORYD_BEETLE`: the trees whose Beetle views and mutations the host runs in
@@ -248,7 +241,6 @@ export async function serveCommunity(args: string[]): Promise<void> {
       port: requestedPort,
       hostname: hostnameOption(args),
       rateLimits: process.env.OVERSTORYD_RATE_LIMITS === "1",
-      pages: pagesOption(process.env.OVERSTORYD_PAGES),
       // `OVERSTORYD_PROVENANCE_FILL=0` leaves missing provenance indexes uncomputed.
       provenanceFill: process.env.OVERSTORYD_PROVENANCE_FILL?.trim() !== "0",
       trustedProxyHops: trustedProxyHops(),

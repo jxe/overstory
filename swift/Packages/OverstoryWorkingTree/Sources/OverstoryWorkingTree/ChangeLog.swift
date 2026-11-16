@@ -137,11 +137,10 @@ public struct LocalChange: Codable, Equatable, Sendable {
         // Directories along the path, by depth: their basis hash and the hash the final generation produced.
         var baseDirectories: [Int: String] = [:], resultDirectories: [Int: String] = [:]
         var file: String?, basisFile: String?
-        // Markdown is a page entry once the basis holds pages (directory format §3).
-        let pages = ProtocolObjectGraph.holdsPages(graph.root, in: decoded)
+        // Markdown is a page entry when its front matter parses (directory format §3).
         /// The entry for Markdown `source` named `name`, stamped against the entry `previous` it replaces.
         func markdown(_ name: String, _ source: String, previous: ProtocolDirectoryEntry?) throws -> ProtocolDirectoryEntry {
-            if pages, ProtocolPage.isPageName(name), let page = ProtocolPage.parse(Data(source.utf8)) {
+            if ProtocolPage.isPageName(name), let page = ProtocolPage.parse(Data(source.utf8)) {
                 return .stamped(.page, name: name, object: try store(.page(page)), previous: previous, at: stamp)
             }
             return .stamped(.file, name: name, object: try store(.file(Data(source.utf8))), previous: previous, at: stamp)

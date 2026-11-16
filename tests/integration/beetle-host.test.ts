@@ -1,4 +1,5 @@
 // Apps 015 steps 2 and 4: Beetle views and mutations run on the host, in process. Done
+import { entryText } from "../helpers/entry-text.ts";
 // when: a `.beetle` view streams its tree over the accepted rows and answers again when a
 // mutation or a device's edit changes them; a data view streams its JSON and follows a
 // profile edit; a schema's own view streams too; views read the host's SQLite copy of
@@ -321,7 +322,7 @@ describe.serial("Beetle on the host", () => {
       const snapshot = await owner.snapshot(me, current.tree.root);
       const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
       const index = root.entries.find((entry) => entry.name === "_index.md")!;
-      const text = new TextDecoder().decode(snapshot.objects.get(index.file!)!);
+      const text = entryText(index, snapshot.objects)!;
       const named = new TextEncoder().encode(text.replace(/^displayName: .*$/m, "displayName: Olive Owner"));
       const file = hashObject(named);
       const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file, created: 0, modified: 0 } : entry) });

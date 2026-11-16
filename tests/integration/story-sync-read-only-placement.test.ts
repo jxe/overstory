@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { entryText } from "../helpers/entry-text.ts";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -68,7 +69,7 @@ async function atB(tree: string): Promise<string> {
   const { tree: descriptor } = await owner.descriptor(tree);
   const snapshot = await owner.snapshot(tree, descriptor.root);
   const entry = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find((candidate) => candidate.name === "_index.md");
-  return new TextDecoder().decode(snapshot.objects.get(entry!.file!)!);
+  return entryText(entry, snapshot.objects)!;
 }
 
 beforeAll(async () => {

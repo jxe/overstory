@@ -26,10 +26,9 @@ enum ConflictReviewCompiler {
             let bytes = try ProtocolObjectCodec.encode(object), hash = ProtocolObjectCodec.hash(bytes)
             objects[hash] = bytes; return hash
         }
-        // Markdown is a page entry once the base holds pages (directory format §3).
-        let pages = ProtocolObjectGraph.holdsPages(base.root, in: (try? ProtocolObjectGraph.validate(base)) ?? [:])
+        // Markdown is a page entry when its front matter parses (directory format §3).
         func markdown(_ bytes: Data) throws -> ProtocolDirectoryEntry {
-            if pages, let page = ProtocolPage.parse(bytes) { return .init(name: "", page: try store(.page(page))) }
+            if let page = ProtocolPage.parse(bytes) { return .init(name: "", page: try store(.page(page))) }
             return .init(name: "", file: try store(.file(bytes)))
         }
         /// The source text a content object holds: a file's bytes, or a page's

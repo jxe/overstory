@@ -307,17 +307,13 @@ public struct WorkingTreeSystemReplacement: Sendable, Equatable {
     /// When the host accepted this root. Nodes it changes are dated then rather
     /// than when this replica happened to install it.
     public var acceptedAt: Date?
-    /// Whether the root holds a page entry: the tree then reads its Markdown
-    /// as pages (directory format §3).
-    public var pages: Bool
 
-    public init(root: String, update: String, cursor: String? = nil, nodes: [WorkingTreeSystemNode], acceptedAt: Date? = nil, pages: Bool = false) {
+    public init(root: String, update: String, cursor: String? = nil, nodes: [WorkingTreeSystemNode], acceptedAt: Date? = nil) {
         self.root = root
         self.update = update
         self.cursor = cursor
         self.nodes = nodes
         self.acceptedAt = acceptedAt
-        self.pages = pages
     }
 }
 
@@ -447,9 +443,6 @@ struct WorkingTreeState: Codable, Equatable, Sendable {
     var schema = WorkingTreeState.currentSchema
     var tree: String
     var nodes: [WorkingTreeNode]
-    /// Whether the tree holds pages, so its Markdown is written as page
-    /// entries (directory format §3). Absent in state written before pages.
-    var pages: Bool?
 }
 
 struct WorkingTreeControl: Codable, Equatable, Sendable {

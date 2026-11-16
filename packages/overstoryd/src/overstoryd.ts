@@ -11,7 +11,6 @@ import { CustomDomains, type DomainCandidate } from "./custom-domains.ts";
 import { validateGraphChange, type ValidatedGraph } from "./updates/graph-validation.ts";
 import { ExecutionAuthority } from "./execution-authority.ts";
 import { resourceEffects, type ResourceEffect } from "./resource-effects.ts";
-import { checkPageConversion } from "./page-conversion.ts";
 import { MergeHistory } from "./updates/merge-history.ts";
 import { ProvenanceStore } from "./updates/provenance-store.ts";
 import { Recent } from "./recent.ts";
@@ -160,8 +159,6 @@ export interface HostDaemonOptions {
   remoteGroupLifetimeMs?: number;
   remoteGroupRefetchMs?: number;
   remoteGroupStaleMs?: number;
-  /** Accept page entries and conversions to them (spec 02 §3): in every tree, or in the trees listed. */
-  pages?: boolean | readonly string[];
   /** Compute missing provenance indexes in the background, from startup on
    * (docs/architecture/overstoryd/provenance-index.md). */
   provenanceFill?: boolean;
@@ -289,12 +286,13 @@ function mountBelow(parentPath: string, mount: string): string {
   return parentPath === "/" ? `/${mount}` : `${parentPath}/${mount}`;
 }
 
+/** A new tree holding `source` as its root page (data model §9). */
 function directSnapshot(source: string, at = Date.now()): TreeSnapshot {
-  const fileBytes = new TextEncoder().encode(source);
+  const fileBytes = encodeProtocolPage(parsePage(new TextEncoder().encode(source))!);
   const fileHash = hashObject(fileBytes);
   const rootBytes = encodeProtocolDirectory({
     type: "directory",
-    entries: [stampedEntry("file", "_index.md", fileHash, undefined, at)],
+    entries: [stampedEntry("page", "_index.md", fileHash, undefined, at)],
   });
   const rootHash = hashObject(rootBytes);
   return { root: rootHash, objects: new Map([[fileHash, fileBytes], [rootHash, rootBytes]]) };
@@ -428,10 +426,6 @@ export class HostDaemon implements AsyncDisposable {
   /** Background object packing (overstoryd 001). */
   readonly packing: PackMaintenance;
   private disposed = false;
-  /** Where this host serves `pages-v1`: every tree, or the trees listed. */
-  readonly pages: boolean | readonly string[] = false;
-  /** Which directories hold pages, kept across updates for the conversion check. */
-  private readonly pageDirectories = new Map<ObjectHash, boolean>();
 
   private constructor(
     readonly dataRoot: string,
@@ -2377,11 +2371,6 @@ export class HostDaemon implements AsyncDisposable {
     return true;
   }
 
-  /** Whether `tree` accepts page entries and a conversion to them. */
-  acceptsPages(tree: string): boolean {
-    return this.pages === true || (Array.isArray(this.pages) && this.pages.includes(tree));
-  }
-
   private async submitCandidateLocked(
     treeID: string,
     baseRoot: ObjectHash,
@@ -2400,7 +2389,6 @@ export class HostDaemon implements AsyncDisposable {
       ? this.treeConfigPolicy(tree, request, baseRoot, caller, proposed)
       : this.ordinaryPolicy(tree, request, caller);
     const { subject } = policy;
-    await checkPageConversion(baseRoot, request.candidate, hash => this.objects.load(hash, proposed), this.pageDirectories, this.acceptsPages(treeID));
     const execution = this.execution.current;
     if (execution) {
       if (this.currentUpdate(treeID)?.conflicted) throw new PermissionDeniedError("Execution updates of conflicted trees are not allowed until alternative scope validation is available");

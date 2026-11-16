@@ -168,7 +168,7 @@ describe("invitations", () => {
     await expect(cancelInvitation(owner, "frank")).rejects.toThrow("No invitation for ~frank is pending");
   });
 
-  test("keeps comments, CRLF and flow style, and handles absent or empty members", async () => {
+  test("reads block, flow and CRLF member lists, and handles absent or empty members", async () => {
     const cases: Array<[string, string]> = [
       ["block with comments", `members:\n  # the founders\n  - profile: ${JSON.stringify(ownerProfile)}  # first\n    handle: owner\n  - { profile: ${JSON.stringify(memberProfile)}, handle: member }\n`],
       ["flow", `members: [{ profile: ${JSON.stringify(ownerProfile)}, handle: owner }, { profile: ${JSON.stringify(memberProfile)}, handle: member }]\n`],
@@ -179,15 +179,12 @@ describe("invitations", () => {
         await setIndex(source);
         await createInvitation(owner, "gail");
         const invited = await read("_index.md");
-        expect(invited.startsWith(source.slice(0, source.indexOf("members") === -1 ? 3 : source.indexOf("members"))), name).toBe(true);
-        for (const comment of ["# the founders", "# first"]) if (source.includes(comment)) expect(invited, name).toContain(comment);
-        if (crlf) expect(invited.replaceAll("\r\n", ""), name).not.toContain("\n");
+        // The index is a page: its values and their order travel, its formatting doesn't (data model §9).
         const declared = parseMarkdown(invited).frontmatter.members as Array<Record<string, unknown>>;
         expect(declared.at(-1)?.handle, name).toBe("gail");
         await cancelInvitation(owner, "gail");
         const after = await read("_index.md");
         expect(parseMarkdown(after).frontmatter.members ?? [], name).toEqual(parseMarkdown(source).frontmatter.members ?? []);
-        for (const comment of ["# the founders", "# first"]) if (source.includes(comment)) expect(after, name).toContain(comment);
       }
     }
   });

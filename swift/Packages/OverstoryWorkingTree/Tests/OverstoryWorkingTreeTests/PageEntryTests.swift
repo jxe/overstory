@@ -30,7 +30,6 @@ struct PageEntryTests {
         let workingTree = try await WorkingTree.inMemory(tree: tree)
         let snapshot = try graph(page)
         let replacement = try SnapshotBridge.replacement(snapshot: snapshot, tree: tree, update: "up_1")
-        #expect(replacement.pages)
         try await workingTree.initializeFromSystem(replacement)
         #expect(try await workingTree.currentSnapshot().root == snapshot.root)
         return (workingTree, snapshot.root)

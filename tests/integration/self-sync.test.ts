@@ -1,4 +1,6 @@
 import { installAccountHome } from "../helpers/account-home.ts";
+import { entryText } from "../helpers/entry-text.ts";
+import type { ProtocolDirectoryEntry } from "@ovst/protocol";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -382,7 +384,7 @@ describe("private self-sync", () => {
       // Scanned as the daemon scans, against the accepted state the chain starts
       // from, so unchanged entries keep their times (a bare scan has only mtimes).
       const accepted = await (await deviceClient(host.url, token)).snapshot(tree, host.overstoryd.acceptedUpdates(tree).find((u) => u.id === chain.base)!.root);
-      const chainEnd = await resolveSnapshot(await snapshotDirectory(treeA, new Map(), [], undefined, undefined, undefined, false,
+      const chainEnd = await resolveSnapshot(await snapshotDirectory(treeA, new Map(), [], undefined, undefined, undefined,
         { at: Date.parse(chain.updates.at(-1)!.at), basis: basisDirectories(accepted.root, async (hash) => accepted.objects.get(hash)!) }));
       expect(chainEnd.root).toBe(chain.updates.at(-1)!.candidate);
       const chainRoot = decodeProtocolDirectory(chainEnd.objects.get(chainEnd.root)!);
@@ -603,14 +605,14 @@ describe("ignore rules in a placed folder", () => {
   /** The accepted text at a path, "<directory>" for a directory, or null. */
   async function acceptedFile(path: string): Promise<string | null> {
     const { snapshot } = await readAccepted(await owner(), tree);
-    let entry: { file?: string; directory?: string } | undefined = { directory: snapshot.root };
+    let entry: ProtocolDirectoryEntry | { directory: string } | undefined = { directory: snapshot.root };
     for (const name of path.split("/").filter(Boolean)) {
       if (!entry?.directory) return null;
       const directory = decodeProtocolDirectory(snapshot.objects.get(entry.directory as never)!);
       entry = directory.type === "directory" ? directory.entries.find((candidate) => candidate.name === name) : undefined;
     }
     if (entry?.directory) return "<directory>";
-    return entry?.file ? new TextDecoder().decode(snapshot.objects.get(entry.file as never)!) : null;
+    return entryText(entry as ProtocolDirectoryEntry, snapshot.objects as never) ?? null;
   }
 
   /** Another client's accepted update: set (or, with null, delete) files by path. */

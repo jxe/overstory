@@ -24,18 +24,14 @@ async function folder(files: Record<string, string>) {
 }
 
 describe("Markdown as pages on disk", () => {
-  test("page mode reads Markdown as pages, except frontmatter that does not parse", async () => {
+  test("a scan reads Markdown as pages, except frontmatter that does not parse", async () => {
     const root = await folder({
       "a.md": "---\nid: p1\ntitle: 'A'   # kept as written\n---\nBody\n",
       "broken.md": "---\ntitle: [\n---\nBody\n",
       "notes.txt": "plain",
     });
     try {
-      const legacy = await resolveSnapshot(await snapshotDirectory(root));
-      expect(decodeProtocolDirectory(legacy.objects.get(legacy.root)!).entries.every((entry) => entry.file)).toBe(true);
-      expect(await treeHoldsPages(legacy.root, async (hash) => legacy.objects.get(hash)!)).toBe(false);
-
-      const paged = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined, true));
+      const paged = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined));
       const entries = new Map(decodeProtocolDirectory(paged.objects.get(paged.root)!).entries.map((entry) => [entry.name, entry]));
       expect(entries.get("a.md")?.page).toBeDefined();
       expect(entries.get("broken.md")?.file).toBeDefined();
@@ -62,8 +58,8 @@ describe("Markdown as pages on disk", () => {
       expect(await readFile(join(root, "a.md"), "utf8")).toBe(source);
       await materializeTree(root, treeOf("done"), load);
       expect(await readFile(join(root, "a.md"), "utf8")).toBe(source.replace("status: draft", "status: done"));
-      // Reading it back in page mode gives the same tree.
-      const read = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined, true));
+      // Reading it back gives the same tree.
+      const read = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined));
       expect(read.root).toBe(treeOf("done"));
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -73,16 +69,16 @@ describe("Markdown as pages on disk", () => {
   test("a change to page properties alone is derived as property operations", async () => {
     const root = await folder({ "a.md": "---\ntitle: A\ntags: [x, y]\n---\nBody\n" });
     try {
-      const before = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined, true));
+      const before = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined));
       await writeFile(join(root, "a.md"), "---\ntitle: B\ntags: [y, z]\n---\nBody\n");
-      const after = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined, true));
+      const after = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined));
       const read = async (hash: ObjectHash) => after.objects.get(hash) ?? before.objects.get(hash)!;
       const operations = (await deriveRowOperations(before.root, after.root, read, TEST_AT))?.operations;
       expect(operations?.map((op) => [op.kind, op.kind === "rowCreate" || op.kind === "rowDelete" ? null : op.field])).toEqual([
         ["set", "title"], ["disconnect", "tags"], ["connect", "tags"],
       ]);
       await writeFile(join(root, "a.md"), "---\ntitle: B\ntags: [y, z]\n---\nBody changed\n");
-      const edited = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined, true));
+      const edited = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], undefined, undefined, undefined));
       expect(await deriveRowOperations(before.root, edited.root, async (hash) => edited.objects.get(hash) ?? before.objects.get(hash)!, TEST_AT)).toBeNull();
       expect(decoder.decode(decodeProtocolPage(edited.objects.get(decodeProtocolDirectory(edited.objects.get(edited.root)!).entries[0]!.page!)!).body)).toBe("Body changed\n");
     } finally {

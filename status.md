@@ -20,7 +20,7 @@ build 2059; npm `@ovst/cli` 0.2.0, trusted publishing moved to jxe/overstory) wi
 - **Protocol 003:** file and page entries carry `created`/`modified` (Unix ms), updates carry
   `at`, row times are Unix ms and row dates tagged (data model §6-7, collections §2). Protocol
   002's entry-times index, `?times`, timed bundles and `entry-metadata` are gone.
-- **Every Protocol 001 move** ([plan](plans/soon/protocol-001-spec-review-route-changes.md)),
+- **Every Protocol 001 move** (closed 2026-11-16: no old form is left in the code; [plan](https://github.com/jxe/arbor/blob/95a450f/plans/soon/protocol-001-spec-review-route-changes.md)),
   host and clients together with no period of answering both forms.
 - **`.mdx` is a plain file** (Apps 011), and **`schema.usl` became `schema.beetle`**
   with colors as data.
@@ -125,6 +125,49 @@ rows hash (collections §1, data model §5).
   `collection-databases.test.ts` checks the host's join rows.
 - Not yet: the switch.
 
+## Apps 015: Beetle views and mutations on the host — 2026-11-16
+
+**Deployed** with the Protocol 003 flag day on 2026-11-16 (built 2026-11-11 to 2026-11-12 on
+branch `claude/project-thread-kn7ley`). The host runs Beetle only for the trees
+`OVERSTORYD_BEETLE` names. What is left is in
+[Apps 015](plans/soon/apps-015-beetle-on-the-host.md) (host) and
+[Apps 019](plans/soon/apps-019-beetle-in-story.md) (Story).
+
+- **Parser and checker:** `packages/beetle` (`@ovst/beetle`; first built as `packages/uvl`
+  for `.view` files) parses, formats (`beetle fmt`, comments kept) and checks `.beetle`
+  files, a collection's `schema.beetle` and pages' view blocks, with pick-list `use`. A
+  `schema.beetle`'s tables check through `@ovst/usl` (`compileSchema`), so its layout and
+  fingerprint are USL's. State tables (`my`/`session`), enum values by name, `if`/`group`,
+  rule lines and mutation facts are checked. Plans are Beetle's own nested `ElementPlan`s
+  (rules expanded, state-reading conditions split off for the client, `expandsBy`), and
+  mutations report writes, `let` names and public errors. Vectors:
+  `docs/overstory-spec/conformance/beetle.json`; errors in `examples/invalid`.
+- **Evaluator and mutations on the host:** a row store over a collection's database layout
+  (`store.ts`), an evaluator for view trees and data views (`eval.ts`) and a mutation runner
+  (`mutate.ts`). overstoryd runs them in process (`beetle-host.ts`): the views route streams a
+  `.beetle` file's, page's or schema's view over the accepted rows and answers again on each
+  accepted update to the tree (or to a profile it drew); the mutate route checks the file at
+  the head, runs the mutation as its caller and submits one update guarded on that head, with
+  receipts (`rows`, `affected`) in `<dataRoot>/beetle/receipts.sqlite3`, retries and a rerun
+  when the head moved. Public errors answer 401/403/404/422/409.
+- **Reads in SQL:** `@ovst/beetle/sqlite` (`SQLiteStore`) answers the evaluator's reads with
+  SQL, narrowing a `for` by its conditions (`sql.ts`), with `orderBy` and `limit` when the
+  translation is exact; a view's reads known from its source go in one statement, with the
+  relationships it follows nested as JSON (every Supplies view is one statement). Since
+  Performance 007 these read the host's collection databases.
+- **Supplies ported, TypeScript path removed:** Supplies is one Beetle tree,
+  `packages/beetle/examples/supplies`, with its views and all 13 mutations. Removed: the
+  TSX/MDX Supplies, `packages/overstoryd-exec`, `packages/exec-protocol`, the sidecar,
+  activations and `OVERSTORYD_ACTIVATIONS`, `packages/apps-runtime` (Story Sync keeps the
+  projection-provider types), the TypeScript SQLite plan engine, and host declared views (a
+  `view` in `schema.beetle` replaces them: `data/schema.beetle?view=ByOwner`).
+- **Editor support:** `packages/beetle/editors`: a tree-sitter grammar with highlight, outline
+  and bracket queries, a Zed extension, and a VS Code extension that also colors ` ```view `
+  and ` ```beetle ` blocks in Markdown.
+
+Tests: `tests/unit/beetle-eval.test.ts` (Supplies' views and all 13 mutations, in memory and
+in SQLite), `tests/integration/beetle-host.test.ts`.
+
 ## Entry times with the content — 2026-11-10
 
 **Deployed** (main 791ca391, Swift 31e643fb). Tree operations §1.1.2a: an entry's time is
@@ -140,13 +183,13 @@ when its content first appeared at its path, served as `times` on snapshot and p
   their real dates, none later). Live backfill: 12,921 updates in 5.2 s.
 - TS `timedSnapshot`/`timedPathRead`, Story Sync passes `?times` through, Swift
   `TreeSession.refreshEntryDates` reads a timed snapshot. `entry-metadata` stays for released
-  clients until [Protocol 001](plans/soon/protocol-001-spec-review-route-changes.md).
+  clients until [Protocol 001](https://github.com/jxe/arbor/blob/95a450f/plans/soon/protocol-001-spec-review-route-changes.md).
 
 ## Views on the host, and declared views — 2026-11-08
 
 **Implemented** on main (merged 49cfced, 2026-11-08; overstoryd redeployed, but it serves no
 views until `OVERSTORYD_ACTIVATIONS` is set). Apps 005 (now closed)
-steps 1-4 and [Apps 012](plans/soon/apps-012-one-kind-of-view.md) steps 1-2 (host side).
+steps 1-4 and [Apps 012](https://github.com/jxe/arbor/blob/95a450f/plans/soon/apps-012-one-kind-of-view.md) steps 1-2 (host side).
 
 - **Views replace queries** (spec 07 §4.1, spec 08 §3). A view is plain JavaScript over rows:
   `Model.all/one(facts)`, relationship reads and `relationship.all(facts)` are traced into
@@ -172,8 +215,8 @@ steps 1-4 and [Apps 012](plans/soon/apps-012-one-kind-of-view.md) steps 1-2 (hos
   connection model (`Item`, `Reaction`) by what it connects to, and names any other row keyed
   by several columns (`Tag (list, id)`) by its row key. Supplies' default views all present.
 - **Left:** [Security 013](plans/features/security-013-row-read-rules.md) (fine-grained read
-  rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](plans/soon/apps-015-the-view-language.md)); Story Sync answering and Story
-  drawing declared views ([Apps 012](plans/soon/apps-012-one-kind-of-view.md)); hand checks
+  rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](plans/soon/apps-015-beetle-on-the-host.md)); Story Sync answering and Story
+  drawing declared views (folded into [Apps 019](plans/soon/apps-019-beetle-in-story.md) on 2026-11-16); hand checks
   in [Joe's to-do](plans/joe.md#views-on-the-host-apps-005-and-012).
 
 Tests: `tests/integration/host-collections.test.ts` (views and mutations from a tree, JSX
@@ -627,6 +670,15 @@ choice). All **deployed** on main:
 
 ## Pages as logical nodes built — 2026-10-28
 
+**2026-11-16:** every tree on the live host holds its Markdown as pages since the Protocol 003
+flag day, so the host's conversion code went: no conversion check on accept (one fewer walk of
+the candidate per update), no `OVERSTORYD_PAGES`, no `pages-v1` health feature, and the
+descriptor no longer says `pages`. Trees the host makes start with a page, and every client
+(Story Sync, the CLI, Story's Swift working tree) writes Markdown as a page whenever its front
+matter parses, with no page mode and no conversion scan. Joe is the only client, so this went
+out without a transition (Joe, 2026-11-16). `tests/integration/overstoryd/page-acceptance.test.ts`,
+`tests/integration/folder-pages.test.ts`, `PageTests`.
+
 Filesystem 026 steps 1 to 5 are **implemented** in both stacks and merged to main: Markdown
 files sync as page objects (id, ordered properties, exact body), property edits merge field by
 field, and conflict review offers property choices. Swift passed every package test and the Mac and
@@ -639,7 +691,7 @@ is that of the page it reads as, so a conversion meets concurrent edits cleanly.
 2026-11-01 the host's `OVERSTORYD_PAGES` named Joe's todos tree alone, and it was converted
 (update 14803). Its hand check and converting the other trees are in
 [Joe's to-do](plans/joe.md); the cleanup left is
-[Filesystem 026](plans/soon/filesystem-026-page-provenance-and-cleanup.md).
+[Filesystem 026](plans/soon/filesystem-026-markdown-files-go.md) and [Filesystem 028](plans/later/filesystem-028-page-body-provenance-and-front-matter-merges.md).
 
 Joe set `OVERSTORYD_PAGES=1` on Railway 2026-11-09 (deploy 657f8553, 07:34Z) after a host
 backup at `/data/backups/pages-all-20261109`. Each tree converts on a writer's next Story Sync

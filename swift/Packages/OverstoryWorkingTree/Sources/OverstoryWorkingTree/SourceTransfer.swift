@@ -27,9 +27,8 @@ extension LocalChange {
             bytes[hash] = value; decoded[hash] = object
             return hash
         }
-        // Markdown is a page entry once the basis holds pages. A transfer
+        // Markdown is a page entry when its front matter parses. A transfer
         // touching a page goes as a snapshot: its moves would address bodies.
-        let pages = ProtocolObjectGraph.holdsPages(graph.root, in: decoded)
         var touchesPage = false
         func components(_ path: String) throws -> [String] {
             let parts = path.dropFirst().split(separator: "/", omittingEmptySubsequences: false).map(String.init)
@@ -55,7 +54,7 @@ extension LocalChange {
                     file = current
                 }
                 let name = entries[index].name, previous = entries[index]
-                if pages, ProtocolPage.isPageName(name), let page = ProtocolPage.parse(Data(source.utf8)) {
+                if ProtocolPage.isPageName(name), let page = ProtocolPage.parse(Data(source.utf8)) {
                     entries[index] = .stamped(.page, name: name, object: try store(.page(page)), previous: previous, at: stamp)
                 } else {
                     entries[index] = .stamped(.file, name: name, object: try store(.file(Data(source.utf8))), previous: previous, at: stamp)

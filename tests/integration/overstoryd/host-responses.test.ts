@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { entryText } from "../../helpers/entry-text.ts";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -224,8 +225,7 @@ describe("the reserved-address page", () => {
     const head = await owner.descriptor(tree);
     const snapshot = await owner.snapshot(tree, head.tree.root);
     const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-    const index = root.entries.find((entry) => entry.name === "_index.md")!.file!;
-    const source = new TextDecoder().decode(snapshot.objects.get(index)!);
+    const source = entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!;
     const digest = `sha256:${sha256("abcdefghijklmnopqrstuv")}`;
     const bytes = new TextEncoder().encode(source.replace("members:\n", `members:\n  - handle: "guest"\n    inviteDigest: "${digest}"\n`));
     const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(bytes), created: 0, modified: 0 } : entry) });

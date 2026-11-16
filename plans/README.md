@@ -135,32 +135,26 @@ can be dictated in one go. A recording without commands stays one paragraph.
 
 ## Soon
 
-**[Protocol 001: retire the old routes the spec review replaced](soon/protocol-001-spec-review-route-changes.md).**
-Joe's spec review changes routes and shapes on both ends. Every move shipped with the
-Protocol 003 flag day (2026-11-16, Story 0.2.0). Left: check that no old form survives in the
-code, then close the plan.
-
-**[Filesystem 026: page provenance, and dropping Markdown file entries](soon/filesystem-026-page-provenance-and-cleanup.md).**
-Pages are logical nodes, written to disk by each placement: built, released in 0.1.6 and
-converted on Joe's todos tree ([status](../status.md#pages-as-logical-nodes-built--2026-10-28)).
-Left: provenance for page bodies, the front-matter merge cases it closes, and removing the
-`.md` file-entry path once every tree is converted.
-
-**[Apps 012: Story asks for declared views like any view](soon/apps-012-one-kind-of-view.md).**
-overstoryd serves a schema's `~views` entries as declared views through the same route as
-authored ones. Left: Story Sync answers them locally on a placed tree, and Story draws both
-kinds the same way.
+**[Filesystem 026: the host refuses Markdown files that read as pages](soon/filesystem-026-markdown-files-go.md).**
+Clients always write pages and the host's conversion code is gone (2026-11-16). Left: the host
+refuses a Markdown file entry that reads as a page, once its tests stop writing `note.md` as a
+file. Take it with Performance 010.
 
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
 
-**[Apps 015: Beetle views and mutations](soon/apps-015-the-view-language.md).** Joe, 2026-11-11:
-views and mutations are written in Beetle (`.beetle` files), and TypeScript
-support for both goes. Parser and checker (built), evaluators on the host and in Story, Supplies
-ported, the TypeScript path removed.
+**[Apps 015: Beetle on the host: views as nodes, view blocks, every tree](soon/apps-015-beetle-on-the-host.md).**
+Beetle views and mutations run on the host
+([status](../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). Left, host
+and TypeScript only: `.beetle` files as nodes and pages' view blocks, Beetle for every tree,
+HTML for a browser, and loose ends.
+
+**[Apps 019: Beetle in Story](soon/apps-019-beetle-in-story.md).** Story's side of Beetle, with
+the rest of Apps 012 folded in: the `rows` answer, a Swift evaluator, collections drawn from
+Beetle views instead of `~views`, view blocks drawn in pages, and highlighting.
 
 **[Apps 011: widgets in Story](soon/apps-011-widgets-in-story.md).**
-After Apps 015. Small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in
+After Apps 019. Small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in
 SwiftUI (no web view, no React), with state owned by the app, the page or the reader.
 Absorbs Apps 001 and 003; an HTML renderer comes later.
 
@@ -171,6 +165,10 @@ with its own cursor. Steps: compute the change once, group commit, the feed, the
 updates through the tree's mailbox, the head in working form, pushed authorization changes.
 
 ## Later
+
+**[Filesystem 028: provenance for page bodies, and front-matter merge cases](later/filesystem-028-page-body-provenance-and-front-matter-merges.md).**
+Left from Filesystem 026: the provenance index and line provenance cover page bodies, and the
+front-matter merge cases per-property merge now covers are closed.
 
 **[Schema language 010: row ownership](later/schema-language-010-row-ownership.md).**
 Rows only their authors edit, as access policy (`who: {property: authors}`, one

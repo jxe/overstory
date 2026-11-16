@@ -29,8 +29,6 @@ enum WorkingTreeProtocolCodec {
             return hash
         }
 
-        /// Markdown is a page entry once the tree holds pages (directory format §3).
-        let pages = state.pages == true
         /// `entry` with the times its node keeps. Every state the tree installs
         /// or changes is stamped (`WorkingTree.stampEntryTimes`, the snapshot
         /// bridge, a folder scan); a node never stamped, as in a state built by
@@ -42,7 +40,7 @@ enum WorkingTreeProtocolCodec {
             return entry
         }
         func markdown(_ name: String, _ bytes: Data) -> ProtocolDirectoryEntry {
-            ProtocolDirectoryEntry.markdown(name: name, bytes: bytes, pages: pages, store: store)
+            ProtocolDirectoryEntry.markdown(name: name, bytes: bytes, store: store)
         }
         var markdownMemo: [String: WorkingTreeSnapshotMemo.Markdown] = [:]
         var directoryMemo: [String: WorkingTreeSnapshotMemo.Directory] = [:]
@@ -51,18 +49,18 @@ enum WorkingTreeProtocolCodec {
         func markdown(_ name: String, source: String, in parent: String) -> ProtocolDirectoryEntry {
             guard memo != nil else { return markdown(name, Data(source.utf8)) }
             let key = WorkingTreeSemantics.child(name, of: parent)
-            if let known = previous?.markdown[key], known.pages == pages, known.source == source {
+            if let known = previous?.markdown[key], known.source == source {
                 objects[known.hash] = known.bytes
                 markdownMemo[key] = known
                 return known.entry
             }
             var stored: (hash: String, bytes: Data)?
-            let entry = ProtocolDirectoryEntry.markdown(name: name, bytes: Data(source.utf8), pages: pages) { bytes in
+            let entry = ProtocolDirectoryEntry.markdown(name: name, bytes: Data(source.utf8)) { bytes in
                 let hash = store(bytes)
                 stored = (hash, bytes)
                 return hash
             }
-            if let stored { markdownMemo[key] = .init(source: source, pages: pages, entry: entry, hash: stored.hash, bytes: stored.bytes) }
+            if let stored { markdownMemo[key] = .init(source: source, entry: entry, hash: stored.hash, bytes: stored.bytes) }
             return entry
         }
 
@@ -161,7 +159,6 @@ enum WorkingTreeProtocolCodec {
 final class WorkingTreeSnapshotMemo: @unchecked Sendable {
     struct Markdown {
         var source: String
-        var pages: Bool
         var entry: ProtocolDirectoryEntry
         var hash: String
         var bytes: Data

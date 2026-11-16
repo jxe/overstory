@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decodeLocalUpdate, wireUpdate, prepareSourceChange, type SourceIntent, type LocalChange } from "@ovst/working-tree";
 import { ChangeLog } from "@ovst/working-tree/node";
-import { decodeAuthoredTrace, encodeAuthoredTrace, entryTimeOf, decodeProtocolDirectory, decodeTreeSnapshotJSON, encodeProtocolDirectory, hashObject, type SourceOperation, type TreeSnapshot, applySourceEdits, type SourceEdit } from "@ovst/protocol";
+import { decodeAuthoredTrace, encodeAuthoredTrace, entryTimeOf, decodeProtocolDirectory, decodeTreeSnapshotJSON, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, type SourceOperation, type TreeSnapshot, applySourceEdits, type SourceEdit } from "@ovst/protocol";
 import { executeExactSourceEdits } from "../support/source-edits.ts";
 import { singleStep } from "./overstoryd-merge/fixture.ts";
 import { evaluateIntent } from "../support/merge-engine.ts";
@@ -135,13 +135,14 @@ test("first directory-body save adds the body without inventing source material"
   const graph = { root, objects: new Map([[root, bytes]]) };
   const record = prepareSourceChange({ tree: fixture.tree, graph, basis: { kind: "accepted", root, update: "empty" }, sourcePath: "/_index.md",
     intent: { basis: { tree: fixture.tree, path: "/", revision: "empty-body", source: "" }, source: "Exact\r\n", edits: [{ offset: 0, length: 0, replacement: "Exact\r\n" }] } });
-  const body = hashObject(Buffer.from("Exact\r\n"));
+  // Markdown is a page: the body goes as the page it reads as.
+  const body = hashObject(encodeProtocolPage(parsePage(Buffer.from("Exact\r\n"))!));
   expect(record.update.trace).toEqual([{ before: root, after: record.update.candidate, operations: [
-    { key: "add-0", kind: "addEntry", destination: { parent: { material: { kind: "basis", path: "/", object: root } }, name: "_index.md" }, value: { file: body } },
+    { key: "add-0", kind: "addEntry", destination: { parent: { material: { kind: "basis", path: "/", object: root } }, name: "_index.md" }, value: { page: body } },
   ] }]);
   await q.retain(record);
   expect((await q.retained())[0]).toEqual(record);
-  expect(decodeTreeSnapshotJSON(record.candidate).objects.has(hashObject(Buffer.from("Exact\r\n")))).toBe(true);
+  expect(decodeTreeSnapshotJSON(record.candidate).objects.has(body)).toBe(true);
 }));
 
 test("journal references platform objects and compacts only dependency-free settlements", async () => withQueue(async (_q, root) => {

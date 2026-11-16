@@ -111,6 +111,12 @@ Built 2026-11-07 ([status](../status.md#trees-at-your-own-domain--2026-11-07)).
 
 ## Releases and publishing
 
+- [ ] **Delete Railway variables the code no longer reads** on `canopy-arb-nxhx-org`:
+  `OVERSTORYD_PAGES` (Filesystem 026, 2026-11-16) and `OVERSTORYD_ACTIVATIONS` (Apps 015).
+- [ ] **Rebuild Story from main after 2026-11-16's page cleanup** (clients always write pages):
+  the Mac app (Raycast build) and the iPhone app, and restart Story Sync
+  (`story daemon restart`). Until then your devices write Markdown as a page only in trees that
+  already hold one.
 - [ ] **Finish moving to Story 0.2.0, the Protocol 003 release**
   ([status](../status.md#protocol-003-flag-day--2026-11-16)): update your iPhone from TestFlight
   (build 2059) before opening Story there; have Oliver update both apps. Old apps cannot sync

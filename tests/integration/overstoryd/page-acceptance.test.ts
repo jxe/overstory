@@ -21,7 +21,6 @@ function directory(value: ProtocolDirectory) {
 }
 const pageObject = (properties: PageProperty[], body: string) =>
   put(encodeProtocolPage({ type: "page", id: "p1", properties, body: encoder.encode(body) }));
-const source = "---\nid: p1\ntitle: A\nstatus: draft\n---\nOne\nTwo\n";
 const pageHash = (at: string) => decodeProtocolDirectory(objects.get(at)!).entries.find((e) => e.name === "note.md")!.page!;
 const pageAt = (at: string) => decodeProtocolPage(objects.get(pageHash(at))!);
 async function remember(acceptedRoot: string) {
@@ -39,34 +38,32 @@ async function submit(update: CandidateUpdate, basis = base) {
 }
 const snapshotUpdate = (candidate: string): CandidateUpdate => ({ at: TEST_TIME, change: crypto.randomUUID(), candidate, trace: null, resolves: [], deltas: [], objects: payload() });
 
-/** A host with `note.md` as a Markdown file, before conversion. */
-async function start(pages: boolean | string[]) {
+/** A host whose community tree has `note.md` as a page. */
+async function start() {
   await stop();
   dir = await mkdtemp(`${tmpdir()}/story-page-accept-`);
   running = await serveHost({ dataRoot: dir, accounts: [testAccount("owner", token, { communityWriter: true })],
-    publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0, pages });
+    publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0 });
   client = await deviceClient(running.url, token);
   tree = (await client.account()).account.community.id;
   const descriptor = await client.descriptor(tree), initial = await client.snapshot(tree, descriptor.tree.root);
   objects = new Map(initial.objects);
-  const value = decodeProtocolDirectory(objects.get(initial.root)!);
-  value.entries.push({ name: "note.md", file: put(encoder.encode(source)), created: 0, modified: 0 });
-  const fileRoot = directory(value);
-  return { fileRoot, update: (await submit(snapshotUpdate(fileRoot), descriptor.tree.update)).id };
+  return { emptyRoot: initial.root, update: descriptor.tree.update };
 }
-/** `at` with note.md as `page`, whichever kind it was. */
-function convert(at: string, page: string) {
+/** `at` with note.md set to `entry`. */
+function withNote(at: string, entry: { page: string } | { file: string }) {
   const value = decodeProtocolDirectory(objects.get(at)!);
-  value.entries = value.entries.map((e) => e.name === "note.md" ? { name: "note.md", page, created: 0, modified: 0 } : e);
+  value.entries = [...value.entries.filter((e) => e.name !== "note.md"), { name: "note.md", ...entry, created: 0, modified: 0 }];
   return directory(value);
 }
+const convert = (at: string, page: string) => withNote(at, { page });
 
 beforeEach(async () => {
-  const before = await start(true);
-  root = convert(before.fileRoot, pageObject([["title", "A"], ["status", "draft"]], "One\nTwo\n"));
-  const converted = await submit(snapshotUpdate(root), before.update);
-  expect(converted.root).toBe(root);
-  base = converted.id;
+  const before = await start();
+  root = convert(before.emptyRoot, pageObject([["title", "A"], ["status", "draft"]], "One\nTwo\n"));
+  const created = await submit(snapshotUpdate(root), before.update);
+  expect(created.root).toBe(root);
+  base = created.id;
 });
 async function stop() {
   if (!running) return;
@@ -112,31 +109,7 @@ test("one property set twice is a property choice, which a property operation re
   await running.overstoryd.verifyIntegrity();
 });
 
-test("the host advertises pages-v1, and refuses a conversion that changes a page", async () => {
-  expect(await (await fetch(`${running.url}/.overstory/health`)).json()).toEqual({ status: "ok", protocol: 2, features: ["pages-v1"] });
-  const { fileRoot, update } = await start(true);
-  const changed = convert(fileRoot, pageObject([["title", "B"], ["status", "draft"]], "One\nTwo\n"));
-  await expect(submit(snapshotUpdate(changed), update)).rejects.toThrow(/reads as/);
-});
-
-test("a host without pages-v1 refuses page entries", async () => {
-  const { fileRoot, update } = await start(false);
+test("health lists no pages feature, and descriptors no pages flag", async () => {
   expect(await (await fetch(`${running.url}/.overstory/health`)).json()).toEqual({ status: "ok", protocol: 2 });
-  const converted = convert(fileRoot, pageObject([["title", "A"], ["status", "draft"]], "One\nTwo\n"));
-  await expect(submit(snapshotUpdate(converted), update)).rejects.toThrow(/pages-v1/);
-});
-
-test("a host can take pages in the trees it lists only, and says so in their descriptors", async () => {
-  const { fileRoot, update } = await start(["tr_another"]);
-  expect((await client.descriptor(tree)).tree.pages).toBeUndefined();
-  const converted = convert(fileRoot, pageObject([["title", "A"], ["status", "draft"]], "One\nTwo\n"));
-  await expect(submit(snapshotUpdate(converted), update)).rejects.toThrow(/pages-v1/);
-  // The same host restarted with this tree listed.
-  running.server.stop(true); await running.overstoryd[Symbol.asyncDispose]();
-  running = await serveHost({ dataRoot: dir, accounts: [testAccount("owner", token, { communityWriter: true })],
-    publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0, pages: [tree] });
-  client = await deviceClient(running.url, token);
-  expect((await client.descriptor(tree)).tree.pages).toBe(true);
-  const accepted = await submit(snapshotUpdate(converted), update);
-  expect(accepted.root).toBe(converted);
+  expect((await client.descriptor(tree)).tree).not.toHaveProperty("pages");
 });

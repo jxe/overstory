@@ -28,7 +28,7 @@ for (const sink of ["log", "info"] as const) console[sink] = (...args: unknown[]
   if (sink === "log") log(...args);
 };
 const running = await serveHost({ dataRoot: dir, accounts: [testAccount("owner", "cost", { communityWriter: true })],
-  publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0, pages: true });
+  publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0 });
 const client = await deviceClient(running.url, "cost");
 const objects = new Map<ObjectHash, Uint8Array>();
 const put = (bytes: Uint8Array) => { const hash = hashObject(bytes); objects.set(hash, bytes); return hash; };

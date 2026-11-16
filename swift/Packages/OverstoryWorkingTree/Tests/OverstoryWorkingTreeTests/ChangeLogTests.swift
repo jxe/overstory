@@ -197,7 +197,7 @@ struct ChangeLogTests {
         #expect(added.fields["value"] == .object(["file": .string(ProtocolObjectCodec.hash(file))]))
         // In a tree that holds pages, the created Markdown is a page entry.
         var pageBytes = Data()
-        let pageEntry = ProtocolDirectoryEntry.markdown(name: String(f.createdPath.dropFirst()), bytes: file, pages: true, previous: nil, at: 0) { pageBytes = $0; return ProtocolObjectCodec.hash($0) }
+        let pageEntry = ProtocolDirectoryEntry.markdown(name: String(f.createdPath.dropFirst()), bytes: file, previous: nil, at: 0) { pageBytes = $0; return ProtocolObjectCodec.hash($0) }
         let pageHash = try #require(pageEntry.page)
         let pageRoot = try ProtocolObjectCodec.encode(.directory([pageEntry] + entries))
         let pageCandidate = ProtocolSnapshot(root: ProtocolObjectCodec.hash(pageRoot), objects: graph.objects.filter { $0.hash != graph.root } + [pageBytes, pageRoot].map { .init(hash: ProtocolObjectCodec.hash($0), bytes: $0) })

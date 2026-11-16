@@ -1,7 +1,7 @@
 # Apps 009: Code on one host using access held on another
 
 **Why and when:** after Apps 008, once apps span hosts. A design sketch; no timing yet.
-It became concrete with Beetle: [Apps 015](../soon/apps-015-the-view-language.md) lists
+It became concrete with Beetle: [Apps 015](../soon/apps-015-beetle-on-the-host.md) lists
 "collections in another tree than the view's" as left, and the first time that tree lives on
 another host, a Beetle view on one host needs rows held on another. It also holds the
 spec-extension question it was paired with until 2026-11-16 ("executable data across

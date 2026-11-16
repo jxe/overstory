@@ -12,7 +12,7 @@ import {
   hashObject,
   type ProtocolLog,
 } from "@ovst/protocol";
-import { canonicalCBORHash, collectionSchemaName, decodeCBOR, encodeCanonicalCBOR } from "@ovst/protocol";
+import { canonicalCBORHash, collectionSchemaName, decodeCBOR, encodeCanonicalCBOR, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import { ObjectIndex } from "@ovst/story-sync/state";
 import { CollectionProjections } from "../../packages/story-sync/src/state/providers/collection-projection.ts";
 import { loadDirectoryCollection } from "@ovst/collection-schema";
@@ -75,16 +75,16 @@ describe("lazy snapshots and the object index", () => {
       // trusts the row reproduces the planted hash, a walk that reads does not.
       const planted = "sha256:" + "ab".repeat(32);
       index.rememberObject(photo, "file", await stat(photo, { bigint: true }), planted);
-      index.rememberObject(note, "file", await stat(note, { bigint: true }), planted);
+      index.rememberObject(note, "page", await stat(note, { bigint: true }), planted);
       const second = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
       expect(second.root).not.toBe(first.root);
       expect(second.objects.has(planted)).toBe(true);
       expect(second.objects.has(photoHash)).toBe(false);
       await expect(second.objects.get(planted)!.bytes()).rejects.toThrow("changed after its snapshot");
-      // Markdown is read eagerly regardless of the row, which the walk then repairs.
-      const noteHash = hashObject(await readFile(note));
+      // Markdown is read eagerly as its page regardless of the row, which the walk then repairs.
+      const noteHash = hashObject(encodeProtocolPage(parsePage(await readFile(note))!));
       expect(second.objects.has(noteHash)).toBe(true);
-      expect(index.objectRow(note, await stat(note, { bigint: true }))?.hash).toBe(noteHash);
+      expect(index.storedObjectHash(note)?.hash).toBe(noteHash);
     } finally {
       index.close();
       await rm(root, { recursive: true, force: true });
@@ -250,7 +250,7 @@ describe("canonical tree objects", () => {
         entries: [
           { name: "nested", tree: "tr_child" },
           // A scan with no basis dates a file by its modification time.
-          { name: "note.md", file: expect.stringMatching(/^sha256:/), created: expect.any(Number), modified: expect.any(Number) },
+          { name: "note.md", page: expect.stringMatching(/^sha256:/), created: expect.any(Number), modified: expect.any(Number) },
         ],
       });
       expect(snapshot.objects.size).toBe(2);
@@ -443,7 +443,7 @@ describe("canonical tree objects", () => {
       expect(await readFile(join(destination, "tracked.log"), "utf8")).toBe("tracked before its rule\n");
       await expect(readFile(join(destination, "stray.txt"))).rejects.toThrow();
       // Against the tree it was written from, every entry keeps its times.
-      const written = await snapshotDirectory(destination, new Map(), [], undefined, undefined, skip, false, { at: Date.now(), basis: basisDirectories(held.root, load) });
+      const written = await snapshotDirectory(destination, new Map(), [], undefined, undefined, skip, { at: Date.now(), basis: basisDirectories(held.root, load) });
       expect(written.root).toBe(held.root);
     } finally {
       await rm(source, { recursive: true, force: true });

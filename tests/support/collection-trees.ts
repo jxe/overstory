@@ -1,5 +1,5 @@
 import { compileLogicalSchema, encodeCollection, loadDirectoryCollection } from "@ovst/collection-schema";
-import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, type LogicalRow, type ObjectHash, type ProtocolDirectoryEntry } from "@ovst/protocol";
+import { decodeProtocolDirectory, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, type LogicalRow, type ObjectHash, type ProtocolDirectoryEntry } from "@ovst/protocol";
 import type { LogicalTables } from "@ovst/usl";
 
 export interface CollectionTree {
@@ -31,9 +31,9 @@ export function collectionDirectory(schemaSource: string, tables: LogicalTables,
 /** A tree holding one collection folder, `/items`, beside a page. */
 export function collectionTree(schemaSource: string, tables: LogicalTables, objects = new Map<ObjectHash, Uint8Array>()): CollectionTree {
   const collection = collectionDirectory(schemaSource, tables, objects);
-  const page = new TextEncoder().encode("# Notes\n");
+  const page = encodeProtocolPage(parsePage(new TextEncoder().encode("# Notes\n"))!);
   objects.set(hashObject(page), page);
-  const root = encodeProtocolDirectory({ type: "directory", entries: [{ name: "items", directory: collection }, { name: "notes.md", file: hashObject(page), created: 0, modified: 0 }] });
+  const root = encodeProtocolDirectory({ type: "directory", entries: [{ name: "items", directory: collection }, { name: "notes.md", page: hashObject(page), created: 0, modified: 0 }] });
   objects.set(hashObject(root), root);
   return { root: hashObject(root), collection, objects };
 }

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { entryText } from "../helpers/entry-text.ts";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -103,7 +104,7 @@ async function atB(token: string, tree: string, name = "_index.md"): Promise<str
   const snapshot = await client.snapshot(tree, descriptor.root);
   const { decodeProtocolDirectory } = await import("@ovst/protocol");
   const entry = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find((candidate) => candidate.name === name);
-  return new TextDecoder().decode(snapshot.objects.get(entry!.file!)!);
+  return entryText(entry, snapshot.objects)!;
 }
 
 /**

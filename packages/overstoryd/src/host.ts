@@ -172,7 +172,7 @@ function overstoryLocator(origin: string, tree: HostTree): string | null {
 }
 
 /** A tree's descriptor at `head`, one of its accepted updates. */
-function descriptor(origin: string, tree: HostTree, access: ReadWriteAccess, head: Pick<AcceptedUpdate, "id" | "root" | "conflicted">, pages = false, domains?: CustomDomains): RemoteTreeDescriptor {
+function descriptor(origin: string, tree: HostTree, access: ReadWriteAccess, head: Pick<AcceptedUpdate, "id" | "root" | "conflicted">, domains?: CustomDomains): RemoteTreeDescriptor {
   return {
     id: tree.id,
     kind: tree.kind,
@@ -181,7 +181,6 @@ function descriptor(origin: string, tree: HostTree, access: ReadWriteAccess, hea
     root: head.root as RemoteTreeDescriptor["root"],
     update: head.id,
     conflicted: head.conflicted,
-    ...(pages ? { pages: true as const } : {}),
   };
 }
 
@@ -193,7 +192,7 @@ function descriptorWithUpdate(
 ): RemoteTreeDescriptor {
   const update = overstoryd.currentUpdate(tree.id);
   if (!update) throw new ServerFaultError(`Tree has no accepted update: ${tree.id}`);
-  return descriptor(origin, tree, access, update, overstoryd.acceptsPages(tree.id), overstoryd.customDomains);
+  return descriptor(origin, tree, access, update, overstoryd.customDomains);
 }
 
 /**
@@ -202,7 +201,7 @@ function descriptorWithUpdate(
  * frame's SSE `id` and the tree is the URL's.
  */
 function watchFrame(origin: string, tree: HostTree, transition: AcceptedTransition, access: ReadWriteAccess, domains?: CustomDomains) {
-  return encodeAcceptedWatchChange({ transition, access, canonical: descriptor(origin, tree, access, transition.update, false, domains).canonical });
+  return encodeAcceptedWatchChange({ transition, access, canonical: descriptor(origin, tree, access, transition.update, domains).canonical });
 }
 
 
@@ -393,13 +392,7 @@ export async function serveHost(options: {
   /** Run the Beetle views and mutations of these trees in process (Apps 015), unless a runtime above is given. */
   beetle?: BeetleHostOptions;
   /** Session and placement device-key lifetimes; tests shorten them. */
-  lifetimes?: Omit<HostDaemonOptions, "servedOverHTTP" | "pages" | "provenanceFill">;
-  /**
-   * Accept page entries and conversions to them (spec 02 §3), in every tree
-   * or in the trees listed: health advertises `pages-v1`, and those trees'
-   * descriptors say `pages`, which is when a writer's Story Sync converts.
-   */
-  pages?: boolean | readonly string[];
+  lifetimes?: Omit<HostDaemonOptions, "servedOverHTTP" | "provenanceFill">;
   /** Compute missing provenance indexes in the background (`HostDaemonOptions`). */
   provenanceFill?: boolean;
   /**
@@ -427,7 +420,7 @@ export async function serveHost(options: {
     name: options.community?.name ?? "Overstory Community",
     accounts: bootstrapAccounts,
     ...(options.community?.firstWriter ? { firstWriter: options.community.firstWriter } : {}),
-  }, options.mergeTool, { ...options.lifetimes, servedOverHTTP: new URL(publicOrigin).protocol === "http:", pages: options.pages ?? false, provenanceFill: options.provenanceFill ?? false });
+  }, options.mergeTool, { ...options.lifetimes, servedOverHTTP: new URL(publicOrigin).protocol === "http:", provenanceFill: options.provenanceFill ?? false });
   if (!dynamicLoopbackOrigin) overstoryd.setCommunityHost(new URL(publicOrigin).host);
   // Beetle views and mutations, over the accepted rows.
   const beetle = options.beetle ? overstoryd.disposeWith(new BeetleHost(overstoryd, resolve(options.dataRoot), options.beetle)) : null;
@@ -566,11 +559,10 @@ export async function serveHost(options: {
         if (request.method === "GET" && url.pathname === "/.overstory/health") {
           try {
             overstoryd.verifyDatabase();
-            const pages = overstoryd.pages === true || (Array.isArray(overstoryd.pages) && overstoryd.pages.length > 0);
             // `founding`: the community was founded by code and nobody has
             // claimed it yet, so an invitation claim here makes its claimer
             // the administrator (accounts §1.2). Story words its join screen by it.
-            return json({ status: "ok", protocol: HOST_PROTOCOL, ...(pages ? { features: ["pages-v1"] } : {}), ...(overstoryd.founding() ? { founding: true } : {}) });
+            return json({ status: "ok", protocol: HOST_PROTOCOL, ...(overstoryd.founding() ? { founding: true } : {}) });
           } catch (error) {
             console.error("overstoryd database check failed", error);
             return protocolError("internal-error", "Host database check failed", 503, true);

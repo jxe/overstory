@@ -16,7 +16,7 @@ const TEST_TIME = new Date(TEST_AT).toISOString();
 const bodyKB = Number(process.env.BODY_KB ?? 64), siblings = Number(process.env.SIBLINGS ?? 60), n = Number(process.env.N ?? 40);
 const dir = await mkdtemp(`${tmpdir()}/story-page-cost-`);
 const running = await serveHost({ dataRoot: dir, accounts: [testAccount("owner", "cost", { communityWriter: true })],
-  publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0, pages: true });
+  publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0 });
 const client = await deviceClient(running.url, "cost");
 const objects = new Map<ObjectHash, Uint8Array>();
 const encoder = new TextEncoder();

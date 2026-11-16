@@ -109,12 +109,6 @@ export async function snapshotDirectory(
   /** Leaves out ignored, untracked content; see `membershipSkip`. Nested tree boundaries are never skipped. */
   skip?: SkipPath,
   /**
-   * Page mode (directory format §3): Markdown files read as `page` entries,
-   * except one whose frontmatter does not parse, which stays a file. A
-   * writer is in page mode when its basis holds a page entry.
-   */
-  pages = false,
-  /**
    * How entries are stamped (data model §6): `at` is the update's time, and
    * `basis` gives the basis directory at a tree path, whose entries keep
    * their times when unchanged. A new or changed file takes its mtime, never
@@ -154,9 +148,9 @@ export async function snapshotDirectory(
     return { hash: hashObject(bytes), bytes };
   };
 
-  /** A Markdown file's page in page mode, or null when it stays a file. */
+  /** A Markdown file's page (directory format §3), or null when its front matter doesn't parse and it stays a file. */
   const pageSource = async (absolute: string, name: string): Promise<ObjectHash | null> => {
-    if (!pages || !isPageName(name)) return null;
+    if (!isPageName(name)) return null;
     const info = objectIndex ? await stat(absolute, { bigint: true }) : undefined;
     const page = parsePage(await readFile(absolute));
     if (!page) return null;

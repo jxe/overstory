@@ -8,7 +8,7 @@ import { serveStorySyncControl } from "@ovst/story-sync";
 import { serveHost } from "@ovst/overstoryd";
 import { resolveSnapshot, snapshotDirectory } from "@ovst/fs";
 import {
-  HostAccountStore, decodeProtocolDirectory, decodeUpdateRequestJSON, hashObject,
+  HostAccountStore, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolPage, parsePage, decodeUpdateRequestJSON, hashObject,
   type UpdateRequest,
 } from "@ovst/protocol";
 import { StorySyncRESTClient } from "../../packages/cli/src/daemon-client.ts";
@@ -90,7 +90,7 @@ async function accepted(): Promise<string> {
   const owner = await deviceClient(host.url, token);
   const current = await owner.descriptor(tree);
   const entry = decodeProtocolDirectory(await owner.object(tree, current.tree.root)).entries.find((candidate) => candidate.name === "large.md")!;
-  return new TextDecoder().decode(await owner.object(tree, entry.file!));
+  return new TextDecoder().decode(decodeProtocolPage(await owner.object(tree, entry.page!)).body);
 }
 
 test("a paused folder publishes nothing across a restart, pending shows the exact body, and resume sends it", async () => {
@@ -132,13 +132,13 @@ test("a paused folder publishes nothing across a restart, pending shows the exac
     const view = await story(daemon.url, ["sync", "pending", folder]);
     expect(view).toContain(`Pending for ${folder} (${tree}, paused)`);
     expect(view).toContain("Update 1 of 1: folder-");
-    expect(view).toMatch(/file \/large\.md \(delta from sha256:[0-9a-f]{12}…/);
-    expect(view).toMatch(/ {2}- The original\n {2}\+ A paused\n/);
+    expect(view).toMatch(/page \/large\.md \(delta from sha256:[0-9a-f]{12}…/);
+    expect(view).toMatch(/ {2}- The original middle line\.\n {2}\+ A paused middle line\.\n/);
     expect((await daemon.client.pending(tree)).paused).toBe(true);
     // The last preview is the change resume publishes.
     const body = decodeUpdateRequestJSON(JSON.parse(await story(daemon.url, ["sync", "pending", folder, "--json"])));
     expect(body.updates).toHaveLength(1);
-    expect(body.updates[0]!.deltas.map((delta) => delta.result)).toContain(hashObject(new TextEncoder().encode(edited)));
+    expect(body.updates[0]!.deltas.map((delta) => delta.result)).toContain(hashObject(encodeProtocolPage(parsePage(new TextEncoder().encode(edited))!)));
 
     expect(await story(daemon.url, ["sync", "resume", folder])).toBe(`Resumed ${folder} (${tree})\n`);
     await daemon.client.synchronizeNow();

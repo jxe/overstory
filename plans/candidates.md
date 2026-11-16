@@ -84,6 +84,9 @@ Measure before promoting any of these.
 
 ## Cleanup
 
+- **Clients stop sending empty update fields.** The host accepts an update without `trace`,
+  `resolves`, `objects` or `deltas` (tree operations §2.1; left from Protocol 001, closed
+  2026-11-16); TS and Swift clients still send them empty.
 - **The rest of the CLI on the client library** (after `story invite`, 2026-11-07): `story
   agent revoke` edits `devices.yaml` on the host through `@ovst/client` instead of in the
   checkout; `story place` and `story mv <url> <url>` make their `mounts.yaml` edits the same

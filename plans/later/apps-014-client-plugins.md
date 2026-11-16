@@ -1,6 +1,6 @@
 # Apps 014: client plugins
 
-**Why and when:** later, after [Apps 015](../soon/apps-015-the-view-language.md) and
+**Why and when:** later, after [Apps 019](../soon/apps-019-beetle-in-story.md) and
 alongside [Apps 011](../soon/apps-011-widgets-in-story.md). Joe, 2026-11-11: the plugins
 that matter most run on clients and make Beetle apps faster and more flexible: games,
 simulations, anything that changes every frame. Beetle has no general-purpose code

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { entryText } from "../../helpers/entry-text.ts";
 import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { serveHost } from "@ovst/overstoryd";
 import { acceptedEntries } from "../../support/log-entries.ts";
 import { expectReplayableHistory } from "../../support/replay-check.ts";
-import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, encodeProtocolDirectory, hashObject,
+import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject,
   type CandidateUpdate, type Hash, type ProtocolDirectory, type ProtocolDirectoryEntry, stampedEntry } from "@ovst/protocol";
 import { appendRowChanges, compileLogicalSchema, EMPTY_COLLECTION_STATE, encodeCollection } from "@ovst/collection-schema";
 import { idRow, T0 } from "../../support/collection-trees.ts";
@@ -161,7 +162,7 @@ test("root directory metadata has an inspectable whole-directory choice, continu
   const unrelated = hashObject(new TextEncoder().encode(`never accepted ${crypto.randomUUID()}`));
   const unreachable = await fetch(`${running.url}/.overstory/trees/${tree}/objects/${unrelated}`, { headers: { authorization: `Bearer ${await deviceSession(running.url, token)}` } });
   expect(unreachable.status).toBe(404);
-  const body = new TextDecoder().decode(objects.get(at(accepted.root, "_index.md")!.file!)) + "Continued\n";
+  const body = entryText(at(accepted.root, "_index.md"), objects)! + "Continued\n";
   const continued = await submit(snapshot(change(accepted.root, { "_index.md": { file: file(body) } })), accepted.id);
   expect(continued.conflicted).toBe(true); await remember(continued.root);
   expect(at(continued.root, "_index.md")?.file).toBe(file(body));
@@ -173,30 +174,33 @@ test("root directory metadata has an inspectable whole-directory choice, continu
 });
 
 
-test("a batch that changes root metadata beside an open file choice continues that choice across restart", async () => {
+test("a batch that changes root metadata beside an open property choice continues that choice across restart", async () => {
   tree = (await client.account()).account.profileTree!;
   const initial = await client.descriptor(tree); root = initial.tree.root; base = initial.tree.update;
   await remember(root);
-  const body = new TextDecoder().decode(objects.get(at(root, "_index.md")!.file!));
-  // Divergent frontmatter edits force a child decision before metadata changes.
-  const bodyFor = (title: string) => body.replace("---\n", `---\ntitle: ${title}\n`);
-  const left = snapshot(change(root, { "_index.md": { file: file(bodyFor("Left")) } }));
-  const right = snapshot(change(root, { "_index.md": { file: file(bodyFor("Right")) } }));
+  const index = decodeProtocolPage(objects.get(at(root, "_index.md")!.page!)!);
+  // Divergent property edits of the profile's page force a child decision before metadata changes.
+  const pageFor = (title: string) => {
+    const bytes = encodeProtocolPage({ ...index, properties: [...index.properties, ["title", title]] }), hash = hashObject(bytes);
+    objects.set(hash, bytes);
+    return hash;
+  };
+  const left = snapshot(change(root, { "_index.md": { page: pageFor("Left") } }));
+  const right = snapshot(change(root, { "_index.md": { page: pageFor("Right") } }));
   await submit(left); const childState = await submit(right); await remember(childState.root);
   expect(childState.conflicted).toBe(true);
   const first = snapshot(collection(childState.root, "choice"));
-  const second = snapshot(change(first.candidate, { "_index.md": { file: file(bodyFor("Hidden")) } }));
+  const second = snapshot(change(first.candidate, { "_index.md": { page: pageFor("Hidden") } }));
   const request = { base: childState.id, updates: [first, second] };
   const response = await client.submitUpdates(tree, request), accepted = response.results[1]!.update;
-  // Root metadata does not touch the file choice's material, so no root choice
-  // encloses it; the displayed file's edit continues the selected alternative.
+  // Root metadata does not touch the choice's material, so no root choice
+  // encloses it; the displayed page's edit continues the open choice.
   expect(accepted.root).toBe(second.candidate); expect(accepted.conflicted).toBe(true);
   const before = (await client.conflicts(tree, childState.id, childState.root)).decisions[0]!;
   const page = await client.conflicts(tree, accepted.id, accepted.root);
   expect(page.decisions).toHaveLength(1);
   const child = page.decisions[0]!;
-  expect(child.kind).toBe("entry"); expect(child.id).toBe(before.id);
-  expect(child.alternatives.find(a => a.id === child.selected)!.value).toEqual({ file: file(bodyFor("Hidden")) });
+  expect(child).toMatchObject({ kind: "property", property: "title", id: before.id });
   expect(child.alternatives.map(a => a.value)).toContainEqual(before.alternatives.find(a => a.id !== before.selected)!.value);
   await stop(); await start();
   expect((await client.submitUpdates(tree, request)).results).toEqual(response.results);
@@ -401,7 +405,7 @@ test("every acceptance records a log entry after its predecessor's, and only pro
     expect(profiles).toHaveLength(2);
     expect(profiles.map(p => JSON.parse(p.facts).type).sort()).toEqual(["group", "person"]);
     const community = profiles.find(p => p.tree_id === tree)!;
-    expect(community.index_hash).toBe(at(accepted.root, "_index.md")!.file!);
+    expect(community.index_hash).toBe(at(accepted.root, "_index.md")!.page!);
   } finally { db.close(); }
 });
 

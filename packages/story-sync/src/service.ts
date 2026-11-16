@@ -12,7 +12,7 @@ import type {
   SnapshotEnvelope,
   UpdateRequestJSON,
 } from "@ovst/protocol";
-import { canonicalHTTPURL, canonicalNodePath, canonicalOverstoryLocator, canonicalURL, storyDataRoot, resolveLogicalURL, treeConfigurationID, ProtocolClient, ProtocolTransportError, protocolObjectReferences, treeHoldsPages, verifyTreeSnapshotGraph, type CurrentTree, type ObjectHash, type TreeSnapshot, type ProtocolObjectKind, type RemoteTreeDescriptor } from "@ovst/protocol";
+import { canonicalHTTPURL, canonicalNodePath, canonicalOverstoryLocator, canonicalURL, storyDataRoot, resolveLogicalURL, treeConfigurationID, ProtocolClient, ProtocolTransportError, protocolObjectReferences, verifyTreeSnapshotGraph, type CurrentTree, type ObjectHash, type TreeSnapshot, type ProtocolObjectKind, type RemoteTreeDescriptor } from "@ovst/protocol";
 import { basisDirectories, loadIgnorePolicy, membershipSkip, resolveSnapshot, snapshotDirectory, trackedEntries, type SkipPath } from "@ovst/fs";
 import { loadLocalPlacements, replaceLocalPlacement, type LocalPlacement } from "@ovst/client";
 import { type SharedTreePlacement } from "./state/index.ts";
@@ -596,9 +596,7 @@ export class StorySyncDaemon implements AsyncDisposable {
       setDeclined: (declined) => this.trees.setDeclined(tree, declined),
       withWorkspaceIO: (run) => this.withWorkspaceIO(workspace, run),
       scan: (tracked, also, basis) => {
-        const listed = this.listings.get(accountKey) ?? [];
-        const remote = listed.find((candidate) => candidate.id === tree);
-        return this.scanWorkspace(workspace, listed, tracked, also, basis, remote?.pages === true && remote.access === "write");
+        return this.scanWorkspace(workspace, this.listings.get(accountKey) ?? [], tracked, also, basis);
       },
       root: workspace.root,
       excludedMounts: () => this.trees.excludedMountsWithin(workspace.root),
@@ -643,20 +641,12 @@ export class StorySyncDaemon implements AsyncDisposable {
     return boundaries;
   }
 
-  /** Which directories hold a page, by hash, across every folder's scans. */
-  private readonly pageDirectories = new Map<ObjectHash, boolean>();
-
   /**
    * Walk a folder into a lazy graph; index hits read no file bytes until a
    * change needs them. An ignored path is left out unless `tracked` holds it,
-   * or when `also` leaves it out. Markdown reads as pages once the root the
-   * folder builds on holds one. `convert` (a writer, where the host's
-   * descriptor says the tree takes pages) also reads a folder that holds exactly its tracked root as
-   * pages: that scan is the tree's one conversion, an ordinary snapshot the
-   * host checks changes no page (spec 02 §3). A folder with local edits
-   * publishes them first and converts on a later scan.
+   * or when `also` leaves it out. Markdown reads as pages (directory format §3).
    */
-  private async scanWorkspace(workspace: Workspace, remoteTrees: readonly RemoteTreeDescriptor[], tracked: TrackedRoot | null, also?: SkipPath, collectionBasis?: TrackedRoot, convert = false) {
+  private async scanWorkspace(workspace: Workspace, remoteTrees: readonly RemoteTreeDescriptor[], tracked: TrackedRoot | null, also?: SkipPath, collectionBasis?: TrackedRoot) {
     const exclusions = this.trees.excludedMountsWithin(workspace.root);
     const policy = await loadIgnorePolicy(workspace.root, { excludedRoots: exclusions });
     const skip = membershipSkip(policy, tracked ? trackedEntries(tracked.root, tracked.load) : null);
@@ -664,22 +654,15 @@ export class StorySyncDaemon implements AsyncDisposable {
     // Unchanged entries keep the times the root the folder last held gave
     // them; a new or changed file takes its mtime (data model §6).
     const stamp = { at: Date.now(), basis: basis ? basisDirectories(basis.root, basis.load) : undefined };
-    const scan = (pages: boolean) => {
-      workspace.objects.setPageMode(pages);
-      return snapshotDirectory(
-        workspace.root,
-        this.canonicalBoundariesFor(workspace, remoteTrees),
-        exclusions,
-        (directory, names) => workspace.describeProtocolCollection(directory, names, collectionBasis),
-        workspace.objectIndex(),
-        also ? async (path, isDirectory) => await skip(path, isDirectory) || await also(path, isDirectory) : skip,
-        pages,
-        stamp,
-      );
-    };
-    if (basis && await treeHoldsPages(basis.root, basis.load, this.pageDirectories)) return scan(true);
-    const legacy = await scan(false);
-    return convert && tracked && legacy.root === tracked.root ? scan(true) : legacy;
+    return snapshotDirectory(
+      workspace.root,
+      this.canonicalBoundariesFor(workspace, remoteTrees),
+      exclusions,
+      (directory, names) => workspace.describeProtocolCollection(directory, names, collectionBasis),
+      workspace.objectIndex(),
+      also ? async (path, isDirectory) => await skip(path, isDirectory) || await also(path, isDirectory) : skip,
+      stamp,
+    );
   }
 
   private async syncAll(throwErrors = false, configurationTree?: string): Promise<void> {

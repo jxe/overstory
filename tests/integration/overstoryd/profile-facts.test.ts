@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
+import YAML from "yaml";
+import { entryText } from "../../helpers/entry-text.ts";
 import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -6,7 +8,7 @@ import { tmpdir } from "node:os";
 import { hostTree } from "../../helpers/tree-config.ts";
 import { serveHost } from "@ovst/overstoryd";
 import {
-  ProtocolClient, decodeProtocolDirectory, encodeProtocolDirectory, generateOverstoryID, hashObject, 
+  ProtocolClient, decodeProtocolDirectory, encodeProtocolDirectory, encodeProtocolPage, generateOverstoryID, hashObject, parsePage, 
   type ObjectHash, type ProtocolDirectoryEntry,
 } from "@ovst/protocol";
 import { PhaseTimer } from "../../../packages/overstoryd/src/updates/timing.ts";
@@ -19,7 +21,7 @@ let db: Database;
 let ids: { community: string; ownerProfile: string; bobProfile: string; club: string; notes: string };
 const parses = spyOn(PhaseTimer.prototype, "count");
 
-const encoder = new TextEncoder(), decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 /** Replace, add (text) or remove (null) root entries of a tree's head, and submit it. */
 async function edit(tree: string, files: Record<string, string | null>) {
@@ -32,9 +34,11 @@ async function edit(tree: string, files: Record<string, string | null>) {
   for (const [name, text] of Object.entries(files)) {
     entries = entries.filter((entry) => entry.name !== name);
     if (text === null) continue;
-    const bytes = encoder.encode(text), hash = hashObject(bytes);
+    // Markdown goes as the page it reads as, as clients write it (data model §9).
+    const page = name.endsWith(".md") ? parsePage(encoder.encode(text)) : null;
+    const bytes = page ? encodeProtocolPage(page) : encoder.encode(text), hash = hashObject(bytes);
     objects.set(hash, bytes);
-    entries.push({ name, file: hash, created: 0, modified: 0 } as ProtocolDirectoryEntry);
+    entries.push({ name, ...(page ? { page: hash } : { file: hash }), created: 0, modified: 0 } as ProtocolDirectoryEntry);
   }
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   const bytes = encodeProtocolDirectory({ type: "directory", entries }), next = hashObject(bytes);
@@ -48,7 +52,7 @@ async function index(tree: string): Promise<string> {
   const snapshot = await owner.snapshot(tree, head.root);
   const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
   if (root.type !== "directory") throw new Error("root is not a directory");
-  return decoder.decode(snapshot.objects.get(root.entries.find((entry) => entry.name === "_index.md")!.file!)!);
+  return entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!;
 }
 
 function row(tree: string) {
@@ -136,7 +140,7 @@ test("a change to _index.md parses it once and updates the row", async () => {
   expect(writes()).toBe(1);
   expect(facts(ids.ownerProfile).displayName).toBe("Owner Person");
   const root = decodeProtocolDirectory((await owner.snapshot(ids.ownerProfile, accepted.update.root)).objects.get(accepted.update.root)!);
-  expect(root.type === "directory" && root.entries.find((entry) => entry.name === "_index.md")!.file).toBe(row(ids.ownerProfile)!.index_hash);
+  expect(root.type === "directory" && root.entries.find((entry) => entry.name === "_index.md")!.page).toBe(row(ids.ownerProfile)!.index_hash);
   expect(running.overstoryd.profileCard(ids.ownerProfile).displayName).toBe("Owner Person");
 });
 
@@ -203,10 +207,11 @@ test("the community's accounts reconcile only when its members change", async ()
 
 test("a pending invitation does not reactivate an existing account with the same handle", async () => {
   const current = await index(ids.community);
-  const bob = `  -\n    profile: ${JSON.stringify(`overstory://${ids.bobProfile}/`)}\n    handle: "bob"`;
-  expect(current).toContain(bob);
-  const pending = `  - handle: bob\n    inviteDigest: sha256:${"a".repeat(64)}`;
-  await edit(ids.community, { "_index.md": current.replace(bob, pending) });
+  const [, front, body] = current.split("---\n");
+  const members = (YAML.parse(front!) as { members: Array<Record<string, string>> }).members;
+  expect(members).toContainEqual({ profile: `overstory://${ids.bobProfile}/`, handle: "bob" });
+  const pending = members.map((member) => member.handle === "bob" ? { handle: "bob", inviteDigest: `sha256:${"a".repeat(64)}` } : member);
+  await edit(ids.community, { "_index.md": `---\n${YAML.stringify({ ...YAML.parse(front!), members: pending })}---\n${body}` });
   expect((db.query("SELECT enabled FROM accounts WHERE handle = 'bob'").get() as { enabled: number }).enabled).toBe(0);
   expect(running.overstoryd.accountReservation(`${new URL(running.url).origin}/~bob`)?.inviteDigest)
     .toBe(`sha256:${"a".repeat(64)}`);
