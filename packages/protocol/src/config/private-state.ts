@@ -106,14 +106,28 @@ async function reconcilePrivateStateVersion(state: string): Promise<void> {
     for (const name of REBUILDABLE_PRIVATE_ENTRIES) {
       if (await pathKind(join(state, name)) !== "missing") await rename(join(state, name), join(recovery, name));
     }
-    // A placement with no ref places itself again from the host's head.
+    // A placement with no ref places itself again from the host's head: the
+    // refs, and the configuration ref a connection recorded when it paired.
     const accounts = join(state, "accounts");
     if (await pathKind(accounts) === "directory") {
       for (const id of await readdir(accounts)) {
         const refs = join(accounts, id, "refs");
-        if (await pathKind(refs) !== "directory") continue;
+        if (await pathKind(refs) === "directory") {
+          await mkdir(join(recovery, "accounts", id), { recursive: true, mode: 0o700 });
+          await rename(refs, join(recovery, "accounts", id, "refs"));
+        }
+        const connection = join(accounts, id, "connection.json");
+        if (await pathKind(connection) !== "other") continue;
+        const text = await readFile(connection, "utf8");
+        const record = JSON.parse(text) as Record<string, unknown>;
+        if (!("configurationRef" in record) && !("configurationUpdate" in record)) continue;
         await mkdir(join(recovery, "accounts", id), { recursive: true, mode: 0o700 });
-        await rename(refs, join(recovery, "accounts", id, "refs"));
+        await writeFile(join(recovery, "accounts", id, "connection.json"), text, { mode: 0o600 });
+        delete record.configurationRef;
+        delete record.configurationUpdate;
+        const temporary = `${connection}.${crypto.randomUUID()}.tmp`;
+        await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+        await rename(temporary, connection);
       }
     }
     const workspaces = join(state, "workspaces");
