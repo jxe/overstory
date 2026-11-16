@@ -81,7 +81,7 @@ Paths in `use` resolve within the tree at `--root` (default: the current directo
   that can't both hold. It returns each changed collection's rows and the rows written
   (and deleted) by table; a host diffs them into row operations.
 
-overstoryd runs these in process for the trees `OVERSTORYD_BEETLE` names
+overstoryd runs these in process for every tree
 (`packages/overstoryd/src/beetle-host.ts`). Not yet: the `rows` answer form, Story's
 Swift evaluator, and lowering plans to SQL.
 

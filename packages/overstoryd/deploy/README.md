@@ -160,7 +160,6 @@ overstoryd reads these variables at start; all are optional.
 | `OVERSTORYD_TRUSTED_PROXY_HOPS` | 0 | How many reverse proxies in front of overstoryd append to `X-Forwarded-For`; see [rate limits and proxies](#rate-limits-and-proxies). |
 | `OVERSTORYD_STORY_MAC_URL` | unset | Where to get Story for Mac. The page at a reserved, unclaimed `/~handle` offers it as "Get Story for Mac" to a person who opened an invitation link; no link when unset. |
 | `OVERSTORYD_STORY_IPHONE_URL` | unset | The same for "Get Story for iPhone". |
-| `OVERSTORYD_BEETLE` | unset | The trees whose Beetle views and mutations the host runs: `1` for every tree, or tree IDs separated by commas; see [views and mutations](#views-and-mutations). Unset, the views and mutate routes answer `unsupported-operation`. |
 | `OVERSTORYD_MERGE_EXECUTABLE` | the workspace `overstoryd-merge` | Alternate merge sidecar implementing `serve`; see [writing a sidecar](../../../docs/architecture/overstoryd/writing-a-sidecar.md) and [the merge sidecar](../../../docs/architecture/overstoryd/merge-tool.md#running-and-configuring). |
 
 ### Response headers and stored files
@@ -240,17 +239,16 @@ domain actually arrives with, and count from that.
 ### Views and mutations
 
 A host runs the Beetle views and mutations ([spec 1.5](../../../docs/overstory-spec/1.5-beetle.md))
-of the trees `OVERSTORYD_BEETLE` names, in process, over each tree's accepted rows.
+of every tree, in process, over each tree's accepted rows.
 
 - **Who runs.** A view reads with its caller's access (profile cards they can't read
   are null), and a mutation's update is submitted as its caller, guarded on the head it
-  read. Activate only trees whose code you're willing to run until Apps 010.
+  read. Every tree's code runs, with its caller's authority, until Apps 010 adds activation.
 - **When it loads.** A handle's file and everything it uses are checked at the tree's
   head when a request names it; a handle whose code version is not the head's answers
   "not active".
-- **Rollback.** Unset `OVERSTORYD_BEETLE` and restart: the routes answer
-  `unsupported-operation` and nothing else changes. `<data>/beetle/receipts.sqlite3`
-  holds mutation receipts and is kept with the host's data.
+- **Receipts.** `<data>/beetle/receipts.sqlite3` holds mutation receipts and is kept
+  with the host's data.
 - **Collection databases.** `<data>/collections/<tree>/<path>/_store.sqlite3` holds each
   collection's rows, its log applied (Performance 007), whether or not Beetle runs. They
   are moved as updates are accepted and rebuilt from the log when deleted; they aren't

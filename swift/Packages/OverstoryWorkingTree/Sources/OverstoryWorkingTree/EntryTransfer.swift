@@ -128,7 +128,25 @@ public struct EntryTransfer: Codable, Equatable, Sendable {
             let isPage = selected.page != nil
             guard let hash = selected.file ?? selected.page, let oldBytes = objects[hash], let newBytes = objects[rewrite.value] else { throw invalid() }
             let (oldText, oldPage) = try readable(oldBytes, page: isPage), (text, newPage) = try readable(newBytes, page: isPage)
-            guard oldPage?.id == newPage?.id, oldPage?.properties == newPage?.properties else { throw invalid() }
+            let filePath = target + relative
+            func place() throws {
+                root = try change(root,Array(filePath.dropLast())) { entries in
+                    if let i = entries.firstIndex(where: { $0.name == filePath.last }) {
+                        // An edit of a copied entry: modified `at`, as it already was.
+                        entries[i] = .stamped(isPage ? .page : .file, name: entries[i].name, object: rewrite.value, previous: entries[i], at: at)
+                    }
+                }
+            }
+            var copiedRef: [String: ProtocolSemanticValue] = ["material": .object(["kind": .string("operation"), "change": .string(changeID), "operation": .string("entry-transfer")])]
+            if !relative.isEmpty { copiedRef["within"] = .array(relative.map(ProtocolSemanticValue.string)) }
+            // A copied page that takes a fresh id or other properties has no body edit to say
+            // so: the copy's page is replaced whole (updates §2.4 replaceEntry), as the
+            // TypeScript queue does.
+            if isPage, oldPage?.id != newPage?.id || oldPage?.properties != newPage?.properties {
+                operations.append(try ProtocolSourceOperation(["key":.string("copy-edit-\(index)"),"kind":.string("replaceEntry"),"source":.object(copiedRef),"value":.object(["page":.string(rewrite.value)])]))
+                try place()
+                continue
+            }
             let old = Data(oldText.utf8)
             var start = 0, end = 0
             let a = Array(oldText.unicodeScalars), b = Array(text.unicodeScalars)
@@ -137,16 +155,10 @@ public struct EntryTransfer: Codable, Equatable, Sendable {
             let lower = a.prefix(start).reduce(0) { $0 + String($1).utf8.count }
             let upper = old.count - a.suffix(end).reduce(0) { $0 + String($1).utf8.count }
             let replacement = b[start..<(b.count-end)].map(String.init).joined()
-            var source: [String: ProtocolSemanticValue] = ["material": .object(["kind": .string("operation"), "change": .string(changeID), "operation": .string("entry-transfer")]), "range": .array([.integer(lower),.integer(upper)])]
-            if !relative.isEmpty { source["within"] = .array(relative.map(ProtocolSemanticValue.string)) }
+            var source = copiedRef
+            source["range"] = .array([.integer(lower),.integer(upper)])
             operations.append(try ProtocolSourceOperation(["key":.string("copy-edit-\(index)"),"kind":.string("editSource"),"source":.object(source),"text":.string(replacement)]))
-            let filePath = target + relative
-            root = try change(root,Array(filePath.dropLast())) { entries in
-                if let i = entries.firstIndex(where: { $0.name == filePath.last }) {
-                    // An edit of a copied entry: modified `at`, as it already was.
-                    entries[i] = .stamped(isPage ? .page : .file, name: entries[i].name, object: rewrite.value, previous: entries[i], at: at)
-                }
-            }
+            try place()
         }
         let result = try ProtocolGraph.reachable(from: root, in: objects) { _, kind in if kind != .file && kind != .page { throw invalid() } }
         return (result, operations)

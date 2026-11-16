@@ -15,10 +15,10 @@ when it was a gate for something.
 ### Beetle views on the host (Apps 015 and 012)
 
 Deployed with the Protocol 003 flag day (2026-11-16), which carried the Beetle host; the
-TypeScript views and `OVERSTORYD_ACTIVATIONS` are gone (the Railway variable can be deleted). The host runs Beetle only for the trees `OVERSTORYD_BEETLE` names. (The earlier check
+TypeScript views and `OVERSTORYD_ACTIVATIONS` are gone (the Railway variable can be deleted). The host runs Beetle for every tree. (The earlier check
 of Supplies' `views/list.tsx` was dropped on 2026-11-16: that path is deleted.)
 
-- [ ] On a disposable host (or one you name) with `OVERSTORYD_BEETLE` naming a Supplies tree,
+- [ ] On a Supplies tree,
   open its List view, call `createList` from a script, and check that a second device sees
   the new list.
 - [ ] Ask the same host for a declared view of a schema with `~views`, and check it updates
@@ -112,7 +112,8 @@ Built 2026-11-07 ([status](../status.md#trees-at-your-own-domain--2026-11-07)).
 ## Releases and publishing
 
 - [ ] **Delete Railway variables the code no longer reads** on `canopy-arb-nxhx-org`:
-  `OVERSTORYD_PAGES` (Filesystem 026, 2026-11-16) and `OVERSTORYD_ACTIVATIONS` (Apps 015).
+  `OVERSTORYD_PAGES` (Filesystem 026, 2026-11-16), `OVERSTORYD_ACTIVATIONS` and
+  `OVERSTORYD_BEETLE` (Apps 015).
 - [ ] **Rebuild Story from main after 2026-11-16's page cleanup** (clients always write pages):
   the Mac app (Raycast build) and the iPhone app, and restart Story Sync
   (`story daemon restart`). Until then your devices write Markdown as a page only in trees that

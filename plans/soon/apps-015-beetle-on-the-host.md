@@ -2,13 +2,14 @@
 
 **Why and when:** Joe decided on 2026-11-11 that views and mutations are written in Beetle,
 in `.beetle` files and pages' `view` blocks, and that TypeScript support for both goes. The
-parser, checker, host evaluator, mutations and the Supplies port are deployed
+parser, checker, host evaluator, mutations and the Supplies port are deployed, and the host
+runs Beetle for every tree (2026-11-16)
 ([status](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). This
 plan is the host and TypeScript work left. Story's side (the Swift evaluator, view blocks
 drawn in pages, highlighting, the `rows` answer it reads) is
 [Apps 019](apps-019-beetle-in-story.md) (Joe, 2026-11-16). Finer live dependencies than
 "the tree changed" go to [Performance 010](performance-010-mailboxes-and-change-feed.md),
-whose change feed (step 3) makes Beetle views a consumer with its own cursor.
+whose change feed (built 2026-11-16) can make Beetle views a consumer with its own cursor.
 
 The spec describes the target: [Beetle](../../docs/overstory-spec/1.5-beetle.md),
 [reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views),
@@ -35,19 +36,13 @@ Joe decided on 2026-11-11 that a `.beetle` file is a node's body, like a `.md` f
   ones as `Page?view=Name`.
 - A view block's unnamed view receives its page's query string.
 
-## 2. Beetle for every tree
-
-- The host runs Beetle views and mutations for every tree, not only the trees
-  `OVERSTORYD_BEETLE` names. Remove the variable and its option; deleting it on Railway goes
-  to [Joe's to-do](../joe.md).
-
-## 3. HTML for a browser
+## 2. HTML for a browser
 
 - `GET` of a `.beetle` file (or a page with view blocks) from a browser renders its view tree
   as HTML, using the same element vocabulary Apps 011 writes down. Until that vocabulary
   exists, a plain fallback rendering of `{type, props, children}`.
 
-## 4. Loose ends
+## 3. Loose ends
 
 - A row created and edited in the same millisecond: its `modified` can't move, so the diff
   refuses it. Check whether Protocol 003's times still allow this, and fix it if they do.

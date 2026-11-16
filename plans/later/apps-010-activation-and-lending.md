@@ -3,7 +3,7 @@
 **Why and when:** Joe wants to test the permissions and lending models against real apps
 (he split this out of Apps 005 on 2026-11-06). Since 2026-11-11 the host runs Beetle views and
 mutations in process, as their caller ([the Beetle host](../../docs/architecture/overstoryd/beetle-host.md),
-for the trees `OVERSTORYD_BEETLE` names). This plan makes them run as an app, under the
+for every tree since 2026-11-16). This plan makes them run as an app, under the
 authority an activation grants. Moving from the sidecar to Beetle changed how code runs on
 the host, not whose authority it runs with, so every question here still stands.
 
