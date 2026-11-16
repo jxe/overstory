@@ -730,9 +730,18 @@ is that of the page it reads as, so a conversion meets concurrent edits cleanly.
 
 **Released** in Story 0.1.6 (2026-11-02) and 0.1.7 (2026-11-04). **Deployed** for one tree: on
 2026-11-01 the host's `OVERSTORYD_PAGES` named Joe's todos tree alone, and it was converted
-(update 14803). Its hand check and converting the other trees are in
-[Joe's to-do](plans/joe.md); the cleanup left is
-[Filesystem 026](plans/soon/filesystem-026-markdown-files-go.md) and [Filesystem 028](plans/later/filesystem-028-page-body-provenance-and-front-matter-merges.md).
+(update 14803). Every tree is pages since 2026-11-09 (`OVERSTORYD_PAGES=1`).
+
+**Filesystem 026 closed 2026-11-16.** The host's conversion code, `OVERSTORYD_PAGES`,
+`pages-v1` and the descriptor's `pages` are gone; host-made trees start with a page; both
+clients write Markdown as a page whenever its front matter parses (main 753a02e; live: 121 page
+entries, 0 Markdown files). A copied page that takes a fresh id is replaced whole on the copy
+(43c47dc). Block moves, copies within and across pages, lineage and Move to Document on pages
+are stated over the body, not as snapshots (bd05c37, 79a5148f; all 7 Story
+`LiveEditorAdmissionTests` pass). Left: [Filesystem 028](plans/later/filesystem-028-page-body-provenance-and-front-matter-merges.md)
+(page-body provenance, front-matter merges) and, when needed,
+[Filesystem 029](plans/when-needed/filesystem-029-host-refuses-markdown-files.md) (the host
+refusing Markdown file entries).
 
 Joe set `OVERSTORYD_PAGES=1` on Railway 2026-11-09 (deploy 657f8553, 07:34Z) after a host
 backup at `/data/backups/pages-all-20261109`. Each tree converts on a writer's next Story Sync

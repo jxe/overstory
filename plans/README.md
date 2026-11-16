@@ -135,10 +135,6 @@ can be dictated in one go. A recording without commands stays one paragraph.
 
 ## Soon
 
-**[Filesystem 026: no Markdown files](soon/filesystem-026-markdown-files-go.md).**
-Clients always write pages, and moves and copies on pages address the body (2026-11-16).
-Left: the host refuses Markdown file entries that read as pages.
-
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
 
@@ -239,6 +235,10 @@ have merged. Needs a new Quagmire release.
 **[Apps 020: Beetle views rerun only for changes they read](when-needed/apps-020-views-follow-the-change-feed.md).**
 When a tree's open views measurably rerun too often: view streams follow the change feed with
 their own cursor.
+
+**[Filesystem 029: the host refuses Markdown files that read as pages](when-needed/filesystem-029-host-refuses-markdown-files.md).**
+When a client other than Story, Story Sync or the CLI writes to a host, or a Markdown file
+entry turns up in a head.
 
 **[Native 006: sparse iOS placement](when-needed/performance-006-sparse-ios-placement.md).** When size hurts:
 a tree too big to place on the iPhone in one download.
