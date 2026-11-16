@@ -235,10 +235,11 @@ Longer term. For now the point is that the design shows Postgres backings, SQLit
 and moving a collection between representations are possible. Five plans until 2026-11-01,
 when Joe had them rewritten as one against logical collections.
 
-**[Performance 009: Story Sync scans cost by change, not by tree size](later/performance-009-story-sync-scan-by-change.md).**
-After Performance 007. Every sync re-reads and re-parses each Markdown file and rewrites every
-object-index row, so a sync costs more as the tree grows. Cache pages by file stat as other files
-already are, write only rows that changed, and measure at 200 and 2,000 notes (Joe, 2026-11-16).
+**[Performance 009: a Story Sync scan reads only what changed](later/performance-009-scan-by-stat.md).**
+Joe, 2026-11-16: every sync re-reads and re-records every Markdown file and walks every
+directory, so an idle sync grows with the folder (~15 ms of CPU for 200 notes). Trust
+Markdown by its stat tuple as other files are, write the object index only when a row
+changes, and skip subtrees the watcher saw no events in.
 
 ## When needed
 
@@ -308,7 +309,7 @@ link to this history; their provenance proofs and conflict rules stay with merge
 
 Latency, transfer size and storage overhead: take a plan when its stated problem occurs, and
 measure both the benefit and the cost to correctness, recovery and offline use.
-[Performance 008](when-needed/performance-008-merge-cost-by-edit.md), [Performance 009](later/performance-009-story-sync-scan-by-change.md) and
+[Performance 008](when-needed/performance-008-merge-cost-by-edit.md), [Performance 009](later/performance-009-scan-by-stat.md) and
 [Native 006](when-needed/performance-006-sparse-ios-placement.md) are the plans; the
 provenance index ([Performance 004](https://github.com/jxe/arbor/blob/4844b1c/plans/soon/performance-004-provenance-index.md), closed), the object journal and
 object packing are live. Client
