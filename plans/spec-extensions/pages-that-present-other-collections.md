@@ -19,4 +19,4 @@ schema's `~views`) and on pages that present it; views in a schema are defaults 
 override (Joe, 2026-10-13). Formerly milestone 2 of Schema language 002, moved here on
 2026-10-28. The view such a page presents is a declared view
 ([Beetle](../../docs/overstory-spec/1.5-beetle.md#3-views)), drawn
-as any view is ([Apps 019](../soon/apps-019-beetle-in-story.md) step 3; Joe, 2026-11-06).
+as any view is ([Apps 011](../soon/apps-011-widgets-in-story.md) step 6; Joe, 2026-11-06).

@@ -169,7 +169,7 @@ view blocks or `?view=Name` as plain HTML with the raw view tree beside it (a da
 JSON) until Apps 011's renderer. A row a mutation edits in the millisecond it was created
 (or last edited) is modified one millisecond later, and its update is dated at its latest
 operation, so the diff and the authored contract accept it. Apps 015 closed 2026-11-16; what is
-left is [Apps 019](plans/soon/apps-019-beetle-in-story.md) (Story),
+left is [Apps 011](plans/soon/apps-011-widgets-in-story.md) (Story, which absorbed Apps 019),
 [Apps 020](plans/when-needed/apps-020-views-follow-the-change-feed.md) (views follow the change
 feed, when needed) and [Apps 009](plans/later/apps-009-cross-host-delegation.md) (collections in
 another tree).
@@ -257,7 +257,7 @@ steps 1-4 and [Apps 012](https://github.com/jxe/arbor/blob/95a450f/plans/soon/ap
   by several columns (`Tag (list, id)`) by its row key. Supplies' default views all present.
 - **Left:** [Security 013](plans/features/security-013-row-read-rules.md) (fine-grained read
   rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)); Story Sync answering and Story
-  drawing declared views (folded into [Apps 019](plans/soon/apps-019-beetle-in-story.md) on 2026-11-16); hand checks
+  drawing declared views (folded into [Apps 011](plans/soon/apps-011-widgets-in-story.md) on 2026-11-16); hand checks
   in [Joe's to-do](plans/joe.md#views-on-the-host-apps-005-and-012).
 
 Tests: `tests/integration/host-collections.test.ts` (views and mutations from a tree, JSX

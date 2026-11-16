@@ -138,14 +138,10 @@ can be dictated in one go. A recording without commands stays one paragraph.
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
 
-**[Apps 019: Beetle in Story](soon/apps-019-beetle-in-story.md).** Story's side of Beetle, with
-the rest of Apps 012 folded in: the `rows` answer, a Swift evaluator, collections drawn from
-Beetle views instead of `~views`, view blocks drawn in pages, and highlighting.
-
-**[Apps 011: widgets in Story](soon/apps-011-widgets-in-story.md).**
-After Apps 019. Small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in
-SwiftUI (no web view, no React), with state owned by the app, the page or the reader.
-Absorbs Apps 001 and 003; an HTML renderer comes later.
+**[Apps 011: views and widgets in Story](soon/apps-011-widgets-in-story.md).**
+Story reads `.beetle` files and draws views and small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in
+SwiftUI (no web view, no React), with state owned by the app, the page or the reader, and draws collections from their views.
+Absorbs Apps 001, 003 and 019; an HTML renderer comes later.
 
 ## Later
 

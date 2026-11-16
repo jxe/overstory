@@ -1,8 +1,10 @@
-# Apps 011: Widgets in Story
+# Apps 011: Views and widgets in Story
 
-**Order:** after [Apps 019](apps-019-beetle-in-story.md) steps 1 and 2 (Beetle in Story). Joe's own widgets can be
-built and tried while [Apps 010](../later/apps-010-activation-and-lending.md) lands. Widgets from
-other people wait for Apps 010.
+**Order:** Joe's own widgets can be built and tried while
+[Apps 010](../later/apps-010-activation-and-lending.md) lands. Widgets from other people wait
+for Apps 010. Apps 019 (Beetle in Story) was folded in on 2026-11-16 (Joe): Story shows views
+only once it can draw them as widgets, so until step 3 a view block shows as its source, and a
+browser sees the host's plain HTML.
 
 **Why and when:** Joe wants to embed small apps in Story pages, drawn natively, not in a web
 view and not with React (Joe, 2026-11-05, in the apps discussion). Since 2026-11-11 they are
@@ -19,8 +21,9 @@ discussion. Where it says *query* or *endpoint*, read *view*
 
 - **A widget is a Beetle view**, from a `.beetle` file or a page's view blocks, plus the
   mutations it names as actions.
-  - Story evaluates it on the device with Apps 019's Swift evaluator; no JavaScript runs
-    for widgets. (Client plugins, [Apps 014](../later/apps-014-client-plugins.md), are the
+  - Story first draws the host's evaluated `tree` answer, then evaluates on the device with
+    a Swift evaluator once a widget needs state or offline drawing (step 5); no JavaScript
+    runs for widgets. (Client plugins, [Apps 014](../later/apps-014-client-plugins.md), are the
     only place Story would ever run code, and they are a later, separate decision.)
   - A SwiftUI renderer draws the `{type, props, children, key}` tree.
   - There's no web view per widget and no React. ScriptWidget (MIT) is a reference for the
@@ -66,54 +69,91 @@ discussion. Where it says *query* or *endpoint*, read *view*
 
   Swift is one implementation, and an HTML renderer is another.
 
-## 1. The UI language package
+## 1. Story understands Beetle files
 
-- The view tree types and element vocabulary, split out of apps-runtime, with:
+- Swift node mapping (`ProtocolPage`, `ProtocolPathRead`): `x.beetle` and `x/_index.beetle`
+  supply node `x`, from `docs/overstory-spec/conformance/node-bodies.json`; a page's code
+  version covers its view blocks only (`codeVersion` in `@ovst/beetle`). Story lists and opens
+  views like pages, showing their source.
+- Highlighting in Story's code blocks, view blocks and `.beetle` files (Quagmire's code row is
+  plain text today), from the tree-sitter grammar in `packages/beetle/editors` or a port of its
+  highlight queries.
+
+## 2. The UI language package
+
+- The view tree types and element vocabulary as their own package, with:
   - The view tree types.
   - The vocabulary of the 26 components listed in the design doc.
   - Their props and events.
   - Conformance fixtures, each a view tree with the expected rendering facts.
 - **Decide first:** the package's name and where its spec lives (proposed:
   `docs/ui-language/`).
+- The host's plain browser rendering (`renderViewTree` in `public-page.ts`) moves to this
+  vocabulary.
 
-## 2. Drawing a widget in Story
+## 3. The SwiftUI renderer, drawing the host's answer
 
-- Story checks a widget's `.beetle` file (or page) and the files it uses at the pinned version of its
-  tree, and evaluates it with Apps 019's Swift evaluator.
+- Draw the vocabulary on the Mac and on the iPhone, from the views route's `tree` answer
+  ([reading and watching §4.1](../../docs/overstory-spec/1.2-reading-and-watching.md#41-answer-forms)),
+  kept current by its stream. No evaluator on the device yet, so state can't change.
+- A `view` block on a page draws in place (a block's unnamed view is `#n`, its named views
+  without parameters draw too; the host already serves both), with a menu for its settings;
+  Story shows the source while editing.
+- Actions run mutations through `/mutate` and show pending and error states.
+- Snapshot-test the conformance fixtures on both platforms.
+
+## 4. Placement and page state
+
+- Placement identity and page properties (read as `page`, edited in a settings sheet), as
+  decided above.
+- Port Supplies' List, Practice and search screens as widgets. They are the acceptance
+  corpus.
+
+## 5. The evaluator in Story, the `rows` answer and reader state
+
+- The views route answers the `rows` form for a Beetle view (refused today with
+  `unsupported-operation`): the plan's rows without evaluating.
+- A Swift port of the checker's plan and of the evaluator, sharing the conformance fixtures
+  (`docs/overstory-spec/conformance/beetle.json`). Story evaluates views over Story Sync's
+  local SQLite on a placed tree, or over a `rows` answer, and applies mutations
+  optimistically with the same evaluator.
 - **Re-evaluation works like this:**
   - A state or row change reevaluates only the expansions that read it.
   - There's at most one evaluation per frame, and generation numbers drop stale ones.
   - The old tree stays on screen until the new one is ready.
   - Story waits up to about 100 ms so all of an evaluation's streams are at one tree version.
-- Views on a placed tree are evaluated against Story Sync's local SQLite. Otherwise
-  Story asks the host for the view's `rows` answer
-  ([reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views))
-  and evaluates the view itself, so state changes stay on the device.
+- `state`, `keep`, `my` and `session` tables per
+  [Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state); session tables in memory.
+  Decide where `my` table rows are stored and how they reach the reader's other devices, then
+  write it into Beetle. Proposed: under the reader's own tree, syncing like any collection.
+- Controls bind to named fields; lists of a model offer its row actions.
 
-## 3. The SwiftUI renderer
+**Verify:** the fixtures pass in both stacks; a state change redraws without a request.
 
-- Draw the vocabulary on the Mac and on the iPhone.
-- Controls bind to named fields. Actions run mutations and show pending and error states.
-- Lists of a model offer its row actions.
-- Snapshot-test the conformance fixtures on both platforms.
+## 6. Collections drawn from Beetle views (was Apps 012)
 
-## 4. View blocks, placement and state
+- On a placed tree, Story Sync answers the same views request from its own SQLite stores, so
+  Story asks for a collection's view the same way whether the tree is placed or not.
+- Story draws a collection's list from its `schema.beetle` views over a `Rows` element instead
+  of its own `~views` presentation (`PresentedView.swift`, `StoryPresentedCollection.swift`),
+  and `~views` goes from Beetle and the spec. Row actions come from the app's row-action
+  mutations (`mutation … for Table.op`,
+  [Beetle §4.1](../../docs/overstory-spec/1.5-beetle.md#41-facts)) when it has them, and
+  otherwise from plain row edits
+  ([Schema language 007](../features/schema-language-007-editing-in-the-collection-view.md)).
+- A page that presents a collection (the
+  [pages that present other collections](../spec-extensions/pages-that-present-other-collections.md)
+  extension, once settled) and a widget drawn from a view block share placement identity and
+  menus.
 
-- A `view` block on a page draws the widget in place, with a menu for its settings.
-- Placement identity, page properties, `my` and `session` tables, `state` and `keep`, as
-  decided above.
-- Decide where `my` table rows are stored and how they reach the reader's other devices,
-  then write it into [Beetle](../../docs/overstory-spec/1.5-beetle.md#39-state). Proposed:
-  under the reader's own tree, syncing like any collection.
-- Port Supplies' List, Practice and search screens as widgets. They are the acceptance
-  corpus.
+**Verify:** the People directory and the games sandbox look and edit the same before and
+after.
 
-## 5. Checking and editor tooling (from Apps 003)
+## 7. Checking and editor tooling (from Apps 003)
 
 - `beetle` checks and formats, and `packages/beetle/editors` has tree-sitter, Zed and VS Code
-  support; Story's highlighting is Apps 019 step 5. Later, one language service
-  for VS Code and Zed over the same checker, with completion for models, fields and
-  mutations.
+  support. Later, one language service for VS Code and Zed over the same checker, with
+  completion for models, fields and mutations.
 
 ## Later: the HTML renderer and the Supplies site (from Apps 001)
 
@@ -128,7 +168,8 @@ site, served by overstoryd and later from a host such as Vercel.
 
 ## Verify
 
-- Each step has tests on the TypeScript side.
+- Each step has tests on the TypeScript side, and Swift package tests on Joe's Mac; each Swift
+  step ships with a Story release.
 - Swift snapshot tests cover the renderer.
 - When a step lands, its hand check of the Supplies widgets on Joe's Mac and iPhone goes to
   [Joe's to-do](../joe.md).

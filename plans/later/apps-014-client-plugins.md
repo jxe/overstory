@@ -1,7 +1,6 @@
 # Apps 014: client plugins
 
-**Why and when:** later, after [Apps 019](../soon/apps-019-beetle-in-story.md) and
-alongside [Apps 011](../soon/apps-011-widgets-in-story.md). Joe, 2026-11-11: the plugins
+**Why and when:** later, alongside and after [Apps 011](../soon/apps-011-widgets-in-story.md). Joe, 2026-11-11: the plugins
 that matter most run on clients and make Beetle apps faster and more flexible: games,
 simulations, anything that changes every frame. Beetle has no general-purpose code
 ([Beetle](../../docs/overstory-spec/1.5-beetle.md)); real code is never mixed into a
