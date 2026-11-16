@@ -83,11 +83,16 @@ Steps 1 to 4 are built (2026-11-16, not yet deployed):
 
 1. **Tree actors keep their head in working form.** Candidates are decoded once at ingest; graph
    validation, reserved boundaries, the profile index hash and the Filesystem 026 check read the actor's
-   flat head instead of decoding the root again. Move work that doesn't need the head out of the
+   flat head instead of decoding the root again. (Done in passing: the reserved-boundary check
+   reads each directory once, not once per mounted child.) Move work that doesn't need the head out of the
    turn. Measure CPU per edit and lock-wait on `rehearse-tree.ts` with a copy of Joe's todos
    tree.
-2. **Push authorization changes.** Publish an event when the authorization epoch moves, instead
-   of polling it every 250 ms for all streams.
+2. **Push authorization changes, or drop this.** Publish an event when the authorization epoch
+   moves, instead of polling it every 250 ms. Checked 2026-11-16: the poll is one timer for
+   every open stream and one trivial query a tick, whatever the number of watchers, and the
+   epoch also moves on commits by other processes (`data_version`), which no event in this
+   process can announce. Pushing needs every authorization-relevant write to announce itself,
+   and a missed one leaves a revoked watch open. Recommendation: drop it.
 3. **Ask the merge sidecar without holding the turn, only if measured.** If live update logs
    show `lock-wait` while merges run: ask against a head snapshot, keep accepting plain edits,
    re-ask once if the head moved, then hold the turn.

@@ -3165,12 +3165,19 @@ export class HostDaemon implements AsyncDisposable {
       SELECT m.path, m.tree_id FROM mounts m JOIN trees t ON t.id = m.tree_id
       WHERE m.parent_tree = ? ORDER BY length(m.path)
     `).all(parent.id) as Array<{ path: string; tree_id: string }>;
+    // Mounts share their parents' directories (a profile mounts many trees at its root): read each once.
+    const directories = new Map<ObjectHash, ReturnType<typeof decodeProtocolDirectory>>();
+    const directory = async (hash: ObjectHash) => {
+      let value = directories.get(hash);
+      if (!value) directories.set(hash, value = decodeProtocolDirectory(await this.objects.load(hash, proposed)));
+      return value;
+    };
     for (const child of children) {
       const segments = child.path.split("/");
       let hash = root;
       let valid = true;
       for (const [index, segment] of segments.entries()) {
-        const object = decodeProtocolDirectory(await this.objects.load(hash, proposed));
+        const object = await directory(hash);
         if (object.type !== "directory") {
           valid = false;
           break;
