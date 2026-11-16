@@ -48,7 +48,7 @@ beforeAll(async () => {
     dataRoot, accounts: [testAccount("owner", token, { communityWriter: true })],
     publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0,
     // Each mutation a minute after the last, so an edit's time differs from its row's creation.
-    beetle: { trees: "all", now: () => new Date(Date.UTC(2026, 10, 11, 12, minutes++, 0)) },
+    beetle: { now: () => new Date(Date.UTC(2026, 10, 11, 12, minutes++, 0)) },
   });
   const owner = await deviceClient(host.url, token);
   me = (await owner.account()).account.profileTree!;

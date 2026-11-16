@@ -101,17 +101,6 @@ export function serveMaintenance(port: number, hostname: string): ReturnType<typ
 
 /** `OVERSTORYD_TRUSTED_PROXY_HOPS`: how many reverse proxies in front of the listener append to `X-Forwarded-For`; zero when unset. */
 
-/**
- * `OVERSTORYD_BEETLE`: the trees whose Beetle views and mutations the host runs in
- * process (Apps 015), `1` for every tree or tree IDs separated by commas.
- */
-function beetleOption(value: string | undefined): "all" | string[] | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed) return undefined;
-  if (trimmed === "1") return "all";
-  return trimmed.split(",").map((tree) => tree.trim()).filter(Boolean);
-}
-
 function trustedProxyHops(): number {
   const value = process.env.OVERSTORYD_TRUSTED_PROXY_HOPS?.trim();
   if (!value) return 0;
@@ -245,7 +234,6 @@ export async function serveCommunity(args: string[]): Promise<void> {
       provenanceFill: process.env.OVERSTORYD_PROVENANCE_FILL?.trim() !== "0",
       trustedProxyHops: trustedProxyHops(),
       storyDownloads: storyDownloads(),
-      ...(beetleOption(process.env.OVERSTORYD_BEETLE) ? { beetle: { trees: beetleOption(process.env.OVERSTORYD_BEETLE)! } } : {}),
     });
   } catch (error) {
     // A data root whose schema this build does not serve is not served and

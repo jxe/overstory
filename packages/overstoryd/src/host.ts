@@ -389,7 +389,7 @@ export async function serveHost(options: {
   hostname?: string;
   viewsRuntime?: ViewsRuntime;
   mutationRuntime?: MutationCallRuntime;
-  /** Run the Beetle views and mutations of these trees in process (Apps 015), unless a runtime above is given. */
+  /** Options for the in-process Beetle views and mutations every tree has (Apps 015), unless a runtime above is given. */
   beetle?: BeetleHostOptions;
   /** Session and placement device-key lifetimes; tests shorten them. */
   lifetimes?: Omit<HostDaemonOptions, "servedOverHTTP" | "provenanceFill">;
@@ -423,9 +423,9 @@ export async function serveHost(options: {
   }, options.mergeTool, { ...options.lifetimes, servedOverHTTP: new URL(publicOrigin).protocol === "http:", provenanceFill: options.provenanceFill ?? false });
   if (!dynamicLoopbackOrigin) overstoryd.setCommunityHost(new URL(publicOrigin).host);
   // Beetle views and mutations, over the accepted rows.
-  const beetle = options.beetle ? overstoryd.disposeWith(new BeetleHost(overstoryd, resolve(options.dataRoot), options.beetle)) : null;
-  const viewsRuntime = options.viewsRuntime ?? beetle?.viewsRuntime();
-  const mutationRuntime = options.mutationRuntime ?? beetle?.mutationRuntime();
+  const beetle = overstoryd.disposeWith(new BeetleHost(overstoryd, resolve(options.dataRoot), options.beetle));
+  const viewsRuntime = options.viewsRuntime ?? beetle.viewsRuntime();
+  const mutationRuntime = options.mutationRuntime ?? beetle.mutationRuntime();
   const onAuthorizationTick = authorizationTicker(overstoryd);
   const presence = new PresenceHub();
   const pairingClaims = options.rateLimits ? new AttemptLimiter(10, 10 * 60 * 1000) : null;

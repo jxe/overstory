@@ -24,7 +24,7 @@ let minutes = 0;
 const host = await serveHost({
   dataRoot: join(sandbox, "host"), accounts: [testAccount("owner", token, { communityWriter: true })],
   publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0,
-  beetle: { trees: "all", now: () => new Date(Date.UTC(2026, 10, 11, 12, minutes++, 0)) },
+  beetle: { now: () => new Date(Date.UTC(2026, 10, 11, 12, minutes++, 0)) },
 });
 const quiet = console.log; console.log = () => {};
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!;

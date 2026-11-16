@@ -118,9 +118,8 @@ function stamp(after: LogicalTables, before: LogicalTables, now: number): Logica
   return out;
 }
 
+/** The host runs every tree's Beetle views and mutations (Apps 015, Joe 2026-11-16). */
 export interface BeetleHostOptions {
-  /** The trees whose hosting is enabled (Beetle §6): every tree, or these. */
-  trees: "all" | readonly string[] | ((tree: string) => boolean);
   /** A mutation's logical time; tests fix it. */
   now?: () => Date;
 }
@@ -129,7 +128,7 @@ export class BeetleHost implements AsyncDisposable {
   private readonly checked = new Lru<Checked>();
   private readonly receipts: Database;
 
-  constructor(readonly daemon: HostDaemon, dataRoot: string, private readonly options: BeetleHostOptions) {
+  constructor(readonly daemon: HostDaemon, dataRoot: string, private readonly options: BeetleHostOptions = {}) {
     mkdirSync(join(dataRoot, "beetle"), { recursive: true });
     this.receipts = new Database(join(dataRoot, "beetle", "receipts.sqlite3"), { create: true, strict: true });
     this.receipts.exec("pragma journal_mode = wal");
@@ -137,11 +136,6 @@ export class BeetleHost implements AsyncDisposable {
       tree text not null, subject text not null, mutation_id text not null,
       request_digest text not null, request_json text, receipt_json text,
       primary key (tree, subject, mutation_id))`);
-  }
-
-  enabled(tree: string): boolean {
-    const trees = this.options.trees;
-    return trees === "all" || (typeof trees === "function" ? trees(tree) : trees.includes(tree));
   }
 
   private readonly read: Read = (hash) => this.daemon.object(hash);
@@ -218,7 +212,6 @@ export class BeetleHost implements AsyncDisposable {
 
   /** Whether a handle names something Beetle declares: any handle in a `.beetle` file or page, or a schema's view or mutation. */
   async names(tree: string, handle: HandleRef): Promise<boolean> {
-    if (!this.enabled(tree)) return false;
     if (isBeetlePath(handle.path) && !isSchemaPath(handle.path)) return true;
     if (!isSchemaPath(handle.path)) return false;
     const head = this.daemon.currentUpdate(tree);
