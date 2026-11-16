@@ -52,13 +52,13 @@ sibling pages, one-level tree, local disk), with a temporary counter on
 Each step ships alone, keeps behaviour identical (existing tests, plus a differential test where
 an algorithm changes), and states before and after from the same harness.
 
-Steps 1 to 3 are built (2026-11-16, not yet deployed):
+Steps 1 to 4 are built (2026-11-16, not yet deployed):
 
 - **The change once:** acceptance's entry-change walk also names the collection folders whose
   log moved, and the collections follower and the snapshot check take them from it instead of
   walking both roots twice each. Host directory decodes per traced edit on `page-edit-cost.ts`:
   about 12 to 8. The rest (graph validation, reserved boundaries, the profile index hash, the
-  trace rebuild) is step 2's.
+  trace rebuild) is step 1's below.
 - **Group commit in the journal:** `Packs.append` groups appends issued while a sync runs into
   one write, one `fdatasync` and one index transaction; an idle store writes at once.
   `tests/performance/concurrent-trees-cost.ts`, 8 writers on 8 trees, fsync shim at 4 ms:
@@ -74,18 +74,21 @@ Steps 1 to 3 are built (2026-11-16, not yet deployed):
   in memory, since both consumers' state rebuilds from the tree on demand. Same speed on both
   harnesses. The provenance backfill stays as it was: already paced, one tree at a time, and
   never asking the merge worker.
+- **Tree mailboxes** (`mailbox.ts`): a tree's turns are a `Mailbox` instead of a promise
+  chain, reporting its depth on arrival (`lock-depth` in `Server-Timing`). The host's own
+  collection snapshot is low priority: client updates waiting for the tree go first. Config
+  advances and boundary rewrites were never loose promises (their callers await them), so they
+  stay normal turns. The other hand-written queues (collection turns, the merge FIFO, packing)
+  can move to `Mailbox` when one of them needs its numbers.
 
-1. **The host's own updates go through the tree's mailbox.** Collection snapshots, config
-   advances and boundary rewrites become coalesced low-priority messages instead of loose
-   promises that take `withTreeLock`.
-2. **Tree actors keep their head in working form.** Candidates are decoded once at ingest; graph
+1. **Tree actors keep their head in working form.** Candidates are decoded once at ingest; graph
    validation, reserved boundaries, the profile index hash and the Filesystem 026 check read the actor's
    flat head instead of decoding the root again. Move work that doesn't need the head out of the
    turn. Measure CPU per edit and lock-wait on `rehearse-tree.ts` with a copy of Joe's todos
    tree.
-3. **Push authorization changes.** Publish an event when the authorization epoch moves, instead
+2. **Push authorization changes.** Publish an event when the authorization epoch moves, instead
    of polling it every 250 ms for all streams.
-4. **Ask the merge sidecar without holding the turn, only if measured.** If live update logs
+3. **Ask the merge sidecar without holding the turn, only if measured.** If live update logs
    show `lock-wait` while merges run: ask against a head snapshot, keep accepting plain edits,
    re-ask once if the head moved, then hold the turn.
 

@@ -3,6 +3,7 @@ import { AlreadyClaimedError, AuthenticationRequiredError, ExpiredChallengeError
 import { PackMaintenance } from "./pack-maintenance.ts";
 import { changedCollectionFolders, snapshotCollections, SNAPSHOT_MIN_CHANGES } from "./collection-snapshots.ts";
 import { ChangeFeed, type ChangeRecord, type FeedConsumer } from "./change-feed.ts";
+import { Mailbox, type MailboxPriority } from "./mailbox.ts";
 import { CollectionDatabases } from "./collection-databases.ts";
 import { PlacementDeviceKeys, type DeviceKeyCopy, type ListedDevice } from "./placement.ts";
 import { RemoteGroups } from "./remote-groups.ts";
@@ -413,7 +414,8 @@ export class HostDaemon implements AsyncDisposable {
   /** Every accepted update, published once after its commit (Performance 010 step 3). */
   private readonly feed = new ChangeFeed();
   private readonly dependents: AsyncDisposable[] = [];
-  private updateLocks = new Map<string, Promise<void>>();
+  /** Each tree's turns: client updates, declarations, configuration edits and the host's own updates. */
+  private readonly treeMailboxes = new Map<string, Mailbox>();
   /** Recently replayed transitions by update id (`acceptedTransition`). */
   private readonly transitions = new Recent<TransitionPayload>(TRANSITION_CACHE_ENTRIES);
   /** Placement accounts' copies of their home hosts' device keys. */
@@ -2048,21 +2050,19 @@ export class HostDaemon implements AsyncDisposable {
    * tree's declaration and overstoryd's own configuration edits take turns
    * per tree. Nothing holding a tree's turn waits for another's.
    */
-  private async withTreeLock<T>(treeID: string, work: () => Promise<T>): Promise<T> {
-    const previous = this.updateLocks.get(treeID) ?? Promise.resolve();
-    let release!: () => void;
-    const turn = new Promise<void>((resolve) => { release = resolve; });
-    const queued = previous.then(() => turn);
-    this.updateLocks.set(treeID, queued);
-    await previous;
-    markPhase("lock-wait");
+  private async withTreeLock<T>(treeID: string, work: () => Promise<T>, priority: MailboxPriority = "normal"): Promise<T> {
+    let mailbox = this.treeMailboxes.get(treeID);
+    if (!mailbox) this.treeMailboxes.set(treeID, mailbox = new Mailbox());
     try {
-      return await work();
+      return await mailbox.run(work, {
+        priority,
+        waited: (depth) => { markPhase("lock-wait"); phaseTimer()?.count("lock-depth", depth); },
+      });
     } finally {
-      release();
-      if (this.updateLocks.get(treeID) === queued) this.updateLocks.delete(treeID);
+      if (mailbox.idle && this.treeMailboxes.get(treeID) === mailbox) this.treeMailboxes.delete(treeID);
     }
   }
+
 
   async submitUpdate(treeID: string, request: DerivableUpdateRequest, caller: UpdateCaller): Promise<StoredUpdateResponse> {
     return this.withTreeLock(treeID, () => this.submitUpdatesLocked(treeID, request, caller));
@@ -2897,6 +2897,7 @@ export class HostDaemon implements AsyncDisposable {
       const load = (hash: ObjectHash) => this.objects.load(hash);
       const folders = known ?? await changedCollectionFolders(update.previous?.root ?? null, update.root, load);
       if (!folders.length) return;
+      // The host's own update: client updates waiting for the tree go first.
       const accepted = await this.withTreeLock(update.tree, async () => {
         const from = this.currentUpdate(update.tree);
         if (!from || this.disposed) return null;
@@ -2914,7 +2915,7 @@ export class HostDaemon implements AsyncDisposable {
           entryChanges, tree: update.tree, root, previousRoot: from.root, expectedUpdate: from.id,
           acceptedAt: Date.now(), subject: null, change, entry,
         }, () => {});
-      });
+      }, "low");
       if (accepted) this.notifyAccepted(accepted);
     } catch (error) {
       console.warn(`Collection snapshot not written for ${update.tree}: ${error instanceof Error ? error.message : String(error)}`);
