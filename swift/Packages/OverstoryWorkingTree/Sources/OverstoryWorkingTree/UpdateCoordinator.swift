@@ -140,6 +140,7 @@ public actor UpdateCoordinator {
               let update = heads.acceptedUpdate else { return }
         guard case .unplaced = machine.phase else { return }
         dispatch(.bootstrapInstalled(root: root, update: update, cursor: heads.acceptedCursor, conflicted: control.acceptedConflicted))
+        recomposeMiscomposedRequest()
         if let attempt = control.attempt {
             dispatch(.recovered(request: preparedRequest(attempt), held: control.held?.reason, detail: control.held?.detail))
         }
@@ -803,6 +804,31 @@ public actor UpdateCoordinator {
         await ensureEntered()
         dispatch(.credentialsRefreshed)
         await settle()
+    }
+
+    /// Refusals that say this client stated its own work wrongly, not that the
+    /// work conflicts: the host replayed the request's frames and got another
+    /// tree. It accepted nothing, so the request may be composed again.
+    static let miscomposedRefusals = ["Frame does not reproduce its result", "Operations do not reproduce the complete candidate"]
+
+    /// A request the host refused as miscomposed is composed again from the
+    /// change log at launch, by this build: a build that composes it
+    /// correctly publishes the same changes instead of holding them until
+    /// they are discarded (Joe's Console page, 2026-11-16). Every change stays
+    /// in the log; only the frozen request and the publications that compose
+    /// its unsettled changes go. A build that still composes it wrongly is
+    /// refused again and held again, one request per launch.
+    private func recomposeMiscomposedRequest() {
+        guard let attempt = control.attempt, let held = control.held, held.reason == .rejected,
+              let detail = held.detail, Self.miscomposedRefusals.contains(where: { detail.contains($0) }),
+              let request = try? attempt.request() else { return }
+        let changes = Set(localChanges(in: request)).subtracting(control.settled)
+        control.publications.removeAll { publication in !changes.isDisjoint(with: publication.changes) }
+        control.attempt = nil
+        control.attemptTip = nil
+        control.held = nil
+        do { try writeControl() } catch { Self.syncLog.error("recomposed control not written: \(String(describing: error), privacy: .public)") }
+        Self.syncLog.notice("composing a miscomposed request again: \(attempt.digest, privacy: .public)")
     }
 
     /// Discard a held request and every change authored on it, then catch up.

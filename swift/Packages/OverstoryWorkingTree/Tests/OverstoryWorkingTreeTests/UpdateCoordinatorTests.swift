@@ -989,6 +989,43 @@ struct UpdateCoordinatorTests {
         }
     }
 
+    @Test("A request the host refused as miscomposed is composed again at launch, keeping its changes")
+    func miscomposedRequestIsComposedAgain() async throws {
+        try await withTemporaryRoot { root in
+            let tree = "tr_miscomposed"
+            let initial = try snapshot(markdown: "---\nid: pg_note\n---\n\n# Note\n\nBase\n")
+            // The first request is refused as an older build's would be; the host accepts every later one.
+            let transport = acceptingTransport(tree: tree, initial: initial) { call in
+                if call == 1 { throw ProtocolHTTPError(status: 400, code: "invalid-request", message: "Frame does not reproduce its result", retryable: false) }
+            }
+            let workingTree = try await placeWorkingTree(tree: descriptor(tree: tree, snapshot: initial, update: "up_initial"),
+                at: root.appending(path: "replica"), transport: transport)
+            let coordinator = try UpdateCoordinator(workingTree: workingTree, transport: transport, stateRoot: root.appending(path: "sync"))
+            let session = try await noteSession(workingTree, coordinator, tree: tree)
+            try await admitAppend(session, "Local\n")
+            _ = try await coordinator.syncOnce()
+            #expect(await coordinator.syncState.kind == "held")
+            #expect(try UpdateControlFiles(root: root.appending(path: "sync")).load().held?.detail == "Frame does not reproduce its result")
+            await coordinator.close()
+
+            // A new build starts: the change is composed again and published, not discarded.
+            let restarted = try UpdateCoordinator(workingTree: workingTree, transport: transport, stateRoot: root.appending(path: "sync"))
+            _ = try await restarted.syncOnce()
+            #expect(await restarted.syncState.kind == "current")
+            #expect(await transport.requests.count == 2)
+            #expect(try UpdateControlFiles(root: root.appending(path: "sync")).load().held == nil)
+            #expect(try await pendingChanges(root.appending(path: "sync"), tree: tree).isEmpty)
+            let reopened = try await noteSession(workingTree, restarted, tree: tree)
+            #expect((try await reopened.snapshot()).source.hasSuffix("Base\nLocal\n"))
+            await restarted.close()
+        }
+    }
+
+    @Test("A request the host refused as conflicting stays held at launch")
+    func conflictingRefusalStaysHeld() throws {
+        #expect(!UpdateCoordinator.miscomposedRefusals.contains { "the change conflicts with a newer decision".contains($0) })
+    }
+
     @Test("A definitive rejection is held across restart, keeps later changes, and leaves only when discarded")
     func rejectedRequestIsHeld() async throws {
         try await withTemporaryRoot { root in
