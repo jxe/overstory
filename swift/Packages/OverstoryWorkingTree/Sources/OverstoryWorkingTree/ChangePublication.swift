@@ -177,6 +177,13 @@ extension LocalChange {
         // records go as separate elements, each under its own time.
         if Set(records.map(\.update.at)).count > 1,
            records.contains(where: { ($0.update.trace ?? []).contains { $0.operations.contains { relocations.contains($0.kind) } } }) { return nil }
+        // Restamping rebuilds every frame from its trees, and a record keeps
+        // only its basis and candidate: one whose intermediate frames' trees
+        // are gone (a burst of generations) can't be restamped either.
+        if Set(records.map(\.update.at)).count > 1 {
+            let held = Set(records.flatMap { $0.graph.objects.map(\.hash) + $0.candidate.objects.map(\.hash) })
+            if records.contains(where: { ($0.update.trace ?? []).contains { !held.contains($0.before) || !held.contains($0.after) } }) { return nil }
+        }
         if first.update.resolves.isEmpty, first.update.ifCurrent == nil, let moves = try movePublication(records) { return moves }
         guard records.contains(where: { !($0.update.trace ?? []).isEmpty }) else { return nil }
         let changes = records.map(\.change)
@@ -517,7 +524,9 @@ extension LocalChange {
                 root = after
             }
         } catch is Missing { return nil }
-        if root == update.candidate, start == trace[0].before { return (update, [:]) }
+        // Unchanged only when every frame is: the last frame's tree can match
+        // while an earlier one still carries an earlier record's time.
+        if frames == trace { return (update, [:]) }
         // What the update carries and the new root reaches stays; the new
         // directories go whole. Only new or carried objects are walked: the
         // host holds the rest, with all it reaches.

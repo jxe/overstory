@@ -277,8 +277,7 @@ extension LiveEditorAdmissionTests {
         let final = try #require(records.last)
         #expect(record.graph.objects.contains { $0.bytes == pageBytes(original.source) })
         #expect(record.candidate.objects.contains { $0.bytes == pageBytes(authored) })
-        // A copy out of a page has no source operation to say it, so it goes as a snapshot.
-        #expect(record.update.trace == nil)
+        #expect(record.update.trace?.contains { $0.operations.contains { $0.kind == "copySource" } } == true)
         await binding?.close(); binding = nil; await coordinator.close(); await tree.close()
         tree = try await place(initial,client:client)
         coordinator = try UpdateCoordinator(workingTree:tree,transport:transport,stateRoot:root ,publicationDelay:.seconds(3600),publicationMaxDelay:.seconds(3600))
@@ -572,3 +571,4 @@ extension LiveEditorAdmissionTests {
 private func pageBytes(_ source: String) -> Data? {
     ProtocolPage.parse(Data(source.utf8)).flatMap { try? ProtocolObjectCodec.encode(.page($0)) }
 }
+

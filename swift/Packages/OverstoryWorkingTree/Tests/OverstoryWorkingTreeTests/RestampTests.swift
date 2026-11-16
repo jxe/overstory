@@ -76,6 +76,48 @@ struct RestampTests {
         #expect(continued.update.candidate == (try graph(left: "Thr\r\n", right: "Two\r\n", leftTimes: (0, lateMs), rightTimes: (0, lateMs))).root)
     }
 
+    @Test("An earlier frame is restamped even when the last tree already has the last time")
+    func earlierFrameRestamped() throws {
+        let start = try graph(left: "Old\r\n", right: "Old\r\n")
+        let first = try edit(start, basis: .accepted(.init(root: start.root, update: "up_1")), side: "left", from: "Old\r\n", to: "One", at: early)
+        let second = try edit(first.candidate, basis: .authored(change: first.change), side: "right", from: "Old\r\n", to: "Two", at: late)
+        let third = try edit(second.candidate, basis: .authored(change: second.change), side: "left", from: "One\r\n", to: "Thr", at: late)
+        let lateMs = try #require(ProtocolEntryTime.milliseconds(late))
+        let group = try #require(try LocalChange.publication([first, second, third], previous: []))
+        #expect(group.update.trace?.count == 3)
+        var held: [String: Data] = [:]
+        for record in [first, second, third] { for object in record.graph.objects + record.candidate.objects { held[object.hash] = object.bytes } }
+        // The last edit dated both entries, so the final tree is already the restamped one.
+        #expect(group.update.candidate == (try graph(left: "Thr\r\n", right: "Two\r\n", leftTimes: (0, lateMs), rightTimes: (0, lateMs))).root)
+        let restamped = try #require(try LocalChange.restamped(group.update, from: start.root, held: held))
+        let trace = try #require(restamped.update.trace)
+        // The first frame no longer carries the first edit's time.
+        #expect(trace[0].after == (try graph(left: "One\r\n", right: "Old\r\n", leftTimes: (0, lateMs))).root)
+        #expect(zip(trace, trace.dropFirst()).allSatisfy { $0.after == $1.before })
+        #expect(restamped.update.candidate == group.update.candidate)
+    }
+
+    @Test("Records at different times whose intermediate trees are gone are not composed")
+    func intermediateTreesStayApart() throws {
+        let start = try graph(left: "Old\r\n", right: "Old\r\n")
+        let reference = WorkspaceReference(tree: TreeID(rawValue: tree), path: "/nested/left/note")
+        let basis = WorkspaceDocumentSnapshot(reference: reference, source: "Old\r\n", contentRevision: "r")
+        let one = WorkspaceDocumentPatch(baseContentRevision: "r", edits: [.init(utf8Range: 0..<3, replacement: "One")])
+        let two = WorkspaceDocumentPatch(baseContentRevision: "r", edits: [.init(utf8Range: 3..<3, replacement: " more")])
+        let intent = try WorkspaceDocumentIntent(basis: basis,
+            patch: .init(baseContentRevision: "r", edits: [.init(utf8Range: 0..<3, replacement: "One more")]), source: "One more\r\n",
+            generations: [.init(patch: one, source: "One\r\n"), .init(patch: two, source: "One more\r\n")])
+        // Two generations, kept as two frames: the first frame's tree is in neither the basis nor the candidate.
+        let first = try LocalChange(tree: tree, basis: .accepted(.init(root: start.root, update: "up_1")), graph: start,
+            sourcePath: "/nested/left/note.md", intent: intent, compact: false, at: early)
+        #expect(first.update.trace?.count == 2)
+        let second = try edit(first.candidate, basis: .authored(change: first.change), side: "right", from: "Old\r\n", to: "Two", at: late)
+        #expect(try LocalChange.publication([first, second], previous: []) == nil)
+        // At one time there is nothing to restamp, and they compose.
+        let together = try edit(first.candidate, basis: .authored(change: first.change), side: "right", from: "Old\r\n", to: "Two", at: early)
+        #expect(try LocalChange.publication([first, together], previous: []) != nil)
+    }
+
     @Test("A batch at one time is left as it is")
     func sameTime() throws {
         let start = try graph(left: "Old\r\n", right: "Old\r\n")

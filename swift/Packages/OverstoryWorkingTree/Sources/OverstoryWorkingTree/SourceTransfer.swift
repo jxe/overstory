@@ -27,9 +27,11 @@ extension LocalChange {
             bytes[hash] = value; decoded[hash] = object
             return hash
         }
-        // Markdown is a page entry when its front matter parses. A transfer
-        // touching a page goes as a snapshot: its moves would address bodies.
-        var touchesPage = false
+        // Markdown is a page entry when its front matter parses. A page's
+        // ranges address its body, which starts this many bytes into its
+        // source (spec 10 §4.1); a range into front matter, or a move that
+        // changes a page's id or properties, goes as a snapshot.
+        var snapshotOnly = false
         func components(_ path: String) throws -> [String] {
             let parts = path.dropFirst().split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             guard path.hasPrefix("/"), !parts.isEmpty, parts.allSatisfy(ProtocolGraph.isPathComponent) else { throw ProtocolValidationError.invalidValue("Invalid source path") }
@@ -37,21 +39,24 @@ extension LocalChange {
         }
         /// Replace the file at `parts` below `hash`, returning the new
         /// directory and the file's basis object.
-        func replace(_ hash: String, _ parts: ArraySlice<String>, from previous: String, to source: String) throws -> (root: String, file: String) {
+        func replace(_ hash: String, _ parts: ArraySlice<String>, from previous: String, to source: String) throws -> (root: String, file: String, bodyStart: Int?) {
             guard case let .directory(original, descriptor)? = decoded[hash],
                   let index = original.firstIndex(where: { $0.name == parts.first }) else { throw ProtocolValidationError.invalidValue("Source path is not in basis") }
-            var entries = original, file: String
+            var entries = original, file: String, bodyStart: Int?
             if parts.count == 1 {
                 if let current = entries[index].page {
                     guard case let .page(page)? = decoded[current], page.isHeld(by: Data(previous.utf8)) else {
                         throw ProtocolValidationError.invalidValue("Source bytes do not match basis")
                     }
-                    file = current; touchesPage = true
+                    file = current
+                    bodyStart = previous.utf8.count - ProtocolPage.splitFrontmatter(previous).body.utf8.count
+                    let next = ProtocolPage.parse(Data(source.utf8))
+                    if next?.id != page.id || next?.properties != page.properties { snapshotOnly = true }
                 } else {
                     guard let current = entries[index].file, case let .file(value)? = decoded[current], value == Data(previous.utf8) else {
                         throw ProtocolValidationError.invalidValue("Source bytes do not match basis")
                     }
-                    file = current
+                    file = current; bodyStart = nil
                 }
                 let name = entries[index].name, previous = entries[index]
                 if ProtocolPage.isPageName(name), let page = ProtocolPage.parse(Data(source.utf8)) {
@@ -62,14 +67,18 @@ extension LocalChange {
             } else {
                 guard let directory = entries[index].directory else { throw ProtocolValidationError.invalidValue("Source path crosses a file or tree boundary") }
                 let replaced = try replace(directory, parts.dropFirst(), from: previous, to: source)
-                entries[index].directory = replaced.root; file = replaced.file
+                entries[index].directory = replaced.root; file = replaced.file; bodyStart = replaced.bodyStart
             }
-            return (try store(.directory(entries, collection: descriptor)), file)
+            return (try store(.directory(entries, collection: descriptor)), file, bodyStart)
         }
         let origin = try replace(graph.root, try components(originPath)[...], from: transfer.origin.source, to: transfer.originSource)
         let destination = try replace(origin.root, try components(destinationPath)[...], from: transfer.destination.source, to: transfer.destinationSource)
         func ref(_ document: WorkspaceDocumentTransfer.Document, _ range: Range<Int>) -> ProtocolSemanticValue {
-            let (path, object) = document == .origin ? (originPath, origin.file) : (destinationPath, destination.file)
+            let (path, object, start) = document == .origin ? (originPath, origin.file, origin.bodyStart) : (destinationPath, destination.file, destination.bodyStart)
+            var range = range
+            if let start {
+                if range.lowerBound < start { snapshotOnly = true } else { range = (range.lowerBound - start)..<(range.upperBound - start) }
+            }
             return .object(["material": .object(["kind": .string("basis"), "path": .string(path), "object": .string(object)]),
                             "range": .array([.integer(range.lowerBound), .integer(range.upperBound)])])
         }
@@ -91,7 +100,7 @@ extension LocalChange {
         _ = try ProtocolObjectGraph.validate(candidate, mode: .lazyDirectories)
         let known = Set(graph.objects.map(\.hash))
         let update = ProtocolCandidateUpdate(candidate: root, change: change, at: at,
-            trace: touchesPage ? nil : [ProtocolTraceFrame(before: graph.root, after: root, operations: operations)],
+            trace: snapshotOnly ? nil : [ProtocolTraceFrame(before: graph.root, after: root, operations: operations)],
             objects: candidate.objects.filter { !known.contains($0.hash) }.sorted { $0.hash < $1.hash })
         _ = try JSONEncoder().encode(update)
         try self.init(change: change, tree: tree, basis: basis, graph: graph, candidate: candidate, update: update,
