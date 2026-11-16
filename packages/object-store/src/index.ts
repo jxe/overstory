@@ -309,9 +309,12 @@ export class ObjectStore {
     for (const [hash, bytes] of unique) this.remember(hash, bytes);
     const missing = new Set(this.packs.freshen(unique.keys()));
     if (!missing.size) return;
-    const before = this.packs.syncs;
-    this.writes.written += await this.packs.append([...missing].map((hash) => ({ hash, bytes: unique.get(hash)! })));
-    this.writes.fsyncs += this.packs.syncs - before;
+    // Read the counter after the await: `+= await` would read it before, and lose concurrent stores' counts.
+    const appended = await this.packs.append([...missing].map((hash) => ({ hash, bytes: unique.get(hash)! })));
+    this.writes.written += appended;
+    // Concurrent stores share one sync (group commit): count each sync once.
+    this.writes.fsyncs += this.packs.syncs - this.countedSyncs;
+    this.countedSyncs = this.packs.syncs;
   }
 
   /** Index journal records a crash left unindexed. A host runs this once as
@@ -358,6 +361,8 @@ export class ObjectStore {
 
   /** Cumulative write-side counters for diagnostics; callers diff snapshots. */
   readonly writes: ObjectWriteCounters = { objects: 0, written: 0, fsyncs: 0 };
+  /** `packs.syncs` already added to `writes.fsyncs`. */
+  private countedSyncs = 0;
 
   /** Objects deduplicated by hash, each checked against its hash. */
   private checked(objects: Iterable<{ hash: ObjectHash; bytes: Uint8Array }>): Map<ObjectHash, Uint8Array> {

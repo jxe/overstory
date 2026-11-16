@@ -52,31 +52,36 @@ sibling pages, one-level tree, local disk), with a temporary counter on
 Each step ships alone, keeps behaviour identical (existing tests, plus a differential test where
 an algorithm changes), and states before and after from the same harness.
 
-1. **Compute the change once.** Build the `ChangeRecord` in acceptance and pass it to
-   `notifyAccepted`'s consumers, so `collections.accepted`, `snapshotCollectionsAfter`, document
-   versions and watch transitions stop walking the two roots again. Measure decodes and CPU per
-   edit on `page-edit-cost.ts` and `rehearse-tree.ts`.
-2. **Group commit in the journal.** `Packs.append` writes everything queued while the previous
-   `fdatasync` ran as one append, one sync and one index transaction. Measure with the fsync
-   shim at 4 ms (`/mnt/project-files/perf004/fsdelay.c`) and several concurrent submitters;
-   report fsyncs per update and p90. Then extend the batch to the SQLite commit (the commit
-   writer).
-3. **Change feed with cursors.** Replace `notifyAccepted`'s direct calls with subscribers
+Steps 1 and 2 are built (2026-11-16, not yet deployed):
+
+- **The change once:** acceptance's entry-change walk also names the collection folders whose
+  log moved, and the collections follower and the snapshot check take them from it instead of
+  walking both roots twice each. Host directory decodes per traced edit on `page-edit-cost.ts`:
+  about 12 to 8. The rest (graph validation, reserved boundaries, the profile index hash, the
+  trace rebuild) is step 3's.
+- **Group commit in the journal:** `Packs.append` groups appends issued while a sync runs into
+  one write, one `fdatasync` and one index transaction; an idle store writes at once.
+  `tests/performance/concurrent-trees-cost.ts`, 8 writers on 8 trees, fsync shim at 4 ms:
+  median 45 to 15 ms, p90 63 to 32 ms, 165 to 430 updates a second, syncs per update 1 to
+  0.27; with no delay, unchanged. The SQLite commit is not batched: under WAL with
+  `synchronous = NORMAL` it doesn't sync, so there was nothing to share.
+
+1. **Change feed with cursors.** Replace `notifyAccepted`'s direct calls with subscribers
    reading an ordinal feed. Collection databases record the ordinal they have reached; readers
    wait for it instead of the `advancing` promise. The provenance backfill becomes the indexer
    starting from an older cursor, paced, never using the merge worker. Log each consumer's lag.
    Needs tests for resume after failure and for read-your-writes.
-4. **The host's own updates go through the tree's mailbox.** Collection snapshots, config
+2. **The host's own updates go through the tree's mailbox.** Collection snapshots, config
    advances and boundary rewrites become coalesced low-priority messages instead of loose
    promises that take `withTreeLock`.
-5. **Tree actors keep their head in working form.** Candidates are decoded once at ingest; graph
-   validation, reserved boundaries, the profile index hash and the page check read the actor's
+3. **Tree actors keep their head in working form.** Candidates are decoded once at ingest; graph
+   validation, reserved boundaries, the profile index hash and the Filesystem 026 check read the actor's
    flat head instead of decoding the root again. Move work that doesn't need the head out of the
    turn. Measure CPU per edit and lock-wait on `rehearse-tree.ts` with a copy of Joe's todos
    tree.
-6. **Push authorization changes.** Publish an event when the authorization epoch moves, instead
+4. **Push authorization changes.** Publish an event when the authorization epoch moves, instead
    of polling it every 250 ms for all streams.
-7. **Ask the merge sidecar without holding the turn, only if measured.** If live update logs
+5. **Ask the merge sidecar without holding the turn, only if measured.** If live update logs
    show `lock-wait` while merges run: ask against a head snapshot, keep accepting plain edits,
    re-ask once if the head moved, then hold the turn.
 

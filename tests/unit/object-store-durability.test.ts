@@ -38,6 +38,20 @@ test("a durable batch is one journal append and one sync, with no loose files", 
   expect(await journals()).toHaveLength(1);
 });
 
+test("stores issued while one is syncing go together in one append and one sync", async () => {
+  const store = new ObjectStore(join(directory, "objects"));
+  await store.store([object("first")]);
+  expect(store.writes.fsyncs).toBe(1);
+  const batches = Array.from({ length: 8 }, (_, b) => Array.from({ length: 5 }, (_, i) => object(`batch ${b} object ${i}`)));
+  // The first waits for nothing; the seven issued meanwhile share the next sync.
+  await Promise.all([...batches, [object("batch 0 object 0"), object("shared")], [object("shared")]].map((objects) => store.store(objects)));
+  expect(store.writes.written).toBe(1 + 40 + 1);
+  expect(store.writes.fsyncs).toBe(3);
+  const reopened = new ObjectStore(join(directory, "objects"));
+  for (const o of [...batches.flat(), object("shared")]) expect(await reopened.read(o.hash)).toEqual(o.bytes);
+  expect(await journals()).toHaveLength(1);
+});
+
 test("re-storing durable objects writes and syncs nothing, in this process or another", async () => {
   const store = new ObjectStore(join(directory, "objects"));
   const objects = Array.from({ length: 5 }, (_, i) => object(`again ${i}`));

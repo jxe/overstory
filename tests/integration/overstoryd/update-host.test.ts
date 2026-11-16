@@ -26,7 +26,7 @@ import { deviceClient, deviceSession, newTestDevice, testAccount, testDevice } f
 import { directoryStamper } from "@ovst/protocol";
 const TEST_AT = Date.UTC(2026, 10, 11);
 const TEST_TIME = new Date(TEST_AT).toISOString();
-const NO_ENTRY_CHANGES = { set: [], removed: [] };
+const NO_ENTRY_CHANGES = { set: [], removed: [], collections: [] };
 
 // Every test runs once per request encoding: CBOR, the clients' default,
 // and JSON, the readable fallback a host keeps accepting (tree operations §4.4).

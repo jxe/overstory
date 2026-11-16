@@ -223,6 +223,11 @@ interface PreparedProfile {
 const TRANSITION_CACHE_ENTRIES = 32;
 
 /** The Profile TreeID of every `overstory://<TreeID>/` member locator. */
+/** A collection folder's path as its names: "/" is the root, `[]`. */
+function folderNames(path: string): string[] {
+  return path === "/" ? [] : path.slice(1).split("/");
+}
+
 function memberProfiles(members: RootProfile["members"]): ReadonlySet<string> {
   return new Set(members.flatMap((member) => {
     const profile = profileLocatorTree(member.profile);
@@ -2827,8 +2832,10 @@ export class HostDaemon implements AsyncDisposable {
   }
 
   private notifyAccepted(update: AcceptedUpdate): void {
+    // The collection folders it moved, from the walk acceptance already made.
+    const folders = this.acceptedStore.takeChanges(update.id)?.collections.map(folderNames);
     // Its collections' databases apply the update's log entries before anything reads them.
-    void this.collections.accepted(update);
+    void this.collections.accepted(update, folders);
     this.execution.invalidate();
     for (const listener of [...this.acceptedListeners]) {
       try { listener(update); } catch (error) { console.error("overstoryd accepted-update listener failed", error); }
@@ -2838,7 +2845,7 @@ export class HostDaemon implements AsyncDisposable {
     if (record) this.notifyObservation(record);
     // A configuration may name a remote group this host has no copy of yet.
     if (this.get(update.tree)?.kind === "tree-configuration") void this.remoteGroups.prefetch(this.namedRemoteGroups());
-    else void this.snapshotCollectionsAfter(update);
+    else void this.snapshotCollectionsAfter(update, folders);
   }
 
   /**
@@ -2846,11 +2853,11 @@ export class HostDaemon implements AsyncDisposable {
    * snapshot has outgrown its rows, an update the host makes itself appends a snapshot
    * entry, and changes nothing else.
    */
-  private async snapshotCollectionsAfter(update: AcceptedUpdate): Promise<void> {
+  private async snapshotCollectionsAfter(update: AcceptedUpdate, known?: string[][]): Promise<void> {
     if (this.disposed) return;
     try {
       const load = (hash: ObjectHash) => this.objects.load(hash);
-      const folders = await changedCollectionFolders(update.previous?.root ?? null, update.root, load);
+      const folders = known ?? await changedCollectionFolders(update.previous?.root ?? null, update.root, load);
       if (!folders.length) return;
       const accepted = await this.withTreeLock(update.tree, async () => {
         const from = this.currentUpdate(update.tree);

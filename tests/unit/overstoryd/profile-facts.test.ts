@@ -88,8 +88,8 @@ describe("stored profile rows", () => {
   test("only _index.md and the row's declared avatar path decide a recompute", () => {
     const sha = `sha256:${"0".repeat(64)}` as ObjectHash;
     const row = { indexHash: sha, avatarPath: "images/me.png", facts: { type: "person" as const, members: [] } };
-    const set = (path: string) => ({ set: [{ path, hash: sha }], removed: [] });
-    const removed = (path: string) => ({ set: [], removed: [path] });
+    const set = (path: string) => ({ set: [{ path, hash: sha }], removed: [], collections: [] });
+    const removed = (path: string) => ({ set: [], removed: [path], collections: [] });
     expect(profileChanged(row, set("/_index.md"))).toBe(true);
     expect(profileChanged(row, removed("/_index.md"))).toBe(true);
     expect(profileChanged(row, set("/images/me.png"))).toBe(true);

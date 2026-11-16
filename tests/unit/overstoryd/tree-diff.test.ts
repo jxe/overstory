@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { encodeProtocolDirectory, hashObject, transitionPayload, TreeReader, walkTreeDiff, type ObjectHash, type ProtocolDirectoryEntry } from "@ovst/protocol";
 import { entryChanges } from "../../../packages/overstoryd/src/updates/document-versions.ts";
+import { changedCollectionFolders } from "../../../packages/overstoryd/src/collection-snapshots.ts";
 
 function store() {
   const objects = new Map<ObjectHash, Uint8Array>();
@@ -50,4 +51,33 @@ test("a reader refuses bytes whose hash does not match", async () => {
   const root = s.dir([{ name: "a.md", file: s.file("A"), created: 0, modified: 0 }]);
   const lying = new TreeReader(async () => new TextEncoder().encode("not it"));
   await expect(walkTreeDiff(null, root, lying, { entry: () => true })).rejects.toThrow("hash mismatch");
+});
+
+test("entry changes name the collection folders whose log moved, as the separate walk finds them", async () => {
+  const s = store();
+  const fingerprint = `sha256:${"0".repeat(64)}` as `sha256:${string}`;
+  const log = (n: number) => s.file(`log ${n}`);
+  const sorted = (entries: ProtocolDirectoryEntry[]) => [...entries].sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
+  const collection = (head: ObjectHash, entries: ProtocolDirectoryEntry[] = []) => {
+    const schema = { name: "schema.beetle", file: s.file("table T { name: text }"), created: 0, modified: 0 };
+    const bytes = encodeProtocolDirectory({ type: "directory", entries: sorted([...entries, schema]), collection: { version: 2, modelFingerprint: fingerprint, log: head as `sha256:${string}` } });
+    const hash = hashObject(bytes) as ObjectHash;
+    s.objects.set(hash, bytes);
+    return hash;
+  };
+  const at = (name: string, directory: ObjectHash): ProtocolDirectoryEntry => ({ name, directory });
+  const steady = collection(log(1));
+  const before = s.dir([
+    at("kept", steady), at("moved", collection(log(2))), at("nested", s.dir([at("inner", collection(log(3)))])), at("gone", collection(log(4))),
+  ]);
+  const after = s.dir([
+    at("added", collection(log(5))), at("kept", steady),
+    at("moved", collection(log(6), [{ name: "note.md", file: s.file("n"), created: 0, modified: 0 }])),
+    at("nested", s.dir([at("inner", collection(log(7)))])),
+  ]);
+  const paths = (folders: string[][]) => folders.map((names) => `/${names.join("/")}`);
+  const walked = paths(await changedCollectionFolders(before, after, s.load));
+  expect(walked).toEqual(["/added", "/moved", "/nested/inner"]);
+  expect((await entryChanges(before, after, s.load)).collections).toEqual(walked);
+  expect((await entryChanges(null, after, s.load)).collections).toEqual(paths(await changedCollectionFolders(null, after, s.load)));
 });

@@ -23,6 +23,9 @@ interface EntryChange {
 export interface EntryChanges {
   set: EntryChange[];
   removed: string[];
+  /** The collection folders whose log the update moved, as paths ("/" for the root),
+   * so consumers after the commit don't walk the two roots again. */
+  collections: string[];
 }
 
 const decoder = new TextDecoder();
@@ -61,8 +64,12 @@ export async function entryChanges(
   options: { documents?: boolean } = {},
 ): Promise<EntryChanges> {
   const reader = treeReader(load);
-  const changes: EntryChanges = { set: [], removed: [] };
+  const changes: EntryChanges = { set: [], removed: [], collections: [] };
   await walkTreeDiff(before, after, reader, {
+    directory: ({ path, before: old, after: next }) => {
+      const log = next?.directory.collection?.log;
+      if (log && log !== old?.directory.collection?.log) changes.collections.push(path);
+    },
     entry: async ({ path, before: old, after: next }) => {
       // A page is its file's entry here, its key read from the file it reads as.
       const was = old?.file ?? old?.page, now = next?.file ?? next?.page;

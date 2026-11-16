@@ -671,12 +671,13 @@ export class CollectionDatabases {
 
   /**
    * Apply an accepted update to the databases of the collections it moved, as it is
-   * accepted. Anything that reads a database of the tree waits for this first.
+   * accepted. Anything that reads a database of the tree waits for this first. `known`
+   * is the folders acceptance found, when it found them; otherwise they are walked for.
    */
-  accepted(update: { tree: string; root: string; previous?: { root: string } | null }): Promise<void> {
+  accepted(update: { tree: string; root: string; previous?: { root: string } | null }, known?: readonly string[][]): Promise<void> {
     const prior = this.advancing.get(update.tree) ?? Promise.resolve();
     const next = prior.then(async () => {
-      const folders = await changedCollectionFolders((update.previous?.root ?? null) as ObjectHash | null, update.root as ObjectHash, this.read);
+      const folders = known ?? await changedCollectionFolders((update.previous?.root ?? null) as ObjectHash | null, update.root as ObjectHash, this.read);
       for (const names of folders) {
         const path = `/${names.join("/")}`;
         await this.turn(CollectionDatabases.key(update.tree, path), () => this.catchUp(update.tree, path, update.root as ObjectHash));

@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 import { AcceptedUpdateStore } from "@ovst/overstoryd";
 import type { ObjectHash } from "@ovst/protocol";
 import { ObservationLog } from "../../../packages/overstoryd/src/updates/observations.ts";
-const NO_ENTRY_CHANGES = { set: [], removed: [] };
+const NO_ENTRY_CHANGES = { set: [], removed: [], collections: [] };
 
 const A = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as ObjectHash;
 const B = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as ObjectHash;

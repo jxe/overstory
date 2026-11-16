@@ -42,7 +42,18 @@ const UPDATE_SELECT = `
  * kept only each tree's head).
  */
 export class AcceptedUpdateStore {
+  /** Each recent accepted update's entry changes, by id, for its consumers after the
+   * commit (`takeChanges`). Bounded: an update whose consumers never ask is dropped. */
+  private readonly changes = new Map<string, EntryChanges>();
+
   constructor(private readonly db: Database) {}
+
+  /** The entry changes `update` was accepted with, once; undefined when it was not accepted by this store instance or was already taken. */
+  takeChanges(update: string): EntryChanges | undefined {
+    const changes = this.changes.get(update);
+    this.changes.delete(update);
+    return changes;
+  }
 
   /** The table alone. */
   static createTable(db: Database): void {
@@ -181,6 +192,8 @@ export class AcceptedUpdateStore {
     ]);
     const id = String(inserted.lastInsertRowid);
     new DocumentVersionStore(this.db).apply(input.tree, id, input.acceptedAt, input.entryChanges);
+    this.changes.set(id, input.entryChanges);
+    if (this.changes.size > 256) this.changes.delete(this.changes.keys().next().value!);
     return this.get(id)!;
   }
 

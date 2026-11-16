@@ -178,41 +178,74 @@ export class Packs {
 
   /** This store's open journal, if it has appended. */
   private journal?: { id: number; name: string; fd: number; bytes: number };
-  /** Appends run one at a time. */
-  private appending: Promise<unknown> = Promise.resolve();
+  /** Appends waiting for the one in progress; they go together in the next. */
+  private queued: Array<{ objects: Array<{ hash: string; bytes: Uint8Array }>; now: number; done: (appended: number) => void; failed: (error: unknown) => void }> = [];
+  private draining = false;
   private recovered = false;
 
   /**
-   * Durably append objects to this store's journal and index them: one
-   * write, one `fdatasync`, one index transaction. Objects already packed
-   * are skipped. If the journal was collected or rewritten meanwhile (its
-   * row is gone), the append is repeated on a new journal. Returns the
-   * objects appended.
+   * Durably append objects to this store's journal and index them. Appends
+   * issued while another is writing are grouped: the next write carries all
+   * of them, with one `fdatasync` and one index transaction (group commit),
+   * and an idle store writes at once. Objects already packed are skipped. If
+   * the journal was collected or rewritten meanwhile (its row is gone), the
+   * write is repeated on a new journal. Returns how many of `objects` this
+   * call appended.
    */
   append(objects: Array<{ hash: string; bytes: Uint8Array }>, now = Date.now()): Promise<number> {
-    const run = this.appending.then(() => this.appendNow(objects, now));
-    this.appending = run.catch(() => {});
-    return run;
+    return new Promise((done, failed) => {
+      this.queued.push({ objects, now, done, failed });
+      if (!this.draining) void this.drain();
+    });
+  }
+
+  private async drain(): Promise<void> {
+    this.draining = true;
+    try {
+      while (this.queued.length) {
+        const batch = this.queued.splice(0);
+        try {
+          const appended = await this.appendNow(batch);
+          batch.forEach((request, index) => request.done(appended[index]!));
+        } catch (error) {
+          for (const request of batch) request.failed(error);
+        }
+      }
+    } finally {
+      this.draining = false;
+    }
   }
 
   /** fdatasync calls appends issued; a diagnostic. */
   syncs = 0;
 
-  private async appendNow(objects: Array<{ hash: string; bytes: Uint8Array }>, now: number): Promise<number> {
+  /** One write, one `fdatasync` and one index transaction for every request in `batch`; how many objects each appended. */
+  private async appendNow(batch: ReadonlyArray<{ objects: ReadonlyArray<{ hash: string; bytes: Uint8Array }>; now: number }>): Promise<number[]> {
     const db = this.index(true)!;
     if (!this.recovered) { this.recover(); this.recovered = true; }
-    const fresh = objects.filter((o) => !this.has(o.hash));
-    if (!fresh.length) return 0;
+    const claimed = new Set<string>();
+    const fresh: Array<{ hash: string; bytes: Uint8Array; now: number }> = [];
+    const appended = batch.map(({ objects, now }) => {
+      let count = 0;
+      for (const o of objects) {
+        if (claimed.has(o.hash) || this.has(o.hash)) continue;
+        claimed.add(o.hash);
+        fresh.push({ hash: o.hash, bytes: o.bytes, now });
+        count++;
+      }
+      return count;
+    });
+    if (!fresh.length) return appended;
     const size = fresh.reduce((n, o) => n + JOURNAL_HEADER + o.bytes.byteLength, 0);
     const buffer = new Uint8Array(size), view = new DataView(buffer.buffer);
-    const placed: Array<{ hash: Uint8Array; at: number; length: number }> = [];
+    const placed: Array<{ hash: Uint8Array; at: number; length: number; now: number }> = [];
     let at = 0;
     for (const o of fresh) {
       const hash = digest(o.hash);
       view.setUint32(at, o.bytes.byteLength);
       buffer.set(hash, at + 4);
       buffer.set(o.bytes, at + JOURNAL_HEADER);
-      placed.push({ hash, at: at + JOURNAL_HEADER, length: o.bytes.byteLength });
+      placed.push({ hash, at: at + JOURNAL_HEADER, length: o.bytes.byteLength, now: o.now });
       at += JOURNAL_HEADER + o.bytes.byteLength;
     }
     for (;;) {
@@ -227,13 +260,13 @@ export class Packs {
       const indexed = relaxed(db, () => {
         if (!db.query("UPDATE packs SET bytes = ? WHERE id = ?").run(end, journal.id).changes) return false;
         const insert = db.query(`INSERT OR IGNORE INTO packed_objects (hash, pack, offset, length, encoding, start, size, used_at) VALUES (?, ?, ?, ?, ${Encoding.Raw}, 0, ?, ?)`);
-        for (const record of placed) insert.run(record.hash, journal.id, journal.bytes + record.at, record.length, record.length, now);
+        for (const record of placed) insert.run(record.hash, journal.id, journal.bytes + record.at, record.length, record.length, record.now);
         return true;
       });
       if (indexed) {
         journal.bytes = end;
         if (end >= JOURNAL_BYTES) await this.closeJournal();
-        return fresh.length;
+        return appended;
       }
       // Collected or rewritten under us: append again to a new journal.
       await this.closeJournal();
