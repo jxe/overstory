@@ -12,6 +12,16 @@ const P = await import(`${ARBOR}/packages/protocol/src/index.ts`);
 const { executeExactSourceEdits } = await import(`${ARBOR}/tests/support/source-edits.ts`);
 const { deviceClient, testAccount } = await import(`${ARBOR}/tests/helpers/devices.ts`);
 const [dataRoot, todos, phase = "all"] = process.argv.slice(2);
+// The host's own per-request timings (its "update" log lines), kept instead of printed.
+const hostLines: Array<{ total: number; lockWait: number }> = [];
+const log = console.log;
+console.log = (...args: unknown[]) => {
+  const text = args.map(String).join(" ");
+  if (!text.includes('"event":"update"')) return log(...args);
+  const line = JSON.parse(text);
+  if (process.env.PHASES) log(text);
+  if (line.status === 201) hostLines.push({ total: line.total, lockWait: line["lock-wait"] });
+};
 const N = Number(process.env.N ?? 40);
 
 const objects = new Map<string, Uint8Array>(), sent = new Set<string>();
@@ -23,7 +33,12 @@ async function build(dir: string, at: string): Promise<string> {
     if (d.name.startsWith(".")) continue;
     const name = d.name.normalize("NFC");
     if (d.isDirectory()) entries.push({ name, directory: await build(join(dir, d.name), `${at}/${name}`) });
-    else { entries.push({ name, file: put(new Uint8Array(await readFile(join(dir, d.name)))), created: 0, modified: 0 }); if (name.endsWith(".md")) pages.push(`${at}/${name}`); }
+    else {
+      // Markdown whose front matter parses is a page, as every client writes it.
+      const bytes = new Uint8Array(await readFile(join(dir, d.name))), page = name.endsWith(".md") ? P.parsePage(bytes) : null;
+      entries.push(page ? { name, page: put(P.encodeProtocolPage(page)), created: 0, modified: 0 } : { name, file: put(bytes), created: 0, modified: 0 });
+      if (page) pages.push(`${at}/${name}`);
+    }
   }
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   return put(P.encodeProtocolDirectory({ type: "directory", entries }));
@@ -46,12 +61,12 @@ async function submit(u: any, basis = update) {
   return { id: accepted.id, root: accepted.root };
 }
 ({ id: update, root } = await submit(snapshotUpdate(root)));
-console.log(JSON.stringify({ files: objects.size, pages: pages.length }));
-async function lookup(r: string, path: string) { let d = P.decodeProtocolDirectory(objects.get(r)!); const parts = path.slice(1).split("/"); for (const p of parts.slice(0, -1)) d = P.decodeProtocolDirectory(objects.get(d.entries.find((e: any) => e.name === p).directory)!); return d.entries.find((e: any) => e.name === parts.at(-1)).file; }
+log(JSON.stringify({ files: objects.size, pages: pages.length }));
+async function lookup(r: string, path: string) { let d = P.decodeProtocolDirectory(objects.get(r)!); const parts = path.slice(1).split("/"); for (const p of parts.slice(0, -1)) d = P.decodeProtocolDirectory(objects.get(d.entries.find((e: any) => e.name === p).directory)!); const entry = d.entries.find((e: any) => e.name === parts.at(-1)); return entry.page ?? entry.file; }
 async function traced(i: number) {
   const path = pages[(i * 7) % pages.length]!;
   const operations = [{ key: "e", kind: "editSource" as const, source: { material: { kind: "basis" as const, path, object: await lookup(root, path) }, range: [0, 0] as [number, number] }, text: `r${i} ` }];
-  const ex = await executeExactSourceEdits(root, operations, async (h: string) => objects.get(h)!);
+  const ex = await executeExactSourceEdits(root, operations, async (h: string) => objects.get(h)!, TEST_AT);
   for (const [h, b] of ex.generated) { objects.set(h, b); sent.add(h); }
   ({ id: update, root } = await submit({ at: TEST_TIME, change: crypto.randomUUID(), candidate: ex.root, trace: [{ before: root, after: ex.root, operations }], resolves: [], deltas: [], objects: [...ex.generated].map(([hash, bytes]) => ({ hash, bytes })) }));
 }
@@ -68,12 +83,17 @@ async function pair(i: number) {
 }
 async function time(label: string, n: number, step: (i: number) => Promise<void>) {
   const ms: number[] = [];
+  hostLines.length = 0;
+  const cpu = process.cpuUsage();
   for (let i = 0; i < n; i++) { const t = performance.now(); await step(i); ms.push(performance.now() - t); }
+  // CPU of the whole process (client and host) per step; the host's share is in hostMedian.
+  const used = process.cpuUsage(cpu), cpuMs = (used.user + used.system) / 1000 / n;
   ms.sort((a, b) => a - b);
-  console.log(JSON.stringify({ label, n, median: +ms[n >> 1]!.toFixed(1), p90: +ms[Math.floor(n * 0.9)]!.toFixed(1) }));
+  const host = hostLines.map((l) => l.total).sort((a, b) => a - b), wait = hostLines.map((l) => l.lockWait).sort((a, b) => a - b);
+  log(JSON.stringify({ label, n, median: +ms[n >> 1]!.toFixed(1), p90: +ms[Math.floor(n * 0.9)]!.toFixed(1),
+    hostMedian: host[host.length >> 1], hostP90: host[Math.floor(host.length * 0.9)], lockWaitMedian: wait[wait.length >> 1], cpuMsPerStep: +cpuMs.toFixed(1) }));
 }
 for (let i = 0; i < 5; i++) await traced(1000 + i);
-console.error("MARK start"); (await import("node:fs")).existsSync("/MARK_START");
 if (phase !== "pairs") await time("traced", N, traced);
 if (phase !== "traced") await time("pairs", Math.max(10, N >> 1), pair);
 if (phase === "all") {
@@ -82,9 +102,8 @@ if (phase === "all") {
   running = await serveHost({ dataRoot, accounts: [testAccount("owner", "reh", { communityWriter: true })], publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0 });
   client = await deviceClient(running.url, "reh");
   await traced(5000);
-  console.log(JSON.stringify({ label: "cold restart + first edit", ms: +(performance.now() - t).toFixed(1) }));
+  log(JSON.stringify({ label: "cold restart + first edit", ms: +(performance.now() - t).toFixed(1) }));
   await time("traced after restart", 10, (i) => traced(6000 + i));
 }
-console.error("MARK end"); (await import("node:fs")).existsSync("/MARK_END");
 running.server.stop(true); await running.overstoryd[Symbol.asyncDispose]();
 process.exit(0);
