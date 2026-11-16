@@ -28,7 +28,11 @@ with every Protocol 001 move and the Apps 011 `.mdx` change. The migration is ba
 `packages/overstoryd/migrations/next` (schema 32 → 34). It computes entry times from accepted
 history, so it does not need the live `entry-times.sqlite3`. First rehearsal on the Nov 9
 backup: 28 trees in 1.5 s, cold start serving in 4 s, `verify.ts` clean. Joe chose to take
-the fresh live backup and final rehearsal on the flag day itself. Left: step 7.
+the fresh live backup and final rehearsal on the flag day itself. Later the same day the
+`schema.usl` → `schema.beetle` switch joined the branch, and on 2026-11-16 Joe chose to ship
+[Performance 007](performance-007-sqlite-collection-storage.md) (collections as a log, the
+Beetle host, no execution sidecar) in the same flag day: the migration writes each collection
+as a log. Left: a rehearsal of the combined branch, then step 7.
 
 ## Steps
 

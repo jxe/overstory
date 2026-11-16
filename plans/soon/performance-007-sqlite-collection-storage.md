@@ -5,8 +5,9 @@ efficient for overstoryd to work with a collection's SQLite file than with table
 objects. Joe, 2026-11-12, while Beetle's host copies were being built (Apps 015): "I don't
 know if, in the long run, we really want to keep two copies of all rows, one in db and one
 in tree". He chose the design below the same day and asked for it now ("I think we should
-do Performance 007 now"). Built on branch `claude/project-thread-kn7ley`, which merges after
-the Protocol 003 flag day.
+do Performance 007 now"). Built on branch `claude/project-thread-kn7ley`, now merged into the
+Protocol 003 flag-day branch `claude/project-thread-xl0yei`: Joe chose on 2026-11-16 to ship
+both in one flag day rather than rewrite every tree twice.
 
 ## Status
 
@@ -60,7 +61,9 @@ history budget; an old root whose entries were dropped answers "not retained", w
 spec already allows for databases. A replica that starts from a snapshot checks it against
 the rows hash once.
 
-Existing collections need a snapshot made once at the switch, plus an empty log.
+Existing collections switch in the Protocol 003 migration: each becomes a log whose first
+entry holds every row as it stood, and the host builds its database from that entry and
+snapshots when the log outgrows it, as for any log.
 
 **Catching up compacted.** A replica far behind may ask for the net change per row since
 its head instead of every entry (a row edited 50 times arrives once), checked against the
@@ -119,5 +122,5 @@ reading, mutations as SQL transactions and the host's database as the working fo
 built
 ([status](../../status.md#performance-007-collections-as-a-log-of-row-changes--2026-11-12)).
 
-1. Switch: the Protocol 003 migration turns each existing collection into a log; this
-   branch merges after the flag day.
+1. Switch: the Protocol 003 migration turns each existing collection into a log (built on
+   the flag-day branch); it ships with that flag day.

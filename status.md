@@ -14,7 +14,8 @@ in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 
 ## Performance 007: collections as a log of row changes — 2026-11-12
 
-**Built in TypeScript, on branch** `claude/project-thread-kn7ley` (spec c85fd736, a241223b;
+**Built in TypeScript, on branch** `claude/project-thread-kn7ley`, merged into the Protocol 003
+flag-day branch `claude/project-thread-xl0yei` on 2026-11-16 to ship with it (Joe) (spec c85fd736, a241223b;
 code 3f45468f, 0b35befa, b4c56697, 72d6b29f). Joe's decisions of 2026-11-12: the `collection`
 reference (version 2) names the head of a log of `log` objects, changes entries holding each
 changed row's new form and snapshot entries naming a SQLite file the host writes; each entry
