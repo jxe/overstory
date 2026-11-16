@@ -76,6 +76,18 @@ rows hash (collections §1, data model §5).
   `tests/integration/overstoryd/collection-databases.test.ts`. Measured 2026-11-15:
   `collection-sync.ts` row edit median 119 ms (479 before, main 441), note edit 75 ms,
   adding the collection 487 ms; a Supplies mutation 3 to 4 ms (13 to 14 before).
+- Story Sync finds a projection's changed rows once (Performance 007, 2026-11-16): a read
+  compares each stored row with the last read's and reads only the changed ones as logical
+  rows, checks them against the rest of the collection in memory (`checkStateChanges`) and
+  appends them to its log, for layouts whose logical rows are each one table's row (others
+  read whole). `replayCollectionRows` applies operations to just the rows they name and
+  checks those (`changed-rows.ts`; its entry is the one encoding the whole collection gives,
+  `changed-rows.test.ts`), and `collectionEdits` reads only the entries between two heads.
+  The change log validates and decodes only records it hasn't, and shares frozen records
+  instead of copying them. CPU per row edit in `collection-sync.ts` 55 ms (160 before), the
+  same as a note edit; wall clock 58 to 71 ms against 176 to 208 for the previous commit on
+  the same loaded machine. What remains is the per-sync scan (Markdown re-read every scan,
+  ~25 ms) and publishing.
 - Not yet: the switch.
 
 ## Entry times with the content — 2026-11-10

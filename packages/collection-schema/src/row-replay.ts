@@ -3,6 +3,7 @@
 import {
   compareUTF8,
   decodeProtocolDirectory,
+  encodedRow,
   encodeProtocolDirectory,
   hashObject,
   logicalRowKey,
@@ -15,8 +16,10 @@ import {
   type RowOperation,
 } from "@ovst/protocol";
 import type { LogicalField, LogicalModel, LogicalTables } from "@ovst/usl";
-import { encodeDirectoryCollection, loadDirectoryCollection, ProtocolCollectionError } from "./directory-collection.ts";
-import type { LogicalSchema } from "./logical.ts";
+import { directoryCollectionSchema, ProtocolCollectionError } from "./directory-collection.ts";
+import { plainRows, treeTables, type ChangedRow, type LogicalSchema } from "./logical.ts";
+import { appendRowChanges, loadCollectionState, type CollectionState } from "./collection-log.ts";
+import { checkStateChanges, markChecked, requireChecked } from "./changed-rows.ts";
 
 function invalid(message: string): never {
   throw new Error(`Invalid row operation: ${message}`);
@@ -142,29 +145,87 @@ export function applyRowOperations(schema: LogicalSchema, tables: LogicalTables,
 }
 
 /** The collection schema package's row replay (spec 10 §4.1): apply the
- * operations to the directory's logical tables, validate the result and
- * encode its tables. */
+ * operations to just the rows they name, check those rows against the rest of
+ * the collection, and append the change to the directory's log. The rest of
+ * the collection is neither validated again nor re-encoded (Performance 007). */
 export const replayCollectionRows: CollectionRowReplay = async (directoryHash, operations, read, at) => {
   const directory = decodeProtocolDirectory(await read(directoryHash));
-  let collection;
+  if (!directory.collection) invalid("the directory has no collection");
+  let schema: LogicalSchema, state: CollectionState;
+  const entries = directory.entries.map((entry) => entry.name);
   try {
-    collection = await loadDirectoryCollection(directory, read);
+    schema = await directoryCollectionSchema(directory, read);
+    if (directory.collection.modelFingerprint !== schema.fingerprint) throw new ProtocolCollectionError("source", "collection.modelFingerprint doesn't match the folder's schema.beetle");
+    try {
+      state = await loadCollectionState(schema, directory.collection.log, read);
+    } catch (error) {
+      if (error instanceof TypeError) throw new ProtocolCollectionError("source", error.message);
+      throw error;
+    }
+    requireChecked(schema, state, entries);
   } catch (error) {
     if (error instanceof ProtocolCollectionError) invalid(error.message);
     throw error;
   }
-  if (!collection) invalid("the directory has no collection");
-  const tables = applyRowOperations(collection.schema, collection.tables, operations, at);
-  let encoded;
+  // The rows the operations name, as they are now.
+  const keys = new Map<string, Set<string>>();
+  for (const operation of operations) {
+    if (!keys.has(operation.model)) keys.set(operation.model, new Set());
+    keys.get(operation.model)!.add(operation.row);
+  }
+  const current: LogicalTables = {};
+  for (const [model, rows] of keys) {
+    const held = [...rows].map((key) => state.tables.get(model)?.get(key)).filter((row): row is LogicalRow => row !== undefined);
+    current[model] = plainRows(schema, model, held);
+  }
+  const applied = applyRowOperations(schema, current, operations, at);
+  const touched: ChangedRow[] = [];
+  for (const [model, rows] of keys) {
+    const after = new Map((applied[model] ?? []).map((row) => [logicalRowKey(row as LogicalRow), row as LogicalRow]));
+    for (const key of [...rows].sort(compareUTF8)) {
+      const was = state.tables.get(model)?.get(key), is = after.get(key);
+      if (!was && !is) continue;
+      touched.push({ model, key: (is ?? plainRows(schema, model, [was!])[0]! as LogicalRow).key, row: is ?? null });
+    }
+  }
+  let reference = directory.collection;
+  const generated = new Map<ObjectHash, Uint8Array>();
+  let changes: ChangedRow[];
   try {
-    encoded = await encodeDirectoryCollection(directory, tables, read);
+    // The rows are checked first, so a value the log can't hold is refused as the schema refuses it.
+    checkStateChanges(schema, state, null, touched);
+    changes = touched.filter((change) => {
+      const was = state.tables.get(change.model)?.get(logicalRowKey(change));
+      return !was || !change.row || encodedRow(was).hash !== encodedRow(treeRow(schema, change.model, change.row)).hash;
+    });
   } catch (error) {
     if (error instanceof ProtocolCollectionError) invalid(error.message);
     throw error;
   }
-  const generated = new Map<ObjectHash, Uint8Array>(encoded.objects);
-  const bytes = encodeProtocolDirectory(encoded.directory);
+  if (changes.length > 0 || !state.head) {
+    let appended;
+    try {
+      appended = appendRowChanges(schema, state, changes.map((change) => ({
+        model: change.model,
+        key: treeRow(schema, change.model, { key: change.key, fields: {}, created: 0, modified: 0 }).key,
+        row: change.row ? treeRow(schema, change.model, change.row) : null,
+      })));
+    } catch (error) {
+      if (error instanceof ProtocolCollectionError) invalid(error.message);
+      if (error instanceof TypeError) invalid(error.message);
+      throw error;
+    }
+    markChecked(appended.state);
+    generated.set(appended.hash as ObjectHash, appended.bytes);
+    reference = { ...reference, log: appended.hash };
+  }
+  const bytes = encodeProtocolDirectory({ ...directory, collection: reference });
   const hash = hashObject(bytes);
   generated.set(hash, bytes);
   return { directory: hash, generated };
 };
+
+/** A plain row as the log holds it (Date fields tagged). */
+function treeRow(schema: LogicalSchema, model: string, row: LogicalRow): LogicalRow {
+  return treeTables(schema, { [model]: [row] } as LogicalTables)[model]![0]!;
+}

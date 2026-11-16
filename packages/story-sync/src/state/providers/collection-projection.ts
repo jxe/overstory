@@ -14,6 +14,9 @@ import {
   logicalRowKey,
   stableJSONString,
   stableKeyFromProperties,
+  encodedRow,
+  type CollectionReference,
+  type Hash,
   type JSONValue,
   type LogicalRow,
   type ObjectHash,
@@ -23,8 +26,15 @@ import {
 } from "@ovst/protocol";
 import { writeAtomic } from "@ovst/protocol/file-ops";
 import {
+  appendRowChanges,
   checkCollectionNames,
   checkLogicalTables,
+  checkStateChanges,
+  markChecked,
+  plainRows,
+  plainTables,
+  treeTables,
+  type ChangedRow,
   collectionFileRows,
   decodeCollectionFileSource,
   encodeCollection,
@@ -239,6 +249,43 @@ function comparable(row: Row): string {
 
 const sameFields = (a: LogicalRow, b: LogicalRow) => stableJSONString(a.fields) === stableJSONString(b.fields);
 
+/** A stored row's key in its table: its primary key columns' values. */
+const storedKey = (table: Table, row: Row) => JSON.stringify(table.primaryKey.map((column) => row[column] ?? null));
+
+/** Whether two stored rows hold the same values: scalars compared directly, anything else by its JSON. */
+function sameStored(a: Row, b: Row): boolean {
+  let count = 0;
+  for (const name in a) {
+    const x = a[name], y = b[name];
+    if (x === undefined || x === null) { if (y !== undefined && y !== null) return false; continue; }
+    count++;
+    if (x === y) continue;
+    if (typeof x !== "object" || typeof y !== "object" || y === null || JSON.stringify(x) !== JSON.stringify(y)) return false;
+  }
+  for (const name in b) if (b[name] !== undefined && b[name] !== null) count--;
+  return count === 0;
+}
+
+/**
+ * Whether each model's logical rows are read from its own table's rows alone, so a changed
+ * stored row is one changed logical row: no join tables, no members, no ordered ends.
+ */
+function selfContained(logical: LogicalSchema, layout: readonly Table[]): boolean {
+  return layout.every((table) => !table.ends)
+    && logical.models.every((model) => model.fields.every((field) => field.kind !== "members"))
+    && logical.result.models.every((model) => model.ends.every((end) => !end.ordered));
+}
+
+/** A basis whose rows are read from its state only when something asks for them all. */
+function lazyBasis(logical: LogicalSchema, state: CollectionState): CollectionBasis {
+  let tables: LogicalTables | undefined;
+  return {
+    get tables() { return (tables ??= plainTables(logical, state)); },
+    fingerprint: logical.fingerprint,
+    state,
+  };
+}
+
 /**
  * Story Sync's collection projections. One instance remembers the rows it
  * last read or wrote for each folder, so a folder that hasn't changed reads
@@ -252,7 +299,13 @@ export class CollectionProjections {
   private readonly bases = new Map<string, Map<string, Map<string, Row>>>();
   private readonly resolving = new Set<string>();
   /** Each folder's last read, by the stamp of the files it read. */
-  private readonly reads = new Map<string, { stamp: string; tables: LogicalTables; result: Omit<SnapshotCollection, "objects">; objects: Uint8Array[] }>();
+  private readonly reads = new Map<string, { stamp: string; basis: CollectionBasis | null; result: Omit<SnapshotCollection, "objects">; objects: Uint8Array[] }>();
+  /**
+   * Each folder's stored rows as its projection held them when last read, by table and key,
+   * and the log entry they stand for: what the next read compares against to find the rows
+   * that changed (Performance 007).
+   */
+  private readonly stored = new Map<string, { head: string | null; layout: string; tables: Map<string, Map<string, Row>> }>();
 
   constructor(private readonly options: CollectionProjectionOptions = {}) {
     this.schemas = options.schemas ?? sharedCollectionSchemaCache;
@@ -333,18 +386,41 @@ export class CollectionProjections {
       this.resolving.add(directory);
       try { held = await basis(directory); } finally { this.resolving.delete(directory); }
     }
-    const before = held?.tables ?? null;
     // Unchanged files read as the rows they read as last time, without
     // decoding and encoding every row again on each scan.
     const stamp = form ? filesStamp(directory, formFiles(form, form.kind === "sqlite" ? database : files), schemaBytes) : null;
     const cached = this.reads.get(directory);
-    if (stamp && cached?.stamp === stamp && cached.tables === before) return { ...cached.result, objects: cached.objects };
+    if (stamp && cached?.stamp === stamp && cached.basis === held) return { ...cached.result, objects: cached.objects };
     const nowOption = this.options.now?.();
     const now = nowOption === undefined ? Date.now() : Date.parse(nowOption);
+    const layout = form?.kind === "sqlite" ? database : files;
+    const layoutKey = `${form?.kind === "sqlite" ? "sqlite" : form?.format ?? "none"}\0${hashBytes(schemaBytes)}`;
+    let rows: RowsByTable | null = null;
+    try {
+      rows = form ? await this.readRows(directory, form, layout, schemaBytes) : {};
+    } catch {
+      rows = null;
+    }
+    // A projection whose rows the last read already holds: only the rows that changed are read as logical rows.
+    if (rows && held?.state && held.fingerprint === logical.fingerprint) {
+      const projected = new Set(form ? formFiles(form, layout) : []);
+      const quick = this.readChanges(directory, logical, layout, layoutKey, rows, held.state, fileNames.filter((name) => !projected.has(name)), now);
+      if (quick) {
+        const result = { collection: quick.reference, replaces: [
+          ...(form ? formFiles(form, layout).filter((name) => fileNames.includes(name)) : []),
+          ...(fileNames.includes(LEFTOVER_SCHEMA) ? [LEFTOVER_SCHEMA] : []),
+        ] };
+        const basisNow = quick.state === held.state ? held : lazyBasis(logical, quick.state);
+        this.last.set(directory, basisNow);
+        if (stamp) this.reads.set(directory, { stamp, basis: basisNow, result, objects: quick.objects });
+        else this.reads.delete(directory);
+        return { ...result, objects: quick.objects };
+      }
+    }
+    const before = held?.tables ?? null;
     let tables: LogicalTables | null;
     try {
-      const layout = form?.kind === "sqlite" ? database : files;
-      const rows = form ? await this.readRows(directory, form, layout, schemaBytes) : {};
+      if (!rows) throw new UnreadableRow("The projection can't be read");
       tables = this.stamp(logicalFromRows(logical.result, layout, rows, { now }), before, now);
       if (checkLogicalTables(logical, tables).length) throw new UnreadableRow("The rows don't satisfy the collection's schema");
       const projected = new Set(form ? formFiles(form, layout) : []);
@@ -355,7 +431,11 @@ export class CollectionProjections {
     }
     if (!tables) return null;
     const encoded = encodeCollection(logical, tables, held?.state && held.fingerprint === logical.fingerprint ? held.state : null);
-    this.last.set(directory, { tables, fingerprint: logical.fingerprint, state: encoded.state });
+    markChecked(encoded.state);
+    const basisNow: CollectionBasis = { tables, fingerprint: logical.fingerprint, state: encoded.state };
+    this.last.set(directory, basisNow);
+    if (rows && tables !== before) this.remember(directory, layout, layoutKey, rows, encoded.state.head);
+    else this.stored.delete(directory);
     const result = {
       collection: encoded.reference,
       replaces: [
@@ -364,9 +444,90 @@ export class CollectionProjections {
       ],
     };
     const objects = [...encoded.objects.values()];
-    if (stamp) this.reads.set(directory, { stamp, tables, result, objects });
+    if (stamp) this.reads.set(directory, { stamp, basis: basisNow, result, objects });
     else this.reads.delete(directory);
     return { ...result, objects };
+  }
+
+  /** Keep the stored rows a read found, by table and key, for the next read to compare against. */
+  private remember(directory: string, layout: readonly Table[], layoutKey: string, rows: RowsByTable, head: string | null): Map<string, Map<string, Row>> {
+    const tables = new Map<string, Map<string, Row>>();
+    for (const table of layout) tables.set(table.name, new Map((rows[table.name] ?? []).map((row) => [storedKey(table, row as Row), row as Row])));
+    this.stored.set(directory, { head, layout: layoutKey, tables });
+    return tables;
+  }
+
+  /**
+   * The folder's collection when only some stored rows changed since the last read, which
+   * holds `state`: each changed row is read as a logical row and stamped, checked against
+   * the rest of the collection, and appended to its log (Performance 007). Null when this
+   * can't be done by changed row (no last read of these rows, a layout whose logical rows
+   * span tables, or changes the collection refuses), and the whole projection is read.
+   */
+  private readChanges(directory: string, logical: LogicalSchema, layout: readonly Table[], layoutKey: string, rows: RowsByTable, state: CollectionState, entries: readonly string[], now: number):
+    { reference: CollectionReference; state: CollectionState; objects: Uint8Array[] } | null {
+    const last = this.stored.get(directory);
+    if (!last || last.layout !== layoutKey || last.head !== state.head || !selfContained(logical, layout)) return null;
+    // The stored rows that differ from the last read's, by table.
+    const changed: RowsByTable = {}, removed: RowsByTable = {};
+    let count = 0;
+    for (const table of layout) {
+      const before = last.tables.get(table.name) ?? new Map<string, Row>();
+      const seen = new Set<string>();
+      for (const row of (rows[table.name] ?? []) as Row[]) {
+        const key = storedKey(table, row);
+        seen.add(key);
+        const was = before.get(key);
+        if (was && sameStored(was, row)) continue;
+        (changed[table.name] ??= []).push(row);
+        count++;
+      }
+      for (const [key, row] of before) {
+        if (seen.has(key)) continue;
+        (removed[table.name] ??= []).push(row);
+        count++;
+      }
+    }
+    if (count === 0) {
+      if (!state.head) return null;
+      this.remember(directory, layout, layoutKey, rows, state.head);
+      return { reference: { version: 2, modelFingerprint: logical.fingerprint as Hash, log: state.head as Hash }, state, objects: [] };
+    }
+    try {
+      const changes: ChangedRow[] = [];
+      const read = logicalFromRows(logical.result, [...layout], changed, { now });
+      for (const [model, list] of Object.entries(read)) {
+        for (const row of list as LogicalRow[]) {
+          const key = logicalRowKey(row);
+          const was = state.tables.get(model)?.get(key);
+          const prior = was ? plainRows(logical, model, [was])[0] as LogicalRow : null;
+          const stamped = !prior ? row
+            : sameFields(prior, row) ? { ...row, created: prior.created, modified: prior.modified }
+            : { ...row, created: prior.created, modified: row.modified !== prior.modified && row.modified !== now ? row.modified : now };
+          if (was && encodedRow(was).hash === encodedRow(treeTables(logical, { [model]: [stamped] } as LogicalTables)[model]![0]!).hash) continue;
+          changes.push({ model, key: stamped.key, row: stamped });
+        }
+      }
+      for (const [model, list] of Object.entries(logicalFromRows(logical.result, [...layout], removed, { now }))) {
+        for (const row of list) changes.push({ model, key: row.key as LogicalRow["key"], row: null });
+      }
+      if (!changes.length) {
+        if (!state.head) return null;
+        this.remember(directory, layout, layoutKey, rows, state.head);
+        return { reference: { version: 2, modelFingerprint: logical.fingerprint as Hash, log: state.head as Hash }, state, objects: [] };
+      }
+      checkStateChanges(logical, state, entries, changes);
+      const appended = appendRowChanges(logical, state, changes.map((change) => ({
+        model: change.model,
+        key: treeTables(logical, { [change.model]: [{ key: change.key, fields: {}, created: 0, modified: 0 }] } as LogicalTables)[change.model]![0]!.key,
+        row: change.row ? treeTables(logical, { [change.model]: [change.row] } as LogicalTables)[change.model]![0]! : null,
+      })));
+      markChecked(appended.state);
+      this.remember(directory, layout, layoutKey, rows, appended.state.head);
+      return { reference: { version: 2, modelFingerprint: logical.fingerprint as Hash, log: appended.hash as Hash }, state: appended.state, objects: [appended.bytes] };
+    } catch {
+      return null;
+    }
   }
 
   /**

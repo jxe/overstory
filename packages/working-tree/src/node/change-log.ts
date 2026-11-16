@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, readdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { decodeTreeSnapshotJSON, encodeObjectEnvelopes, hashObject, type TreeSnapshotJSON } from "@ovst/protocol";
-import { bytesEqual, decodeLocalUpdate, type LocalUpdate, equal, localChangeRequest, requireOneChain, snapshotJSON, validateLocalChanges, type ChangeLogJournal, type ChangeLogObjectStore, type LocalChange,
+import { decodeTreeSnapshotJSON, deepFreeze, encodeObjectEnvelopes, hashObject, type TreeSnapshotJSON } from "@ovst/protocol";
+import { decodeLocalUpdate, type LocalUpdate, equal, localChangeRequest, requireOneChain, snapshotJSON, validateLocalChanges, type ChangeLogJournal, type ChangeLogObjectStore, type LocalChange,
   type StoredLocalChange, type StoredSnapshot } from "../local-change.ts";
 import { publicationTip } from "../update-machine.ts";
 
@@ -17,6 +17,8 @@ export class ChangeLog {
   private records?: LocalChange[];
   private fingerprint?: JournalFingerprint;
   private readonly objects = new Map<string, Uint8Array>();
+  /** Each record as the journal last stored it, by change: a reload validates only records that differ. */
+  private storedForms = new Map<string, string>();
   constructor(readonly tree: string, stateRoot: string, private readonly platform?: ChangeLogObjectStore) {
     this.path = resolve(stateRoot, "sync", "change-log.json");
     this.objectsPath = resolve(stateRoot, "sync", "change-log-objects");
@@ -37,7 +39,8 @@ export class ChangeLog {
   async retained(): Promise<LocalChange[]> {
     const fingerprint = await this.currentFingerprint();
     if (!this.records || !equal(fingerprint, this.fingerprint)) await this.load();
-    return structuredClone(this.records!);
+    // Records are frozen, so callers share them instead of copying every snapshot.
+    return [...this.records!];
   }
   /** With `settled`, each new record must extend the one chain of unsettled
    * records (`requireOneChain`). */
@@ -53,10 +56,12 @@ export class ChangeLog {
         if (!prior) added.push(record);
       }
       if (settled) requireOneChain(added, records.filter(record => !settled.has(record.change)));
+      const held = new Set(records.map(record => record.change));
       records.push(...added);
       // Repeat the durable write on an exact retry: an earlier rename may have
-      // succeeded before directory synchronization failed.
-      validateLocalChanges(records, this.tree);
+      // succeeded before directory synchronization failed. Records the log
+      // already holds were validated when it read or retained them.
+      validateLocalChanges(records, this.tree, held);
       await this.write(records);
     });
     writers.set(this.path, next);
@@ -123,13 +128,18 @@ export class ChangeLog {
       if (!this.objects.has(hash)) this.objects.set(hash, await this.objectBytes(hash));
     }));
     const records = journal.records.map(record => this.materialize(record));
-    validateLocalChanges(records, this.tree);
-    this.records = records;
+    // A record this log read or wrote before, stored the same, was validated then.
+    const checked = new Set(journal.records.filter(record => this.storedForms.get(record.change) === JSON.stringify(record)).map(record => record.change));
+    validateLocalChanges(records, this.tree, checked);
+    this.storedForms = new Map(journal.records.map(record => [record.change, JSON.stringify(record)]));
+    this.records = deepFreeze(records);
     this.fingerprint = await this.currentFingerprint();
   }
 
   private async write(records: LocalChange[]): Promise<void> {
-    const snapshots = records.flatMap(record => [decodeTreeSnapshotJSON(record.graph), decodeTreeSnapshotJSON(record.candidate)]);
+    // Only a record the log doesn't hold yet brings objects it hasn't stored.
+    const held = new Set((this.records ?? []).map(record => record.change));
+    const snapshots = records.filter(record => !held.has(record.change)).flatMap(record => [decodeTreeSnapshotJSON(record.graph), decodeTreeSnapshotJSON(record.candidate)]);
     const presented = new Map<string, Uint8Array>();
     for (const snapshot of snapshots) for (const [hash, bytes] of snapshot.objects) {
       if (!this.platform) presented.set(hash, bytes);
@@ -137,7 +147,7 @@ export class ChangeLog {
     }
     // Update envelopes are exactly the objects introduced relative to each
     // graph. They remain queue-owned until the admission settles.
-    for (const record of records) for (const object of decodeLocalUpdate(record.update).objects) {
+    for (const record of records) if (!held.has(record.change)) for (const object of decodeLocalUpdate(record.update).objects) {
       presented.set(object.hash, object.bytes);
     }
     await mkdir(this.objectsPath, { recursive: true, mode: 0o700 });
@@ -158,7 +168,8 @@ export class ChangeLog {
       if (/^[0-9a-f]{64}$/.test(name) && !retained.has(hash)) await rm(resolve(this.objectsPath, name), { force: true });
     }
     for (const hash of this.objects.keys()) if (!retained.has(hash)) this.objects.delete(hash);
-    this.records = structuredClone(records);
+    this.storedForms = new Map(journal.records.map(record => [record.change, JSON.stringify(record)]));
+    this.records = deepFreeze(structuredClone(records));
     this.fingerprint = await this.currentFingerprint();
   }
 
@@ -204,11 +215,9 @@ export class ChangeLog {
   private async writeObject(hash: string, bytes: Uint8Array): Promise<void> {
     if (hashObject(bytes) !== hash) throw new Error(`Change log object hash mismatch: ${hash}`);
     const destination = this.objectPath(hash);
-    try {
-      const existing = await this.readObject(hash);
-      if (!bytesEqual(existing, bytes)) throw new Error(`Change log object changed: ${hash}`);
-      return;
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    // An object already written is the same bytes: it was hash-checked when written, and is again when read.
+    try { await stat(destination); return; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
     try {
       const file = await open(temporary, "wx", 0o600);

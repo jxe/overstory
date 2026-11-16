@@ -20,7 +20,8 @@ import {
   type RowOperation,
 } from "@ovst/protocol";
 import type { LogicalModel, LogicalTables } from "@ovst/usl";
-import { loadDirectoryCollection } from "./directory-collection.ts";
+import { directoryCollectionSchema } from "./directory-collection.ts";
+import { changedCollectionRows } from "./logical.ts";
 import { replayCollectionRows } from "./row-replay.ts";
 
 type Read = (hash: ObjectHash) => Promise<Uint8Array>;
@@ -94,13 +95,21 @@ export function rowOperationsBetween(models: readonly LogicalModel[], before: Lo
 async function collectionEdits(path: string, object: ObjectHash, before: ProtocolDirectory, after: ProtocolDirectory, read: Read): Promise<RowOperation[] | null> {
   if (stableJSONString(before.entries) !== stableJSONString(after.entries)) return null;
   if (before.collection!.modelFingerprint !== after.collection!.modelFingerprint) return null;
-  let left, right;
+  // Only the rows the log entries between the two change are compared (Performance 007);
+  // replaying the operations then checks them against the rest of the collection.
+  let schema, changed;
   try {
-    [left, right] = [await loadDirectoryCollection(before, read), await loadDirectoryCollection(after, read)];
+    schema = await directoryCollectionSchema(after, read);
+    changed = await changedCollectionRows(schema, before.collection, after.collection, read);
   } catch {
     return null;
   }
-  return rowOperationsBetween(left!.schema.models, left!.tables, right!.tables, { material: { kind: "basis", path, object } });
+  const left: LogicalTables = {}, right: LogicalTables = {};
+  for (const [model, rows] of Object.entries(changed)) {
+    left[model] = rows.before as LogicalTables[string];
+    right[model] = rows.after as LogicalTables[string];
+  }
+  return rowOperationsBetween(schema.models, left, right, { material: { kind: "basis", path, object } });
 }
 
 /** Property operations for one page whose properties alone changed, or null
