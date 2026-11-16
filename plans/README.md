@@ -158,12 +158,6 @@ After Apps 019. Small apps embedded in pages through view blocks that use `.beet
 SwiftUI (no web view, no React), with state owned by the app, the page or the reader.
 Absorbs Apps 001 and 003; an HTML renderer comes later.
 
-**[Performance 010: overstoryd as writers with mailboxes and a change feed](soon/performance-010-mailboxes-and-change-feed.md).**
-Joe, 2026-11-16, after exploring overstoryd's structure: ingest decodes once, one actor per tree
-decides, one commit writer batches fsyncs, and everything after the commit reads a change feed
-with its own cursor. Steps: compute the change once, group commit, the feed, the host's own
-updates through the tree's mailbox, the head in working form, pushed authorization changes.
-
 ## Later
 
 **[Filesystem 028: provenance for page bodies, and front-matter merge cases](later/filesystem-028-page-body-provenance-and-front-matter-merges.md).**

@@ -152,3 +152,19 @@ test("changed collections are revalidated while unchanged siblings inherit their
   await validateGraphChange(make("new"), f.load, new Map(), check, basis);
   expect(checks).toBe(2);
 });
+
+test("with `present`, a stored leaf is proven without being read, and a missing one refused", async () => {
+  const f = fixture();
+  const leaf = f.file("big body"), root = f.dir([{ name: "a.md", file: leaf, created: 0, modified: 0 }]);
+  const present: string[] = [];
+  await validateGraphChange(root, f.load, new Map(), async () => {}, undefined, async (hash) => {
+    present.push(hash);
+    if (!f.objects.has(hash)) throw Error("missing");
+  });
+  expect(f.reads).toEqual([root]);
+  expect(present).toEqual([leaf]);
+  const gone = f.dir([{ name: "b.md", file: hashObject(new TextEncoder().encode("never stored")), created: 0, modified: 0 }]);
+  await expect(validateGraphChange(gone, f.load, new Map(), async () => {}, undefined, async (hash) => {
+    if (!f.objects.has(hash)) throw Error("missing");
+  })).rejects.toThrow("missing");
+});

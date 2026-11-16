@@ -21,7 +21,9 @@ export interface ValidatedGraph {
  * Cross-kind checks remain even when subtrees are shared, moved, removed, or
  * reused as another kind. Storage accounting belongs in an offline audit.
  * `load` returns verified bytes (the object store checks every read); each
- * proposed object is hashed here exactly once. */
+ * proposed object is hashed here exactly once. A leaf (a file or page) is
+ * never decoded here, so one the store already holds is not read: `present`
+ * proves it is there (and keeps it there), and throws when it is not. */
 export async function validateGraphChange(
   root: string,
   load: (hash: string) => Promise<Uint8Array>,
@@ -31,6 +33,7 @@ export async function validateGraphChange(
     load: (hash: string) => Promise<Uint8Array>,
   ) => Promise<void>,
   basis?: ValidatedGraph,
+  present?: (hash: string) => Promise<void>,
 ): Promise<ValidatedGraph> {
   const objects = new Map<string, ValidatedObject>();
   const pending: Reference[] = [{ hash: root, kind: "directory" }];
@@ -56,6 +59,10 @@ export async function validateGraphChange(
     if (proposed.has(hash)) await read(hash);
     let proof = basis?.objects.get(hash);
     if (proof?.kind !== kind) proof = undefined;
+    if (!proof && present && kind !== "directory" && kind !== "log" && !proposed.has(hash)) {
+      await present(hash);
+      proof = { kind, children: [] };
+    }
     if (!proof) {
       const bytes = await read(hash);
       let children: Reference[] = [];

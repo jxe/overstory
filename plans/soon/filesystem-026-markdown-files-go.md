@@ -13,9 +13,7 @@ are [Filesystem 028](../later/filesystem-028-page-body-provenance-and-front-matt
 
 ## Status
 
-**PLANNED · S effort · low risk.** Host only; take it with
-[Performance 010](performance-010-mailboxes-and-change-feed.md), which reworks the accept
-path the check goes on.
+**PLANNED · S effort · low risk.** Host only: a check on the accept path.
 
 ## The host refuses a Markdown file entry that reads as a page
 

@@ -12,6 +12,37 @@ States used below: **implemented** (built and tested), **installed** (running
 in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 **verified** (exercised by hand against live data).
 
+## Performance 010: a change feed, group commit and tree mailboxes — 2026-11-16
+
+**Deployed** (steps 1 to 4 on 2026-11-16; the cold first edit with the next deploy). Joe asked
+for overstoryd carved along data-oriented lines after exploring its structure (map in project
+files `overstoryd-map/`).
+
+- **The change once:** acceptance's entry-change walk also names the collection folders whose
+  log moved; the collections follower and the snapshot check take them from it. Directory
+  decodes per traced edit on `page-edit-cost.ts`: about 12 to 8.
+- **Group commit** (`Packs.append`): appends issued while a sync runs share one write, one
+  `fdatasync` and one index transaction. `concurrent-trees-cost.ts`, 8 writers, fsync shim at
+  4 ms: median 45 to 15 ms, syncs per update 1 to 0.27.
+- **A change feed** (`change-feed.ts`): one `ChangeRecord` per accepted update; immediate
+  listeners (authorization, watches, packing, remote groups) and consumers with cursors (the
+  collections follower per tree, the snapshot scheduler) that coalesce when behind.
+- **Tree mailboxes** (`mailbox.ts`): a tree's turns, with depth reported as `lock-depth`; the
+  host's own collection snapshots wait behind client updates.
+- **The first edit after a restart** no longer reads a tree's files to rebuild the accepted
+  root's graph proof: leaves are proven present, not read (`validateGraphChange`'s `present`).
+  Live, that edit's `validate-graph` read the todos tree's 14.5 MB (about 215 ms after each of
+  three deploys today); locally, on a tree with 6 MB of pages, 15 to 0.6 ms and 8.1 MB to 51 KB.
+- **Measured and not built** (2026-11-16): keeping the head in working form (on a copy of the
+  todos tree, 104 pages, a traced edit costs the host 1.3 ms median, of which graph and candidate
+  checks are 0.2 ms and the journal sync 0.4 ms); pushing authorization changes (the 250 ms
+  epoch poll is one timer and one trivial query, and pushing risks a missed revocation); asking
+  the merge sidecar outside the tree's turn (38 live updates 17:59 to 22:17Z: `lock-wait` median
+  0, p90 0.3 ms, 3 over 5 ms, none behind a merge). Rehearsed on Joe's Mac against the
+  migrated backup before steps 1 to 4 deployed: every tree read back the same update and root.
+  Harnesses: `tests/performance/rehearse-tree.ts` (host time, lock-wait and CPU per step),
+  `concurrent-trees-cost.ts`, `page-edit-cost.ts`.
+
 ## Protocol 003 flag day — 2026-11-16
 
 **Deployed and verified** on arb.nxhx.org, **released** as Story 0.2.0 (Mac; iPhone TestFlight

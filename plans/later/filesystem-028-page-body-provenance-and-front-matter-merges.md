@@ -10,8 +10,9 @@ be the cleanup alone.
 
 - **Effort:** M.
 - **Risk:** MEDIUM: both touch merges.
-- **Overlaps:** [Performance 010](../soon/performance-010-mailboxes-and-change-feed.md), whose
-  change feed makes the provenance indexer a consumer with its own cursor (step 3), and [History 007](history-007-page-history.md) (line provenance).
+- **Overlaps:** the change feed (`packages/overstoryd/src/change-feed.ts`,
+  [status](../../status.md#performance-010-a-change-feed-group-commit-and-tree-mailboxes--2026-11-16)),
+  which can make the provenance indexer a consumer with its own cursor, and [History 007](history-007-page-history.md) (line provenance).
 
 ## 1. Provenance for page bodies
 

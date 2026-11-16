@@ -9,8 +9,7 @@ and draws them for a browser (2026-11-16)
 plan is the host and TypeScript work left. Story's side (the Swift evaluator, view blocks
 drawn in pages, highlighting, the `rows` answer it reads) is
 [Apps 019](apps-019-beetle-in-story.md) (Joe, 2026-11-16). Finer live dependencies than
-"the tree changed" go to [Performance 010](performance-010-mailboxes-and-change-feed.md),
-whose change feed (built 2026-11-16) can make Beetle views a consumer with its own cursor.
+"the tree changed" are below, only if measured.
 
 The spec describes the target: [Beetle](../../docs/overstory-spec/1.5-beetle.md),
 [reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views),
@@ -25,6 +24,9 @@ release.
 
 - A row created and edited in the same millisecond: its `modified` can't move, so the diff
   refuses it. Check whether Protocol 003's times still allow this, and fix it if they do.
+- Only if a tree's open views measurably rerun too often: make Beetle views a consumer of the
+  change feed (`change-feed.ts`) with their own cursor, rerunning a view only when a record
+  touches what its plan reads, instead of on every accepted update to the tree.
 
 ## Open questions
 
