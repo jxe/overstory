@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serveHost } from "@ovst/overstoryd";
 import { StoreSchema } from "@ovst/beetle";
-import { loadDirectoryCollection } from "@ovst/collection-schema";
+import { compileLogicalSchema, loadDirectoryCollection } from "@ovst/collection-schema";
 import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, ProtocolClient, type DerivableCandidateUpdate, type ProtocolDirectory, type SourceOperation } from "@ovst/protocol";
 import { rowsFromLogical } from "@ovst/usl";
 import { CollectionDatabase } from "../../../packages/overstoryd/src/collection-databases.ts";
@@ -160,3 +160,24 @@ test("a restarted host opens the database where it was, and replays nothing", as
   await expectDatabaseHoldsLog();
 });
 
+
+test("a holder's change leaves the times of its connection rows that stay", async () => {
+  const logical = compileLogicalSchema("main table Game:\n  name Text\n  lists List[]\n\ntable List:\n  name Text\n  games Game[]\n\nordered List.games[] <-> Game.lists[]\n");
+  const schema = new StoreSchema(logical.result);
+  const T0 = Date.parse("2026-10-24T09:00:00.000Z"), T1 = Date.parse("2026-11-16T11:00:00.000Z");
+  const games = [idRow("g1", { name: "Chess" }, T0), idRow("g2", { name: "Go" }, T0)];
+  const list = idRow("l1", { name: "Favorites", games: ["g2", "g1"] }, T0);
+  const dir = await mkdtemp(join(tmpdir(), "collection-db-join-"));
+  try {
+    const db = CollectionDatabase.withRows(join(dir, "c"), schema.layout, rowsFromLogical(schema.result, schema.layout, { Game: games, List: [list] }), "s");
+    const joins = () => db.database.query(`select game, games_position, created from List_games order by game`).all();
+    expect(joins()).toEqual([{ game: "g1", games_position: 1, created: new Date(T0).toISOString() }, { game: "g2", games_position: 0, created: new Date(T0).toISOString() }]);
+    // Renamed and reordered, with a game taken off: the one that stays keeps its created, at its new place.
+    const after = { ...list, fields: { name: "Best", games: ["g1"] }, modified: T1 };
+    db.database.transaction(() => db.writeChanges(db.database, schema, { List: { before: [list], after: [after] } }))();
+    expect(joins()).toEqual([{ game: "g1", games_position: 0, created: new Date(T0).toISOString() }]);
+    db.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

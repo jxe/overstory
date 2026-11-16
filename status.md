@@ -91,6 +91,14 @@ rows hash (collections §1, data model §5).
   same as a note edit; wall clock 58 to 71 ms against 176 to 208 for the previous commit on
   the same loaded machine. What remains is the per-sync scan (Markdown re-read every scan,
   ~25 ms) and publishing.
+- Row times through repeated edits (found by the flag-day rehearsal, 2026-11-16): a changed
+  row read from a projection takes the projection's `modified` only when it is later than
+  the tree's; a time at or before it is the one the file held before the row's last
+  accepted edit, so a second edit of the same row was moving `modified` backwards. A join
+  row that stays keeps its times when its holder changes, in Story Sync's file projections
+  and the host's database (they took the holder's `modified` as their `created`).
+  `collection-changed-rows.test.ts` edits a row twice in JSONL and SQLite;
+  `collection-databases.test.ts` checks the host's join rows.
 - Not yet: the switch.
 
 ## Entry times with the content — 2026-11-10

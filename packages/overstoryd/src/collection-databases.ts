@@ -298,9 +298,20 @@ export class CollectionDatabase implements CollectionPosition {
             const join = schema.byName.get(r.through.relation)!;
             const sourceColumns = r.through.source.map((p) => p.through);
             const sourceValues = r.through.source.map((p) => storedRow[p.source] ?? null);
-            db.prepare(`delete from ${quote(join.name)} where ${where(sourceColumns)}`).run(...sourceValues.map(stored) as never[]);
-            const insert = this.insert(join, db);
-            for (const j of rows[join.name] ?? []) if (sourceColumns.every((c, i) => canonical(j[c] ?? null) === canonical(sourceValues[i]))) insert(j);
+            // The holder's join rows as they are now. A join row that stays keeps its times: they
+            // aren't logical (a new one takes its holder's), so they change only with the row.
+            const wanted = (rows[join.name] ?? []).filter((j) => sourceColumns.every((c, i) => canonical(j[c] ?? null) === canonical(sourceValues[i])));
+            const keep = new Set(wanted.map((j) => canonical(join.primaryKey.map((k) => stored(j[k] ?? null)))));
+            const present = db.prepare(`select ${join.primaryKey.map(quote).join(", ")} from ${quote(join.name)} where ${where(sourceColumns)}`).all(...sourceValues.map(stored) as never[]) as Array<Record<string, unknown>>;
+            const removeJoin = db.prepare(`delete from ${quote(join.name)} where ${where(join.primaryKey)}`);
+            for (const p of present) if (!keep.has(canonical(join.primaryKey.map((k) => p[k] ?? null)))) removeJoin.run(...join.primaryKey.map((k) => p[k]) as never[]);
+            const joinColumns = join.columns.map((c) => c.name);
+            const joinSettable = joinColumns.filter((c) => !join.primaryKey.includes(c) && c !== "created" && c !== "modified");
+            const upsertJoin = db.prepare(
+              `insert into ${quote(join.name)} (${joinColumns.map(quote).join(", ")}) values (${joinColumns.map(() => "?").join(", ")})` +
+              ` on conflict (${join.primaryKey.map(quote).join(", ")}) do ${joinSettable.length ? `update set ${joinSettable.map((c) => `${quote(c)} = excluded.${quote(c)}`).join(", ")}` : "nothing"}`,
+            );
+            for (const j of wanted) upsertJoin.run(...join.columns.map((c) => stored(j[c.name] ?? emptyOf(c))) as never[]);
           } else if (r.direct && r.cardinality === "many") {
             const position = schema.positionOf(r);
             const members = row.fields[r.name];

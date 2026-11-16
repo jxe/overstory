@@ -106,3 +106,64 @@ for (const form of [{ kind: "files", format: "jsonl" }, { kind: "sqlite" }] as C
     }
   });
 }
+
+// The rehearsal for the flag day found a row's `modified` going backwards: a folder that
+// keeps row times holds the time the row had before an edit until the projection is rewritten, so a
+// second edit of the same row must still be stamped with its own time, not the file's stale one.
+for (const form of [{ kind: "files", format: "jsonl" }, { kind: "sqlite" }] as CollectionProjectionForm[]) {
+  test(`${form.kind === "sqlite" ? "SQLite" : "JSONL"}: a row edited twice is modified at the second edit, and connection rows keep their own times`, async () => {
+    const T1 = "2026-11-16T10:00:00.000Z", T2 = "2026-11-16T11:00:00.000Z";
+    const tree = collectionTree(GAMES, {
+      Game: [idRow("g1", { name: "Chess" }), idRow("g2", { name: "Go" })],
+      List: [idRow("l1", { name: "Favorites", games: ["g2", "g1"] })],
+    });
+    const root = join(sandbox, `twice-${form.kind}`);
+    const objects = new Map(tree.objects);
+    const load = async (hash: ObjectHash) => objects.get(hash) ?? Promise.reject(new Error(`missing ${hash}`));
+    let now = NOW;
+    const projections = new CollectionProjections({ form: () => form, now: () => now });
+    await materializeTree(root, tree.root, load, undefined, [], undefined, (directory, object, read) => projections.write(directory, object, read));
+    const scan = async () => {
+      const snapshot = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], (directory, names) => projections.read(directory, names)));
+      for (const [hash, bytes] of snapshot.objects) objects.set(hash, bytes);
+      return snapshot.root as ObjectHash;
+    };
+    const rename = async (id: string, name: string) => {
+      if (form.kind === "sqlite") {
+        const db = new Database(join(root, "items", "_store.sqlite3"));
+        try { db.query("update Game set name = ? where id = ?").run(name, id); } finally { db.close(); }
+      } else {
+        await writeLines(join(root, "items", "Game.jsonl"), (await lines(join(root, "items", "Game.jsonl"))).map((r) => (r.id === id ? { ...r, name } : r)));
+      }
+    };
+    const game = async (at: ObjectHash, id: string) => (await collectionBasis(at, objects)).tables.Game!.find((r) => r.key[0]![1] === id)!;
+    expect(await scan()).toBe(tree.root);
+    // Edit g2, and let the host accept it: the folder already holds what was accepted, so it isn't rewritten.
+    now = T1;
+    await rename("g2", "Weiqi");
+    const first = await scan();
+    expect((await game(first, "g2")).modified).toBe(Date.parse(T1));
+    now = T2;
+    await rename("g2", "Baduk");
+    if (form.kind === "sqlite") {
+      const db = new Database(join(root, "items", "_store.sqlite3"));
+      try { db.query("update List set name = 'Best' where id = 'l1'").run(); } finally { db.close(); }
+    } else {
+      await writeLines(join(root, "items", "List.jsonl"), (await lines(join(root, "items", "List.jsonl"))).map((r) => ({ ...r, name: "Best" })));
+    }
+    const second = await scan();
+    expect((await game(second, "g2")).created).toBe(Date.parse("2026-10-24T09:00:00.000Z"));
+    expect((await game(second, "g2")).modified).toBe(Date.parse(T2));
+    // Written back from the tree (as after another device's edit), the list's connection rows keep their times.
+    const listGames = async () => form.kind === "sqlite"
+      ? (() => { const db = new Database(join(root, "items", "_store.sqlite3"), { readonly: true }); try { return db.query("select game, created from List_games order by game").all(); } finally { db.close(); } })()
+      : (await lines(join(root, "items", "List_games.jsonl"))).map((r) => ({ game: r.game, created: r.created })).sort((a, b) => String(a.game).localeCompare(String(b.game)));
+    const was = await listGames();
+    await materializeTree(root, second, load, undefined, [], undefined, (directory, object, read) => projections.write(directory, object, read));
+    expect(await listGames()).toEqual(was);
+    now = "2026-11-16T12:00:00.000Z";
+    await rename("g2", "Go again");
+    const third = await scan();
+    expect((await game(third, "g2")).modified).toBe(Date.parse(now));
+  });
+}
