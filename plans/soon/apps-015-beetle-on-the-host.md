@@ -1,4 +1,4 @@
-# Apps 015: Beetle on the host: loose ends
+# Apps 015: Beetle on the host: a same-millisecond row edit
 
 **Why and when:** Joe decided on 2026-11-11 that views and mutations are written in Beetle,
 in `.beetle` files and pages' `view` blocks, and that TypeScript support for both goes. The
@@ -25,7 +25,6 @@ release.
 
 - A row created and edited in the same millisecond: its `modified` can't move, so the diff
   refuses it. Check whether Protocol 003's times still allow this, and fix it if they do.
-- Collections in another tree than the view's.
 
 ## Open questions
 
