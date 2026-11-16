@@ -201,6 +201,12 @@ Joe, 2026-10-28: overstoryd should work with a collection's SQLite file instead 
 the equivalent table objects, producing canonical objects on demand. The history model
 for SQLite collections (less, none, or kept another way) comes first. After Apps 005.
 
+**[Performance 009: a Story Sync scan reads only what changed](later/performance-009-scan-by-stat.md).**
+Joe, 2026-11-16: every sync re-reads and re-records every Markdown file and walks every
+directory, so an idle sync grows with the folder (~15 ms of CPU for 200 notes). Trust
+Markdown by its stat tuple as other files are, write the object index only when a row
+changes, and skip subtrees the watcher saw no events in.
+
 **[Apps 002: hosted agents](later/apps-002-overstoryd-hosted-agents.md).** After Apps 011:
 authored agents hosted beside an app, calling its own query and mutation handles. No timing
 yet.
