@@ -552,7 +552,13 @@ struct StoryAgentTaskControl: View {
             if done {
                 // The result is the callout's detail line, under the text (`StoryAgentTaskDetail`).
                 if let run, run.state == .finished, run.undoable {
-                    Button("Undo Run") { Task { await workspace.undoAgentRun(run) } }
+                    // Quiet: plain muted text, so the result reads first.
+                    Button("Undo") { Task { await workspace.undoAgentRun(run) } }
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .help("Undo this run's changes")
+                        .accessibilityLabel("Undo Run")
                 }
             } else {
                 switch run?.state {
