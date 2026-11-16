@@ -8,7 +8,7 @@ features on 2026-11-16, when it was rewritten from the 2026-09 plan (overstoryd 
 model beside compiled TypeScript handles; that text is in git history).
 
 **Order:** after [Agents 005](agents-005-webhook-runners.md) (webhook runners) and
-[Apps 015](../soon/apps-015-beetle-on-the-host.md)'s host evaluator. Visitors other than the
+[Apps 015](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)'s host evaluator. Visitors other than the
 app's own people also need [Apps 010](../later/apps-010-activation-and-lending.md).
 
 ## Status

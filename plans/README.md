@@ -142,13 +142,6 @@ Left: the host refuses Markdown file entries that read as pages.
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
 
-**[Apps 015: Beetle on the host: a same-millisecond row edit](soon/apps-015-beetle-on-the-host.md).**
-Beetle views and mutations run on the host for every tree, at their nodes' addresses, with
-pages' view blocks and a plain browser rendering
-([status](../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). Left:
-a row created and edited in the same millisecond. Views reading another tree's collections
-are [Apps 009](later/apps-009-cross-host-delegation.md).
-
 **[Apps 019: Beetle in Story](soon/apps-019-beetle-in-story.md).** Story's side of Beetle, with
 the rest of Apps 012 folded in: the `rows` answer, a Swift evaluator, collections drawn from
 Beetle views instead of `~views`, view blocks drawn in pages, and highlighting.
@@ -242,6 +235,10 @@ examples and host merge evidence.
 **[Native 008: copies with changes and compound undo](when-needed/merge-008-copies-with-changes-and-compound-undo.md).**
 When merges bite: a real concurrent edit reviews or loses a copy, paste or undo that should
 have merged. Needs a new Quagmire release.
+
+**[Apps 020: Beetle views rerun only for changes they read](when-needed/apps-020-views-follow-the-change-feed.md).**
+When a tree's open views measurably rerun too often: view streams follow the change feed with
+their own cursor.
 
 **[Native 006: sparse iOS placement](when-needed/performance-006-sparse-ios-placement.md).** When size hurts:
 a tree too big to place on the iPhone in one download.

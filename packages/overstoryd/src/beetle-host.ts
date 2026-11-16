@@ -131,7 +131,9 @@ function stamp(after: LogicalTables, before: LogicalTables, now: number): Logica
       const was = prior.get(logicalRowKey(row as LogicalRow));
       if (!was) return { ...row, created: now, modified: now };
       if (stableJSONString(was.fields) === stableJSONString(row.fields)) return { ...row, created: was.created, modified: was.modified };
-      return { ...row, created: was.created, modified: now };
+      // A row's `modified` must move when it changes (a row operation's time is its `at`):
+      // edited in the millisecond it was created or last edited, it moves one past.
+      return { ...row, created: was.created, modified: Math.max(now, was.modified + 1) };
     });
   }
   return out;
@@ -544,7 +546,9 @@ export class BeetleHost implements AsyncDisposable {
       const change = `mutation-${createHash("sha256").update(`${tree}\0${subject}\0${request.mutationID}\0${requestDigest}`).digest("hex").slice(0, 32)}`;
       const update: DerivableUpdateRequest = {
         base: head.id,
-        updates: [{ change, at: now.toISOString(), candidate: null, ifCurrent: head.id, trace: [{ operations }], resolves: [], deltas: [], objects: [] }],
+        // No operation's `at` may be later than its update's, and a row edited in its own
+        // millisecond moved one past it (`stamp`).
+        updates: [{ change, at: new Date(Math.max(now.getTime(), ...operations.map((o) => "at" in o && typeof o.at === "string" ? Date.parse(o.at) : 0))).toISOString(), candidate: null, ifCurrent: head.id, trace: [{ operations }], resolves: [], deltas: [], objects: [] }],
       } as DerivableUpdateRequest;
       this.receipts.query("insert or replace into receipts (tree, subject, mutation_id, request_digest, request_json, receipt_json) values (?, ?, ?, ?, ?, null)")
         .run(tree, subject, request.mutationID, requestDigest, JSON.stringify({ update, rows }));

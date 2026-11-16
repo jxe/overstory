@@ -32,6 +32,8 @@ const LIST = "10000000-0000-4000-8000-000000000001";
 let sandbox: string, state: string, folder: string, dataRoot: string, tree: string, me: string;
 let host: Awaited<ReturnType<typeof serveHost>>;
 let minutes = 0;
+/** When set, every mutation runs at this minute: edits in the same millisecond as the last. */
+let frozen: number | undefined;
 
 beforeAll(async () => {
   sandbox = await mkdtemp(join(tmpdir(), "story-beetle-host-"));
@@ -52,7 +54,7 @@ beforeAll(async () => {
     dataRoot, accounts: [testAccount("owner", token, { communityWriter: true })],
     publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0,
     // Each mutation a minute after the last, so an edit's time differs from its row's creation.
-    beetle: { now: () => new Date(Date.UTC(2026, 10, 11, 12, minutes++, 0)) },
+    beetle: { now: () => new Date(Date.UTC(2026, 10, 11, 12, frozen ?? minutes++, 0)) },
   });
   const owner = await deviceClient(host.url, token);
   me = (await owner.account()).account.profileTree!;
@@ -337,6 +339,19 @@ describe.serial("Beetle on the host", () => {
     expect(data.headers.get("content-type")).toContain("application/json");
     expect((await data.json() as any).lists.length).toBe(2);
     expect((await get("/supplies/Feeds?view=Nowhere")).status).toBe(404);
+  }, 30_000);
+
+  test("a row created and edited in the same millisecond still edits (its modified moves one past)", async () => {
+    frozen = 59;
+    try {
+      const made = await mutate("createList", { name: "Same moment", visibility: "Public" }, "same-ms-create");
+      expect(made.status).toBe(200);
+      const id = JSON.parse(made.body.rows[0].key) as string;
+      const renamed = await mutate("renameList", { l: id, name: "Same moment, renamed" }, "same-ms-rename");
+      expect(renamed.status).toBe(200);
+      const again = await mutate("renameList", { l: id, name: "Same moment, again" }, "same-ms-rename-2");
+      expect(again.status).toBe(200);
+    } finally { frozen = undefined; }
   }, 30_000);
 
   test("a handle with another code version, or a view the file doesn't declare, is refused", async () => {

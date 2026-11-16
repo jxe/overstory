@@ -10,7 +10,7 @@ the host, not whose authority it runs with, so every question here still stands.
 ## Status
 
 **PLANNED · M–L effort · high authority-boundary risk.** It builds on
-[Apps 015](../soon/apps-015-beetle-on-the-host.md)'s host evaluator, which loads `.beetle` files
+[Apps 015](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)'s host evaluator, which loads `.beetle` files
 from trees at a pinned code version. Widgets from other people
 ([Apps 011](../soon/apps-011-widgets-in-story.md)) wait on this plan. Joe's own
 widgets don't.

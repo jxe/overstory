@@ -166,9 +166,13 @@ Beetle for every tree, and `OVERSTORYD_BEETLE` is gone. Also since 2026-11-16: v
 node's path, a page's view blocks get `page` (properties, `name`, `children`) and `#n`, a
 page's code version covers only its view blocks, and a browser `GET` draws a view, a page's
 view blocks or `?view=Name` as plain HTML with the raw view tree beside it (a data view answers
-JSON) until Apps 011's renderer. What is left is in
-[Apps 015](plans/soon/apps-015-beetle-on-the-host.md) (host) and
-[Apps 019](plans/soon/apps-019-beetle-in-story.md) (Story).
+JSON) until Apps 011's renderer. A row a mutation edits in the millisecond it was created
+(or last edited) is modified one millisecond later, and its update is dated at its latest
+operation, so the diff and the authored contract accept it. Apps 015 closed 2026-11-16; what is
+left is [Apps 019](plans/soon/apps-019-beetle-in-story.md) (Story),
+[Apps 020](plans/when-needed/apps-020-views-follow-the-change-feed.md) (views follow the change
+feed, when needed) and [Apps 009](plans/later/apps-009-cross-host-delegation.md) (collections in
+another tree).
 
 - **Parser and checker:** `packages/beetle` (`@ovst/beetle`; first built as `packages/uvl`
   for `.view` files) parses, formats (`beetle fmt`, comments kept) and checks `.beetle`
@@ -252,7 +256,7 @@ steps 1-4 and [Apps 012](https://github.com/jxe/arbor/blob/95a450f/plans/soon/ap
   connection model (`Item`, `Reaction`) by what it connects to, and names any other row keyed
   by several columns (`Tag (list, id)`) by its row key. Supplies' default views all present.
 - **Left:** [Security 013](plans/features/security-013-row-read-rules.md) (fine-grained read
-  rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](plans/soon/apps-015-beetle-on-the-host.md)); Story Sync answering and Story
+  rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)); Story Sync answering and Story
   drawing declared views (folded into [Apps 019](plans/soon/apps-019-beetle-in-story.md) on 2026-11-16); hand checks
   in [Joe's to-do](plans/joe.md#views-on-the-host-apps-005-and-012).
 

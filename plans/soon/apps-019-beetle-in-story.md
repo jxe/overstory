@@ -1,7 +1,7 @@
 # Apps 019: Beetle in Story
 
 **Why and when:** Story's side of Beetle, split out of
-[Apps 015](apps-015-beetle-on-the-host.md) by Joe on 2026-11-16, with the rest of Apps 012
+[Apps 015](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16) by Joe on 2026-11-16, with the rest of Apps 012
 (Story draws declared views like any view) folded in. The host evaluates Beetle views and
 runs mutations ([status](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16));
 Story still draws collections with its own `~views` presentation (`PresentedView.swift`,
