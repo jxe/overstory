@@ -472,11 +472,26 @@ struct StoryAgentTaskDetail: View {
     let task: String
     let done: Bool
 
+    /// The result a done task shows. The editor leads a done callout with its
+    /// detail, so a done task without one gets no detail at all.
+    static func doneResult(workspace: StoryWorkspaceState, task: String, reference: WorkspaceReference) -> String? {
+#if os(macOS)
+        guard let run = workspace.agentRun(task: task, on: reference), run.state == .finished else { return nil }
+        return run.result
+#else
+        guard let sent = workspace.sentRun(task: task, on: reference),
+              case .ended(let result) = workspace.sentRunState(sent) else { return nil }
+        return result
+#endif
+    }
+
     var body: some View {
 #if os(macOS)
         let run = workspace.agentRun(task: task, on: reference)
         if done, let run, run.state == .finished, let result = run.result {
-            Text(result).font(.caption).foregroundStyle(.secondary).lineLimit(2).help(result)
+            // The editor leads a done task with this line, in body type, and
+            // drops the request beneath it small and muted.
+            Text(result).lineLimit(3).help(result)
         } else if !done, let error = workspace.agentRunError(task: task, on: reference) {
             Label(error, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
@@ -513,7 +528,7 @@ struct StoryAgentTaskDetail: View {
                 Text("Run needs your Mac awake with Story Sync running").font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
         } else if let sent = workspace.sentRun(task: task, on: reference), case .ended(let result) = workspace.sentRunState(sent) {
-            Text(result).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            Text(result).lineLimit(3)
         }
 #endif
     }
@@ -537,7 +552,13 @@ struct StoryAgentTaskControl: View {
             if done {
                 // The result is the callout's detail line, under the text (`StoryAgentTaskDetail`).
                 if let run, run.state == .finished, run.undoable {
-                    Button("Undo Run") { Task { await workspace.undoAgentRun(run) } }
+                    // Quiet: plain muted text, so the result reads first.
+                    Button("Undo") { Task { await workspace.undoAgentRun(run) } }
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .help("Undo this run's changes")
+                        .accessibilityLabel("Undo Run")
                 }
             } else {
                 switch run?.state {
