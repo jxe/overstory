@@ -14,7 +14,8 @@ reasons, from the thread "Review the Overstory spec with Joe":
 - Real code comes back later as [client plugins](../later/apps-014-client-plugins.md) and [runners](../later/apps-017-data-runners.md), which
   extend the data rather than the language.
 
-The explorations that led here are in project files `view-notations/language/`
+The explorations that led here (written before the language had its name, as `.view` files)
+are in project files `view-notations/language/`
 (`for-where.view`, `for-where-widgets.view`, `games.view`, `mutations.view`). All 13 Supplies
 mutations were written in the language there.
 
@@ -24,16 +25,15 @@ This replaces [Apps 013](../../status.md#views-on-the-host-and-declared-views--2
 ## Status
 
 **PLANNED · L effort · medium risk.** Before [Apps 011](apps-011-widgets-in-story.md) steps 2
-onward, which now draw `.view` widgets instead of running TSX.
+onward, which draw Beetle widgets instead of running TSX.
 
-## What exists now
+## Where it stands
 
-- Apps 005's host side runs TypeScript views by tracing: `packages/apps-runtime`
-  (`view`, facts, `mutation`, the JSX runtime, `declaredView`), the execution sidecar
-  (`packages/overstoryd-exec`, `packages/exec-protocol`), and the SQLite plan engine they share.
-- The `QUERY …/views` route takes `form: "value" | "rows" | "tree"` and `missed`, and the
-  host is off unless `OVERSTORYD_ACTIVATIONS` is set.
-- Supplies' views and mutations are TypeScript (`examples/supplies/views`, `List.tsx` etc.).
+Steps 1, 2 and 4 and half of 6 are built on branch `claude/project-thread-kn7ley`, which
+ships with the Protocol 003 flag day (Joe, 2026-11-16); main still has the TypeScript path
+and the sidecar until then. Their records below move to `status.md` when the branch merges.
+Left: the Swift evaluator (3), views as nodes and view blocks (5), Story's highlighting (6),
+and the loose ends each step lists.
 
 ## 1. Parser and checker
 
@@ -62,12 +62,11 @@ expanded, state-reading conditions split off for the client, `expandsBy`), and m
 report writes, `let` names and public errors. Vectors:
 `docs/overstory-spec/conformance/beetle.json`.
 
-**Left in this step:** (lowering an `ElementPlan` to the SQLite engine's `QueryPlan` was
-dropped with that engine in step 4.) Then Overstory's own
-readers of `schema.usl` (apps-runtime, collection-schema, overstoryd, overstoryd-exec,
-story-sync, the Swift readers) switch to `schema.beetle`; external users (cranberries,
-excellences, supplies-remake) stay on npm `@ovst/usl` (Joe, 2026-11-11). Existing trees'
-`schema.usl` files get a one-off conversion that Joe runs.
+Lowering an `ElementPlan` to the SQLite engine's `QueryPlan` was dropped with that engine
+in step 4. Overstory's own readers read only `schema.beetle` (Protocol 003 branch); external
+users (cranberries, excellences, supplies-remake) stay on npm `@ovst/usl` (Joe, 2026-11-11).
+Existing trees' `schema.usl` files are converted by the flag-day migration
+(`tools/convert-usl-to-beetle.ts`), not by hand.
 
 ## 2. Evaluator, on the host
 
@@ -79,9 +78,9 @@ excellences, supplies-remake) stay on npm `@ovst/usl` (Joe, 2026-11-11). Existin
 - The views route answers `rows` and `tree`; `value` and `missed` go. Requests carry no
   state: the checker splits each read into the host's plan and the conditions that read
   state, which the client evaluates (spec §4.5).
-  `GET` of a `.view` file renders HTML.
+  `GET` of a `.beetle` file renders HTML.
 
-**Verify:** `tests/integration/host-collections.test.ts` ported to `.view` sources, plus
+**Verify:** `tests/integration/host-collections.test.ts` ported to `.beetle` sources, plus
 the no-gap and retry tests unchanged.
 
 **Done (2026-11-11, branch `claude/project-thread-kn7ley`, off the Protocol 003 branch):**
@@ -143,14 +142,14 @@ apply (a device's edit reaching a view, a schema's view, a profile edit) are in
 
 ## 5. Views as nodes, and view blocks in pages
 
-Joe decided on 2026-11-11 that a `.view` file is a node's body, like a `.md` file, so
-`List.view` answers at `List`, and that pages may hold fenced `view` blocks
+Joe decided on 2026-11-11 that a `.beetle` file is a node's body, like a `.md` file, so
+`List.beetle` answers at `List`, and that pages may hold fenced `view` blocks
 ([locators §7](../../docs/overstory-spec/1.6-locators.md#7-view-addresses),
 [§3.7](../../docs/overstory-spec/1.5-beetle.md#37-view-blocks-in-pages)).
 
 - Node mapping in both stacks (`packages/protocol` pages and path reads, Swift
-  `ProtocolPage`/`ProtocolPathRead`): `x.view` and `x/_index.view` supply node `x`;
-  `x.md` beside `x.view` reports `duplicate-node-representation` and reads the Markdown.
+  `ProtocolPage`/`ProtocolPathRead`): `x.beetle` and `x/_index.beetle` supply node `x`;
+  `x.md` beside `x.beetle` reports `duplicate-node-representation` and reads the Markdown.
   Conformance vectors for the new spellings.
 - A page's view blocks as one source: code version over the blocks' text only, `page`
   (properties, `name`, `children`), unnamed views addressed internally as `#n`, named ones
@@ -171,10 +170,12 @@ Joe decided on 2026-11-11 that a `.view` file is a node's body, like a `.md` fil
 - The UI language's vocabulary (element types, controls, `Canvas` drawing) is
   [Apps 011](apps-011-widgets-in-story.md)'s package; the language only fixes how elements
   are written.
-- Where kept page and personal rows are stored (spec §4.5 leaves it open), decided in
-  Apps 011 step 4.
-- Durable workflows and combined author/user authority
-  ([Apps 006](../later/apps-006-durable-authoring.md)) need a design in the language.
+- Where `my` table and `keep` rows are stored ([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state)
+  leaves it open), decided in Apps 011 step 4.
+- Combined author and user authority needs a design in the language
+  ([Apps 010 §3](../later/apps-010-activation-and-lending.md#3-author-and-user-authority-together));
+  durable multi-step work with outside effects belongs to
+  [runners](../later/apps-017-data-runners.md).
 
 ## Completion
 

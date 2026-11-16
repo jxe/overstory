@@ -11,7 +11,8 @@ simulations, anything that changes every frame. Beetle has no general-purpose co
 ## Status
 
 **SKETCH · no timing.** Direction agreed with Joe on 2026-11-11 (below). Open: TypeScript
-in JavaScriptCore first (Story gets JSC for Apps 011) or Wasm from the start, and the
+in JavaScriptCore or Wasm from the start (Story runs no JavaScript for Apps 011's widgets, so
+either is new to Story), and the
 questions at the end.
 
 ## The shape

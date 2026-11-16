@@ -1,11 +1,17 @@
 # Apps 010: Activation and lending
 
-**Why and when:** after [Apps 005](../../status.md#views-on-the-host-and-declared-views--2026-11-08). Joe wants to test the permissions and lending models against real code. Joe split this out of Apps 005 on 2026-11-06. Once Apps 005 runs views and mutations from trees as their caller, this plan makes them run as an app, under the authority an activation grants.
+**Why and when:** Joe wants to test the permissions and lending models against real apps
+(he split this out of Apps 005 on 2026-11-06). Since 2026-11-11 the host runs Beetle views and
+mutations in process, as their caller ([the Beetle host](../../docs/architecture/overstoryd/beetle-host.md),
+for the trees `OVERSTORYD_BEETLE` names). This plan makes them run as an app, under the
+authority an activation grants. Moving from the sidecar to Beetle changed how code runs on
+the host, not whose authority it runs with, so every question here still stands.
 
 ## Status
 
-**PLANNED · M–L effort · high authority-boundary risk.** It needs Apps 005 steps 3–4, which
-load code from trees and turn it on in the host. Widgets from other people
+**PLANNED · M–L effort · high authority-boundary risk.** It builds on
+[Apps 015](../soon/apps-015-the-view-language.md)'s host evaluator, which loads `.beetle` files
+from trees at a pinned code version. Widgets from other people
 ([Apps 011](../soon/apps-011-widgets-in-story.md)) wait on this plan. Joe's own
 widgets don't.
 
@@ -15,8 +21,8 @@ Joe decided on 2026-11-11 that code with no lender gets only `everyone` access a
 own `app` rules. Anything more of the caller's needs the caller's `who: me` entry in
 `apps.yaml`, which is what a placement host already gives
 ([access control §1.1](../../docs/overstory-spec/3.2-access-control.md#11-execution-authority)).
-An app reads and writes its own personal models
-([Apps 011](../soon/apps-011-widgets-in-story.md)) in the reader's tree without asking.
+An app reads and writes its own `my` tables
+([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state)) without asking.
 
 Still to do in code: `executionAllows` in `packages/overstoryd/src/access.ts` stops treating
 the caller's own access as a grant with no lender. Until this lands, Joe's own widgets run as
@@ -25,10 +31,11 @@ their reader, as Apps 011 says.
 ## 2. Activation and execution tokens
 
 - An **activation** is private host configuration (in the tree configuration graph,
-  spec 04 §2). It extends Apps 005's activation (tree, path, export, pinned version) with the
+  spec 04 §2). It names a Beetle handle (tree, path, declaration, code version; [Beetle §6](../../docs/overstory-spec/1.5-beetle.md#6-handles-and-code-versions))
+  and adds with the
   activation's lenders, providers and resource limits.
   - Unactivated handles are refused.
-  - Sharing a module's source never enables execution.
+  - Adding or sharing a `.beetle` file never enables it with more than §1 gives.
 - **Each question runs under its own host-issued execution token**
   ([execution tokens](../../docs/architecture/overstoryd/execution-tokens.md)).
   - The token carries the actual caller, the source tree and path, the pinned code version,
@@ -36,14 +43,34 @@ their reader, as Apps 011 says.
   - The issuer chooses lenders in a fixed order: the caller's own access first, then by
     lender TreeID.
   - There is no public mint endpoint.
-  - This replaces the caller's own authority in `HostCollections`.
+  - The in-process evaluator reads and submits under the token instead of the caller's own
+    authority.
 - **The token checks the reads and the update, not the route.** A view's reads (its
   narrowing) and a mutation's submitted update are checked against the token, not the
   route's caller check.
 - **History says which code made a change.** A mutation's update is authored by the app,
   with the caller recorded.
 
-## 3. Revocation
+## 3. Author and user authority together
+
+From Apps 006 (dissolved 2026-11-16). Some apps need both: the author's access (an app's own
+collection, which readers can't read directly) and the reader's (their notebook). A mutation
+then declares which writes need which, and Story's consent names only the reader's part.
+
+- How a `.beetle` mutation or view declares that it needs the author's access as well as the
+  caller's, and for which tables. Nothing in Beetle says this yet; design it as a language
+  statement, not a TypeScript API.
+- Each grant keeps its lender separate for coverage checks; the token combines them.
+- Consent diffs come from the accepted `access.yaml` and `apps.yaml` rules. Ordinary public
+  access and already-covered requirements need no new consent; only a wider scope asks the
+  affected grantor.
+- New versions inside an approved scope stay trusted; refactoring files doesn't erase policy,
+  and a file used from another tree gains no grant of its own.
+- Corpus to design against: a public read of an app's own table (author read, no user
+  capability); a reader saving into their own notebook (user create authority only); and a
+  save that writes both the app's table and the reader's tree in one mutation.
+
+## 4. Revocation
 
 Revoking the activation, a lender's grant or the caller's access:
 - Ends open view streams.
@@ -52,7 +79,7 @@ Revoking the activation, a lender's grant or the caller's access:
 
 A revoked caller can't use an old receipt to read a result.
 
-## 4. Consent in Story
+## 5. Consent in Story
 
 The first time Story runs an app's view or mutation that needs more than §1 gives:
 - It asks, using the declared scope of the app's addressable views and mutations.
@@ -91,35 +118,27 @@ Not here:
 - Approvals on placement hosts
   ([Apps 008](../later/apps-008-app-approvals-on-placement-hosts.md)).
 - Cross-host delegation ([Apps 009](../later/apps-009-cross-host-delegation.md)).
-- Durable workflows and author authority in authoring
-  ([Apps 006](../later/apps-006-durable-authoring.md)).
+- Durable multi-step work with effects outside Overstory: [Apps 017](apps-017-data-runners.md)'s
+  runners. A Beetle mutation is one transaction on the host, so it needs no workflow
+  machinery of its own.
 
 Never widen authority to get a fixture passing.
 
 ## Text moved from the spec (2026-11-11)
 
-Joe moved these undecided designs out of [reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views) on 2026-11-11, since they aren't built. They come back into the spec when this plan decides them. Old section numbers are from that chapter before the move.
+Joe moved these undecided rules out of [reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views)
+on 2026-11-11. They were written for compiled TypeScript; what still applies to Beetle,
+restated, comes back into the spec when this plan decides it:
 
-### From §7 Compilation and hosting
-
-
-Compilation begins from the addressed view's module and follows its explicit import graph. It produces a reviewed app manifest containing:
-
-- source tree `TreeID`, logical module path, and code-version identity;
-- public component and asset bundles;
-- server-only query and mutation handles with Standard Schema input contracts
-  and author/user authority requirements with human-readable consent descriptions;
-- resolved read/write capabilities and backing-coupled features;
-- required tree roots, node/edge schemas, store identities, and schema fingerprints;
-- static query results when explicitly baked; and
-- live-host requirements.
-
-A module's path is ordinary Overstory identity, not an application ID. Moving a module changes its view's address just as moving any other file changes its URL. Imported named handles are identified by tree, module path, and export name; code hashes identify their versions.
-
-An Overstory host explicitly enables app hosting for a tree and grants its tree execution principal the reviewed capabilities required by its compiled modules. Merely adding `.ts` or `.tsx` source does not publish it, execute it, or grant it access. The host may compile eagerly or on demand, but a request uses one coherent version of the addressed view and all of its handles. An incompatible compilation fails without replacing the last usable version.
-
-Framework filenames do not create mutation endpoints, action routes, loaders, or private-data boundaries. Generated transport endpoints are host protocol details and are never authored or navigable nodes.
-
-### From §11 Portability and limits
-
-Static baking may replace explicitly static reads with compiled results. A view depending on user identity, live data, mutations, or hosted-only capabilities remains an executable-host requirement and cannot silently become static.
+- A file's path is ordinary Overstory identity, not an application ID. Moving a file changes
+  its views' addresses, as moving any file changes its URL. A handle names a tree, path and
+  declaration; its code version names its version.
+- A host enables more than §1 for a tree only explicitly. Adding a `.beetle` file doesn't
+  publish it with more authority, and a request uses one coherent code version of the
+  addressed view and everything it uses. A version that fails to check doesn't replace the
+  last usable one.
+- File names never create mutation endpoints or private-data boundaries; the views and
+  mutate routes are the only way in.
+- Static baking may replace explicitly static reads with their results. A view that depends
+  on who reads it, live data, mutations or host-only capabilities stays a hosted view and
+  never silently becomes static.

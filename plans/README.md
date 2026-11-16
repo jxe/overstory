@@ -60,6 +60,12 @@ claude.ai scheduled task's API trigger (still a beta), GitHub Actions or your ow
 After Agents 002. The same runner with `codex exec`; Codex's hooks are weaker, so Story Sync
 falls back to the files it sees change.
 
+**[Apps 002: agents beside an app](features/apps-002-agents-beside-an-app.md).**
+After Agents 005 and Apps 015's host evaluator. An app's agent page: a visitor talks to it,
+and it answers from the app's views and changes data only through the app's Beetle mutations,
+as the visitor. Run by the app owner's runner, not overstoryd. A sketch; whose model a
+visitor's conversation spends comes first. Moved to features and rewritten 2026-11-16.
+
 **[Live 002: exact carets and selections](features/live-002-exact-carets.md).**
 After Agents 001: a Quagmire release that reports and draws exact carets and
 selections, for people and agents alike. The wire does not change.
@@ -162,7 +168,7 @@ snapshots are the SQLite file as one object; Story Sync keeps projections as rep
 diffed against a base. Mutations run as one SQL transaction committed when accepted.
 
 **[Apps 011: widgets in Story](soon/apps-011-widgets-in-story.md).**
-After Apps 015. Small apps embedded in pages by a link to a `.view` file, drawn natively in
+After Apps 015. Small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in
 SwiftUI (no web view, no React), with state owned by the app, the page or the reader.
 Absorbs Apps 001 and 003; an HTML renderer comes later.
 
@@ -185,29 +191,23 @@ element draws with (`fill`, `distort`, `effect`), fed by Beetle values. With App
 acting on changes, computing derived fields. Code never runs in the host. After Agents 005.
 
 **[Apps 010: activation and lending](later/apps-010-activation-and-lending.md).**
-After Apps 005: code runs as an activated app under an execution token with lenders, not as
-its caller; revocation; first-run consent in Story writes `apps.yaml`. Decide first what code
-gets without asking.
+Beetle views and mutations run on the host as an activated app under an execution token with
+lenders, not as their caller; author and user authority declared together (from Apps 006,
+dissolved 2026-11-16); revocation; first-run consent in Story writes `apps.yaml`.
 
 **[Schema language 008: port excellences and supplies-remake to Story](later/schema-language-008-port-excellences-and-supplies.md).**
 Joe wants the excellences document and supplies-remake to run natively in Story instead of on
 Supabase. Split out of Schema language 002 on 2026-10-25; it needs 007's editor and 010's
 ownership.
 
-**[Apps 006: durable query and mutation authoring](later/apps-006-durable-authoring.md).**
-Part of the same push, after Apps 005: the authoring API that declares author and user
-authority together is what exercises the permissions and lending models.
-
 **[Apps 008: app approvals and lending on placement hosts](later/apps-008-app-approvals-on-placement-hosts.md).**
 Part of the lending test: an app approved at a profile's home host should work on its
-placement hosts too. After Apps 005.
-
-**[Apps 002: hosted agents](later/apps-002-overstoryd-hosted-agents.md).** After Apps 011:
-authored agents hosted beside an app, calling its own query and mutation handles. No timing
-yet.
+placement hosts too. With Apps 010.
 
 **[Apps 009: code on one host using access held on another](later/apps-009-cross-host-delegation.md).**
-After Apps 008, once apps span hosts. A design sketch; no timing yet.
+After Apps 008, once apps span hosts: a Beetle view on one host reading a collection held on
+another. Absorbed the "executable data across servers" spec extension on 2026-11-16. A design
+sketch; no timing yet.
 
 **[Web 025: Story for the web](later/story-web-025-story-web.md)**, with its
 [surface inventory](later/story-web-surfaces.md). For sharing with others: people without the Mac

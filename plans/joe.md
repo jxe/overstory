@@ -12,15 +12,16 @@ when it was a gate for something.
 
 ## Hand checks
 
-### Views on the host (Apps 005 and 012)
+### Beetle views on the host (Apps 015 and 012)
 
-On main since 49cfced, 2026-11-08
-([status](../status.md#views-on-the-host-and-declared-views--2026-11-08)). The host serves
-views only with `OVERSTORYD_ACTIVATIONS` set.
+After the Protocol 003 flag day, which carries the Beetle host (branch
+`claude/project-thread-kn7ley`; the TypeScript views and `OVERSTORYD_ACTIVATIONS` are gone
+there). The host runs Beetle only for the trees `OVERSTORYD_BEETLE` names. (The earlier check
+of Supplies' `views/list.tsx` was dropped on 2026-11-16: that path is deleted.)
 
-- [ ] On a disposable host (or one you name), activate Supplies' `views/list.tsx` and
-  `MyLists.tsx` at a pinned root, open a view and call `createList` from a script, and check
-  that a second device sees the new list.
+- [ ] On a disposable host (or one you name) with `OVERSTORYD_BEETLE` naming a Supplies tree,
+  open its List view, call `createList` from a script, and check that a second device sees
+  the new list.
 - [ ] Ask the same host for a declared view of a schema with `~views`, and check it updates
   when a device edits a row.
 

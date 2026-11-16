@@ -1,14 +1,14 @@
 # Apps 008: App approvals and lending on placement hosts
 
-**Why and when:** part of the lending test that follows Apps 005: an app approved at a profile's home host should work on its placement hosts too.
+**Why and when:** part of the lending test with Apps 010: an app approved at a profile's home host should work on its placement hosts too.
 
 ## Status
 
 - **Effort:** M
 - **Risk:** MEDIUM. A placement host enforces lends it read from another host.
 - **State:** PLANNED 2026-09-27, split from the portable-profiles design
-  (Security 008). Waits until apps run on hosts at all
-  ([Apps 005](../../status.md#views-on-the-host-and-declared-views--2026-11-08)). One decision is Joe's
+  (Security 008). Comes with [Apps 010](apps-010-activation-and-lending.md): lends mean
+  nothing until the Beetle host runs code as an app rather than as its caller. One decision is Joe's
   (marked **Decide**).
 - **Builds on:** [Security 007](../../status.md#trees-on-other-hosts--2026-09-28) and
   [Security 009](../../status.md#trees-on-other-hosts--2026-09-28) (its refresh and

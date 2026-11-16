@@ -11,4 +11,3 @@ spec mentions but does not define; a file here may expand one of those items.
 - [Pages that present other collections](pages-that-present-other-collections.md): spec 11, 02 and 06.
 - [Groups that are other trees](groups-that-are-other-trees.md): spec 11 and 04.
 - [Verifying the compiler as a security boundary](compiler-correctness.md): spec 07.
-- [Executable data across servers](cross-server-executable-data.md): spec 07 (deferred item 2).
