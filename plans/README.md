@@ -136,11 +136,9 @@ can be dictated in one go. A recording without commands stays one paragraph.
 ## Soon
 
 **[Protocol 001: retire the old routes the spec review replaced](soon/protocol-001-spec-review-route-changes.md).**
-Joe's spec review changes routes and shapes on both ends. Left: the moves still marked "Not
-yet", which ship with the Protocol 003 flag day, host and clients together, deleting every
-old form.
-
-**[Protocol 003: times in directory entries, one date encoding, history dropped](soon/protocol-003-times-in-directory-entries.md).** Entries carry `created`/`modified` stamped from the update's `at`; row dates tagged like page dates; a flag-day migration drops history (Joe, 2026-11-11).
+Joe's spec review changes routes and shapes on both ends. Every move shipped with the
+Protocol 003 flag day (2026-11-16, Story 0.2.0). Left: check that no old form survives in the
+code, then close the plan.
 
 **[Filesystem 026: page provenance, and dropping Markdown file entries](soon/filesystem-026-page-provenance-and-cleanup.md).**
 Pages are logical nodes, written to disk by each placement: built, released in 0.1.6 and
@@ -160,12 +158,6 @@ and block, and policy pages. The sample pages are the reviewer's way in.
 views and mutations are written in Beetle (`.beetle` files), and TypeScript
 support for both goes. Parser and checker (built), evaluators on the host and in Story, Supplies
 ported, the TypeScript path removed.
-
-**[Performance 007: the host's database holds a collection's rows, the tree its log](soon/performance-007-sqlite-collection-storage.md).**
-Joe, 2026-11-12, decided and asked for now: rows live once, in the host's SQLite; the
-tree's `collection` reference names a log of row-operation objects plus a rows hash;
-snapshots are the SQLite file as one object; Story Sync keeps projections as replicas
-diffed against a base. Mutations run as one SQL transaction committed when accepted.
 
 **[Apps 011: widgets in Story](soon/apps-011-widgets-in-story.md).**
 After Apps 015. Small apps embedded in pages through view blocks that use `.beetle` files, drawn natively in

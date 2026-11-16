@@ -2,7 +2,7 @@
 // What the Protocol 003 flag day must decide or convert, read from a data root
 // without writing to it. Run it on a copy of /data before the migration is
 // written to its final shape:
-//   bun run packages/overstoryd/migrations/next/inventory.ts <data-root> [--json]
+//   bun run packages/overstoryd/migrations/034-protocol-003/inventory.ts <data-root> [--json]
 //
 // It lists:
 // - TreeIDs and DeviceIDs shorter than the 26-character form the spec now

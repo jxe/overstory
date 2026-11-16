@@ -14,9 +14,8 @@ when it was a gate for something.
 
 ### Beetle views on the host (Apps 015 and 012)
 
-After the Protocol 003 flag day, which carries the Beetle host (branch
-`claude/project-thread-kn7ley`; the TypeScript views and `OVERSTORYD_ACTIVATIONS` are gone
-there). The host runs Beetle only for the trees `OVERSTORYD_BEETLE` names. (The earlier check
+Deployed with the Protocol 003 flag day (2026-11-16), which carried the Beetle host; the
+TypeScript views and `OVERSTORYD_ACTIVATIONS` are gone (the Railway variable can be deleted). The host runs Beetle only for the trees `OVERSTORYD_BEETLE` names. (The earlier check
 of Supplies' `views/list.tsx` was dropped on 2026-11-16: that path is deleted.)
 
 - [ ] On a disposable host (or one you name) with `OVERSTORYD_BEETLE` naming a Supplies tree,
@@ -112,10 +111,13 @@ Built 2026-11-07 ([status](../status.md#trees-at-your-own-domain--2026-11-07)).
 
 ## Releases and publishing
 
-- [ ] **The Protocol 003 flag day** ([plan](soon/protocol-003-times-in-directory-entries.md)):
-  your go to migrate the live host (history dropped), then the Story release (Mac, iPhone, npm
-  CLI) that carries it and every [Protocol 001](soon/protocol-001-spec-review-route-changes.md)
-  move; you and Oliver update right away.
+- [ ] **Finish Story 0.2.0, the Protocol 003 release**
+  ([status](../status.md#protocol-003-flag-day--2026-11-16)): run `tools/release.sh 0.2.0 --only
+  npm` in ~/src/arbor (npm code); update your iPhone from TestFlight (build 2059) before opening
+  Story there; have Oliver update both apps. Old apps cannot sync with the host any more.
+- [ ] **After two weeks (from 2026-11-30):** delete `/data/backups/p003-20261116T164035Z` on
+  the volume, `.backups/railway/20261116T164035Z` and
+  `~/Documents/arbor-rehearsals/games-sandbox-before-p003` on the Mac.
 
 ### Sharing 004: Railway template
 

@@ -5,7 +5,7 @@
 
 ## Specification stance
 
-This is the aspirational public contract for Overstory. It describes behavior an implementation may conform to before that behavior exists in the reference implementation. [Current status](../../status.md) records what the reference implementation actually does; the [planning index](../../plans/README.md) owns remaining work, and completed plans live in git history. Wire forms the reference implementation has not reached yet arrive together at one flag day, Protocol 003, listed in [Protocol 001](../../plans/soon/protocol-001-spec-review-route-changes.md) and [Protocol 003](../../plans/soon/protocol-003-times-in-directory-entries.md).
+This is the aspirational public contract for Overstory. It describes behavior an implementation may conform to before that behavior exists in the reference implementation. [Current status](../../status.md) records what the reference implementation actually does; the [planning index](../../plans/README.md) owns remaining work, and completed plans live in git history. The reference implementation reached the spec's wire forms at the Protocol 003 flag day ([status](../../status.md#protocol-003-flag-day--2026-11-16)).
 
 The specification contains only behavior that must remain portable across independently implemented Overstory components. The [reference documentation](../architecture/README.md) describes the current daemon, CLI, clients, runtime architecture, local state, and operating choices without making them Overstory requirements.
 

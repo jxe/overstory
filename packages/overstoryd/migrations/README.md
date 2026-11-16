@@ -193,6 +193,8 @@ its own. The stamps that have shipped:
 | 30 | `trees.policy` dropped (batch 032, step 030): `governs` alone says a tree is a configuration. |
 | 31 | `profile_locator_pins.pinned_at`, `pairings.created_at` and `device_sessions.created_at` dropped (batch 032, step 031); nothing read them. |
 | 32 | `profile_facts.facts` loses `version: 3` (batch 032, step 032). No wire change in the batch. |
+| 33 | `devices.clients`: the clients each device last named itself as (batch 034, step 033). |
+| 34 | Protocol 003's flag day (batch 034, step 034, 2026-11-16): each tree's history becomes one first update holding its head in the new format (entry times, pages, row times, collections as logs, `schema.beetle`); `document_versions` emptied, `entry_metadata` dropped. Wire change: Protocol 003 and every Protocol 001 move; Mac, iPhone, CLI and Story Sync replaced together (Story 0.2.0), every placement placed again. |
 
 Client-side formats have their own ladders, recorded in [the local system
 reference](../../../docs/architecture/story-browser/local-state.md): iOS working-tree format marker 5, local

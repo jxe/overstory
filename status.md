@@ -12,10 +12,33 @@ States used below: **implemented** (built and tested), **installed** (running
 in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 **verified** (exercised by hand against live data).
 
+## Protocol 003 flag day — 2026-11-16
+
+**Deployed and verified** on arb.nxhx.org, **released** as Story 0.2.0 (Mac; iPhone TestFlight
+build 2059; npm by Joe) with Quagmire 0.17.0. Joe's go 2026-11-16. One flag day carried:
+
+- **Protocol 003:** file and page entries carry `created`/`modified` (Unix ms), updates carry
+  `at`, row times are Unix ms and row dates tagged (data model §6-7, collections §2). Protocol
+  002's entry-times index, `?times`, timed bundles and `entry-metadata` are gone.
+- **Every Protocol 001 move** ([plan](plans/soon/protocol-001-spec-review-route-changes.md)),
+  host and clients together with no period of answering both forms.
+- **`.mdx` is a plain file** (Apps 011), and **`schema.usl` became `schema.beetle`**
+  with colors as data.
+- **Performance 007:** collections are logs of row changes, with rows once in the host's
+  SQLite (see below), and the Beetle host replaces the execution sidecar.
+- **Migration** [034-protocol-003](packages/overstoryd/migrations/034-protocol-003/README.md)
+  (schema 32 → 34): each tree's history became one first update holding its head in the new
+  format. 15,295 updates dropped; 12 pages, 5 collections and 5 schemas converted; 111
+  legacy Game rows whose `created` was later than `modified` were clamped. Its README holds the
+  rehearsal and cutover record.
+- **Story Sync** state version 7 re-places every tree. A version bump now archives each tree's
+  state, placement refs and the configuration ref a connection recorded, and a placement that
+  fails to sync logs why.
+
 ## Performance 007: collections as a log of row changes — 2026-11-12
 
-**Built in TypeScript, on branch** `claude/project-thread-kn7ley`, merged into the Protocol 003
-flag-day branch `claude/project-thread-xl0yei` on 2026-11-16 to ship with it (Joe) (spec c85fd736, a241223b;
+**Deployed** with the Protocol 003 flag day on 2026-11-16 (built on branch
+`claude/project-thread-kn7ley`) (spec c85fd736, a241223b;
 code 3f45468f, 0b35befa, b4c56697, 72d6b29f). Joe's decisions of 2026-11-12: the `collection`
 reference (version 2) names the head of a log of `log` objects, changes entries holding each
 changed row's new form and snapshot entries naming a SQLite file the host writes; each entry
