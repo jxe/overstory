@@ -769,7 +769,11 @@ export class StorySyncDaemon implements AsyncDisposable {
               throw new UnsynchronizedTreeError(placement.tree, presentation.detail);
             }
           } catch (error) {
-            if (!(error instanceof UnsynchronizedTreeError)) this.trees.setSyncState(placement.tree, error instanceof ProtocolTransportError ? "offline" : "error");
+            if (!(error instanceof UnsynchronizedTreeError)) {
+              // A placement that stops syncing says why in the log.
+              console.warn(`[story-sync] ${placement.tree} did not sync: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+              this.trees.setSyncState(placement.tree, error instanceof ProtocolTransportError ? "offline" : "error");
+            }
             if (throwErrors) throw error;
           }
         }
