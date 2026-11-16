@@ -464,11 +464,14 @@ export function requireOneChain(added: readonly LocalChange[], pending: readonly
   }
 }
 
-export function validateLocalChanges(records: LocalChange[], tree: string): void {
+/** Validate a chain of records. `checked` names records whose own structure was already
+ * validated (a log validates each record once, when it first reads or retains it); their
+ * place in the chain is still checked. */
+export function validateLocalChanges(records: LocalChange[], tree: string, checked: ReadonlySet<string> = new Set()): void {
   const prior = new Map<string, LocalChange>();
   for (const record of records) {
     if (record.tree !== tree || prior.has(record.change)) throw new Error("Invalid queue scope or duplicate identity");
-    validateLocalChange(record);
+    if (!checked.has(record.change)) validateLocalChange(record);
     if (record.basis.kind === "accepted") {
       if (!record.basis.update || record.basis.root !== record.graph.root) throw new Error("Accepted basis does not match graph");
     } else if (record.basis.kind !== "authored" || !equal(prior.get(record.basis.change)?.candidate, record.graph)) throw new Error("Missing or altered authored basis");

@@ -11,6 +11,7 @@ export { collectionTypeDeclarations } from "./typescript.ts";
 export { logicalChildName, RESERVED_CHILD_NAMES } from "./names.ts";
 export { CollectionSchemaCache, sharedCollectionSchemaCache } from "./cache.ts";
 export * from "./collection-file.ts";
+export { checkStateChanges, markChecked, requireChecked, stateLookup } from "./changed-rows.ts";
 export { applyRowOperations, canonicalMany, canonicalSet, replayCollectionRows } from "./row-replay.ts";
 export { spliceCollectionFile, type CollectionRowSplice } from "./splice.ts";
 export {
