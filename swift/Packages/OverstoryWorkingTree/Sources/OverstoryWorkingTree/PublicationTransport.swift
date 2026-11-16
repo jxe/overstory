@@ -2,6 +2,51 @@ import Foundation
 import Overstory
 
 extension LocalChange {
+    /// A request whose every delta has its base in the element's basis
+    /// graph: the request base's root for the first element, the preceding
+    /// candidate thereafter (the host refuses any other base). A delta a
+    /// record made against its own accepted basis, then placed after other
+    /// elements or rebased by restamping, goes as its whole result instead,
+    /// when `held` has it. `baseRoot` nil leaves the first element as it is.
+    static func reachableDeltas(_ updates: [ProtocolCandidateUpdate], baseRoot: String?, held: [String: Data]) -> [ProtocolCandidateUpdate] {
+        var objects = held
+        for update in updates { for object in update.objects { objects[object.hash] = object.bytes } }
+        var memo: [String: Set<String>] = [:]
+        func reachable(_ root: String) -> Set<String>? {
+            if let known = memo[root] { return known }
+            var seen = Set<String>(), pending = [root]
+            while let hash = pending.popLast() {
+                guard seen.insert(hash).inserted else { continue }
+                guard let bytes = objects[hash] else { if hash == root { return nil }; continue }
+                if case let .directory(entries, collection)? = try? ProtocolObjectCodec.decode(bytes, kind: .directory) {
+                    for entry in entries { if let next = entry.directory ?? entry.page ?? entry.file { pending.append(next) } }
+                    if let collection { seen.insert(collection.log) }
+                }
+            }
+            memo[root] = seen
+            return seen
+        }
+        var result: [ProtocolCandidateUpdate] = []
+        var basis = baseRoot
+        for var update in updates {
+            if !update.deltas.isEmpty, let root = basis, let reached = reachable(root) {
+                var kept: [ProtocolObjectDelta] = []
+                for delta in update.deltas {
+                    if reached.contains(delta.base) { kept.append(delta); continue }
+                    guard let bytes = objects[delta.result] else { kept.append(delta); continue }
+                    update.objects.append(ProtocolObjectEnvelope(hash: delta.result, bytes: bytes))
+                }
+                if kept.count != update.deltas.count {
+                    update.deltas = kept
+                    update.objects = Dictionary(update.objects.map { ($0.hash, $0) }, uniquingKeysWith: { first, _ in first }).values.sorted { $0.hash < $1.hash }
+                }
+            }
+            result.append(update)
+            basis = update.candidate
+        }
+        return result
+    }
+
     /// Transport compression is independent of authored intent. Only final
     /// reachable envelopes may become deltas, and every base is in the element's
     /// basis graph (accepted for the first, preceding candidate thereafter).

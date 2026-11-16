@@ -662,7 +662,11 @@ public actor UpdateCoordinator {
                 updates.append(best.update); index += best.changes.count
             } else { updates.append(try compact(current, change: current.change)); index += 1 }
         }
-        return ProtocolUpdateRequest(base: request.base, updates: try restamped(updates, records: byChange))
+        let stamped = try restamped(updates, records: byChange)
+        var held: [String: Data] = [:]
+        for record in records { for object in record.graph.objects + record.candidate.objects { held[object.hash] = object.bytes } }
+        return ProtocolUpdateRequest(base: request.base, updates: LocalChange.reachableDeltas(stamped,
+            baseRoot: stamped.first?.trace?.first?.before ?? transportBase?.root, held: held))
     }
 
     /// A batch of edits made at different times goes under its last edit's

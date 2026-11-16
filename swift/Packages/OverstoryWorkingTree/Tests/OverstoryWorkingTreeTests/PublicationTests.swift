@@ -151,4 +151,26 @@ struct PublicationTests {
         return [a,b,c,try edit("d", c, "/c.md", "CC", "CCC")]
     }
 
+    @Test("A delta whose base the element's basis does not reach goes as its whole result")
+    func unreachableDeltaBaseGoesWhole() throws {
+        func root(_ page: ProtocolObjectEnvelope) throws -> ProtocolObjectEnvelope {
+            try ProtocolObjectCodec.object(.directory([.init(name: "note.md", page: page.hash, created: 0, modified: 0)]))
+        }
+        // An object of an older accepted state the record was authored on: held, but not in the request's basis.
+        let stale = try markdownPage("Stale accepted\n")
+        let a = try markdownPage("A\n"), b = try markdownPage("A\nB\n"), c = try markdownPage("A\nB\nC\n")
+        let rootA = try root(a), rootB = try root(b), rootC = try root(c)
+        let first = ProtocolCandidateUpdate(candidate: rootB.hash, change: "first", at: "2026-11-16T00:00:00.000Z", objects: [b],
+            deltas: [ProtocolObjectDelta(base: rootA.hash, result: rootB.hash, instructions: [.insert(rootB.bytes)])])
+        let second = ProtocolCandidateUpdate(candidate: rootC.hash, change: "second", at: "2026-11-16T00:00:00.000Z", objects: [rootC],
+            deltas: [ProtocolObjectDelta(base: stale.hash, result: c.hash, instructions: [.insert(c.bytes)])])
+        let held = Dictionary(uniqueKeysWithValues: [stale, a, b, c, rootA, rootB, rootC].map { ($0.hash, $0.bytes) })
+        let checked = LocalChange.reachableDeltas([first, second], baseRoot: rootA.hash, held: held)
+        // The first element's base is the request base's root: kept.
+        #expect(checked[0] == first)
+        // The second's basis is the first's candidate, which never reaches the stale object.
+        #expect(checked[1].deltas.isEmpty)
+        #expect(checked[1].objects.map(\.hash).sorted() == [c.hash, rootC.hash].sorted())
+    }
+
 }

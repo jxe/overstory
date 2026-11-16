@@ -28,8 +28,9 @@ struct LiveEditorAdmissionTests {
             throw WorkspaceProviderError.invalidAction("Expected directory")
         }
         let name = "undo-" + UUID().uuidString
-        let file = Data(content.utf8), hash = ProtocolObjectCodec.hash(file)
-        var entries = original; entries.append(.init(name: name + ".md", file: hash, created: 0, modified: 0))
+        // Markdown is a page (directory format §3), as a working tree writes it.
+        let file = try ProtocolObjectCodec.encode(.page(try #require(ProtocolPage.parse(Data(content.utf8))))), hash = ProtocolObjectCodec.hash(file)
+        var entries = original; entries.append(.init(name: name + ".md", page: hash, created: 0, modified: 0))
         entries.sort { $0.name.utf8.lexicographicallyPrecedes($1.name.utf8) }
         let bytes = try ProtocolObjectCodec.encode(.directory(entries, collection: descriptor))
         let update = ProtocolCandidateUpdate(candidate: ProtocolObjectCodec.hash(bytes), change: UUID().uuidString, at: ProtocolEntryTime.now(),
@@ -181,8 +182,8 @@ struct LiveEditorAdmissionTests {
         let record = try #require(try await queue.retained().first)
         // Records keep no sources; the basis revision and the candidate's bytes prove the same capture.
         #expect(record.document?.basisRevision == r1.contentRevision)
-        #expect(record.graph.objects.contains { $0.bytes == Data(r1.source.utf8) })
-        #expect(record.candidate.objects.contains { $0.bytes == Data(authored.utf8) })
+        #expect(record.graph.objects.contains { $0.bytes == pageBytes(r1.source) })
+        #expect(record.candidate.objects.contains { $0.bytes == pageBytes(authored) })
         #expect(record.basis == .accepted(.init(root: initial.tree.root, update: initial.tree.update)))
         await binding?.close(); binding = nil
         await coordinator.close(); await tree.close()
@@ -274,9 +275,10 @@ extension LiveEditorAdmissionTests {
         let records = try await ChangeLog(tree:treeID,stateRoot:root).retained()
         let record = try #require(records.first)
         let final = try #require(records.last)
-        #expect(record.graph.objects.contains { $0.bytes == Data(original.source.utf8) })
-        #expect(record.candidate.objects.contains { $0.bytes == Data(authored.utf8) })
-        #expect(record.update.trace?.contains { $0.operations.contains { $0.kind == "copySource" } } == true)
+        #expect(record.graph.objects.contains { $0.bytes == pageBytes(original.source) })
+        #expect(record.candidate.objects.contains { $0.bytes == pageBytes(authored) })
+        // A copy out of a page has no source operation to say it, so it goes as a snapshot.
+        #expect(record.update.trace == nil)
         await binding?.close(); binding = nil; await coordinator.close(); await tree.close()
         tree = try await place(initial,client:client)
         coordinator = try UpdateCoordinator(workingTree:tree,transport:transport,stateRoot:root ,publicationDelay:.seconds(3600),publicationMaxDelay:.seconds(3600))
@@ -564,4 +566,9 @@ extension LiveEditorAdmissionTests {
         #expect(try await after.openDocument(destination).snapshot().source == destinationText + landed + "\n\n")
         await coordinator.close(); await tree.close()
     }
+}
+
+/// The page object Markdown `source` is written as.
+private func pageBytes(_ source: String) -> Data? {
+    ProtocolPage.parse(Data(source.utf8)).flatMap { try? ProtocolObjectCodec.encode(.page($0)) }
 }

@@ -7,6 +7,23 @@ import Testing
 
 /// The protocol harness gives this scenario its own disposable tree without a filesystem checkout.
 /// It deliberately uses the production transport and coordinator, not a receipt stub.
+
+/// `snapshot`'s tree with entry times left out: path to entry.
+private func untimedTree(_ snapshot: ProtocolSnapshot) throws -> [String: ProtocolDirectoryEntry] {
+    let objects = Dictionary(snapshot.objects.map { ($0.hash, $0.bytes) }, uniquingKeysWith: { first, _ in first })
+    var result: [String: ProtocolDirectoryEntry] = [:]
+    func walk(_ hash: String, _ path: String) throws {
+        guard let bytes = objects[hash], case let .directory(entries, _) = try ProtocolObjectCodec.decode(bytes, kind: .directory) else { return }
+        for entry in entries {
+            var untimed = entry.untimed
+            if let directory = entry.directory { untimed.directory = nil; try walk(directory, path + "/" + entry.name) }
+            result[path + "/" + entry.name] = untimed
+        }
+    }
+    try walk(snapshot.root, "")
+    return result
+}
+
 @Suite("Live source admission", .serialized)
 struct LiveChangeLogTests {
 
@@ -518,7 +535,10 @@ extension LiveChangeLogTests {
             }
             let accepted = try await client.descriptor(tree: treeID)
             #expect(!accepted.tree.conflicted)
-            #expect(accepted.tree.root == preview.candidate.root)
+            // The preview and the applied resolution are stamped when each is
+            // made, so their entry times differ; the trees agree otherwise.
+            let host = try await client.snapshot(tree: treeID, root: accepted.tree.root)
+            #expect(try untimedTree(host) == untimedTree(preview.candidate))
             return
         }
         let source = mode == "choose" ? hiddenFragment : "# Reviewed\r\n\r\nKeep exact spaces  \r\nCafe\u{301} and café\r\n"

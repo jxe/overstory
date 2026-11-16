@@ -2265,7 +2265,8 @@ extension SourceSessionPublicationTests {
             #expect(before[0].update.trace?.flatMap(\.operations).map(\.kind) == ["moveEntry","moveEntry"])
             #expect(before[2].update.trace?.flatMap(\.operations).map(\.kind) == ["moveEntry","moveEntry"])
             #expect(before[3].update.trace?.flatMap(\.operations).filter { $0.kind == "copyEntry" }.count == 2)
-            #expect(before[3].update.trace?.flatMap(\.operations).contains { $0.kind == "editSource" } == true)
+            // The copied page takes a fresh id, so it is replaced whole on the copy.
+            #expect(before[3].update.trace?.flatMap(\.operations).contains { $0.kind == "replaceEntry" } == true)
             #expect(before[4].update.trace?.flatMap(\.operations).map(\.kind) == ["removeEntry","removeEntry"])
             await coordinator.close(); await tree.close()
             let reopenedTree = try await makeTree(initial,update:"up_initial")
