@@ -3,6 +3,8 @@ FROM oven/bun:1.4.2
 WORKDIR /app
 COPY package.json bun.lock tsconfig.json ./
 COPY packages ./packages
+# The flag-day migration (migrations/next) converts schema.usl with this tool.
+COPY tools/convert-usl-to-beetle.ts ./tools/
 RUN bun install --frozen-lockfile --production
 
 ENV OVERSTORYD_DATA=/data
