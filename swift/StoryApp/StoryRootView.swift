@@ -3166,9 +3166,10 @@ struct StoryRootView: View {
             isDone: { StoryAgentTask.isDone($0) },
             toggle: { StoryAgentTask.toggled($0) },
             detail: { block in
-                StoryAgentTask.task(in: block).map {
-                    AnyView(StoryAgentTaskDetail(workspace: workspace, reference: node.reference, task: $0, done: StoryAgentTask.isDone(block)))
-                }
+                guard let task = StoryAgentTask.task(in: block) else { return nil }
+                let done = StoryAgentTask.isDone(block)
+                if done, StoryAgentTaskDetail.doneResult(workspace: workspace, task: task, reference: node.reference) == nil { return nil }
+                return AnyView(StoryAgentTaskDetail(workspace: workspace, reference: node.reference, task: task, done: done))
             },
             trailing: { block in
                 if let task = StoryAgentTask.task(in: block) {
