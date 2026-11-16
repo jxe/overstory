@@ -171,12 +171,18 @@ function changesTo(tables: readonly CollectionSchema[], layout: readonly Table[]
 }
 
 /** Apply changes in the caller's transaction, and to `rows`, the in-memory copy of what the database holds. */
-function applyChanges(database: Database, tables: readonly CollectionSchema[], changes: readonly Change[], rows: Map<string, Map<string, Row>>): void {
+function applyChanges(database: Database, tables: readonly CollectionSchema[], layout: readonly Table[], changes: readonly Change[], rows: Map<string, Map<string, Row>>): void {
   for (const change of changes) {
     const schema = tables.find((table) => table.model === change.model)!;
     const where = change.primaryKey.map((column) => `${quote(column)} = ?`).join(" and ");
     const key = (row: Row) => change.primaryKey.map((column) => toSQLite(row[column]));
-    const values = (row: Row) => change.columns.map((column) => toSQLite(row[column]));
+    // An empty value array is absent from a row, and a required array column stores it as `[]`, as the layout says.
+    const columns = new Map(layout.find((t) => t.name === change.model)?.columns.map((c) => [c.name, c]));
+    const values = (row: Row) => change.columns.map((column) => {
+      const value = toSQLite(row[column]);
+      const declared = columns.get(column);
+      return value === null && declared?.array && !declared.nullable ? "[]" : value;
+    });
     const remove = database.prepare(`delete from ${quote(change.model)} where ${where}`);
     const insert = database.prepare(`insert into ${quote(change.model)} (${change.columns.map(quote).join(", ")}) values (${change.columns.map(() => "?").join(", ")})`);
     const update = database.prepare(`update ${quote(change.model)} set ${change.columns.map((c) => `${quote(c)} = ?`).join(", ")} where ${where}`);
@@ -276,6 +282,75 @@ function selfContained(logical: LogicalSchema, layout: readonly Table[]): boolea
     && logical.result.models.every((model) => model.ends.every((end) => !end.ordered));
 }
 
+/**
+ * The logical rows that changed stored rows can have changed, as the whole read holds them,
+ * for a layout whose logical rows span tables (join tables, members, ordered ends). A
+ * logical row's neighborhood is its own table's row and the rows that name it: join rows,
+ * a connection row's end, an array member. So the owners of a change are the changed and
+ * removed rows' own logical rows and every row their old and new versions name; each is
+ * read from the whole read's logical rows, and the ones that didn't change compare equal
+ * later. Null when an owner can't be named by a key of one field, and the whole projection
+ * is read instead.
+ */
+function owningRows(logical: LogicalSchema, layout: readonly Table[], rows: RowsByTable, changed: RowsByTable, removed: RowsByTable, last: ReadonlyMap<string, ReadonlyMap<string, Row>>, now: number): LogicalTables | null {
+  const models = new Map(logical.models.map((model) => [model.name, model]));
+  const owners = new Map<string, Set<string>>();
+  const own = new Map<string, Set<string>>();
+  let unnamed = false;
+  const add = (model: string, value: unknown, set = owners) => {
+    const target = models.get(model);
+    if (!target || value === null || value === undefined) return;
+    if (target.keyFields.length !== 1 || typeof value === "object") { unnamed = true; return; }
+    const key = logicalRowKey({ key: [[target.keyFields[0]!.name, value]] as LogicalRow["key"] });
+    if (!set.has(model)) set.set(model, new Set());
+    set.get(model)!.add(key);
+  };
+  const name = (table: Table, row: Row) => {
+    if (table.ends) {
+      for (const end of table.ends) {
+        if (end.columns.length !== 1) { unnamed = true; continue; }
+        add(end.model, row[end.columns[0]!]);
+      }
+      return;
+    }
+    const model = models.get(table.stores);
+    if (model) {
+      if (model.keyFields.length !== 1) unnamed = true;
+      else add(model.name, row[model.keyFields[0]!.name]);
+    }
+    for (const field of table.fields) {
+      if (!field.target || !models.has(field.target)) continue;
+      if (field.columns.length !== 1) { unnamed = true; continue; }
+      const value = row[field.columns[0]!];
+      for (const member of Array.isArray(value) ? value : [value]) add(field.target, member);
+    }
+  };
+  for (const table of layout) {
+    const before = last.get(table.name);
+    for (const row of (changed[table.name] ?? []) as Row[]) {
+      name(table, row);
+      const was = before?.get(storedKey(table, row));
+      if (was) name(table, was);
+      // A changed row of a model's own table must be found again below.
+      const model = !table.ends ? models.get(table.stores) : undefined;
+      if (model?.keyFields.length === 1) add(model.name, row[model.keyFields[0]!.name], own);
+    }
+    for (const row of (removed[table.name] ?? []) as Row[]) name(table, row);
+  }
+  if (unnamed) return null;
+  const read = logicalFromRows(logical.result, [...layout], rows, { now });
+  const out: LogicalTables = {};
+  for (const [model, keys] of owners) {
+    const found = new Map(((read[model] ?? []) as LogicalRow[]).map((row) => [logicalRowKey(row), row]));
+    for (const key of own.get(model) ?? []) if (!found.has(key)) return null;
+    for (const key of keys) {
+      const row = found.get(key);
+      if (row) (out[model] ??= []).push(row);
+    }
+  }
+  return out;
+}
+
 /** A basis whose rows are read from its state only when something asks for them all. */
 function lazyBasis(logical: LogicalSchema, state: CollectionState): CollectionBasis {
   let tables: LogicalTables | undefined;
@@ -306,6 +381,8 @@ export class CollectionProjections {
    * that changed (Performance 007).
    */
   private readonly stored = new Map<string, { head: string | null; layout: string; tables: Map<string, Map<string, Row>> }>();
+  /** How many reads found their changes by changed row, and how many read the whole projection. */
+  readonly counts = { byChangedRow: 0, whole: 0 };
 
   constructor(private readonly options: CollectionProjectionOptions = {}) {
     this.schemas = options.schemas ?? sharedCollectionSchemaCache;
@@ -406,6 +483,7 @@ export class CollectionProjections {
       const projected = new Set(form ? formFiles(form, layout) : []);
       const quick = this.readChanges(directory, logical, layout, layoutKey, rows, held.state, fileNames.filter((name) => !projected.has(name)), now);
       if (quick) {
+        this.counts.byChangedRow++;
         const result = { collection: quick.reference, replaces: [
           ...(form ? formFiles(form, layout).filter((name) => fileNames.includes(name)) : []),
           ...(fileNames.includes(LEFTOVER_SCHEMA) ? [LEFTOVER_SCHEMA] : []),
@@ -417,6 +495,7 @@ export class CollectionProjections {
         return { ...result, objects: quick.objects };
       }
     }
+    this.counts.whole++;
     const before = held?.tables ?? null;
     let tables: LogicalTables | null;
     try {
@@ -467,7 +546,7 @@ export class CollectionProjections {
   private readChanges(directory: string, logical: LogicalSchema, layout: readonly Table[], layoutKey: string, rows: RowsByTable, state: CollectionState, entries: readonly string[], now: number):
     { reference: CollectionReference; state: CollectionState; objects: Uint8Array[] } | null {
     const last = this.stored.get(directory);
-    if (!last || last.layout !== layoutKey || last.head !== state.head || !selfContained(logical, layout)) return null;
+    if (!last || last.layout !== layoutKey || last.head !== state.head) return null;
     // The stored rows that differ from the last read's, by table.
     const changed: RowsByTable = {}, removed: RowsByTable = {};
     let count = 0;
@@ -495,7 +574,10 @@ export class CollectionProjections {
     }
     try {
       const changes: ChangedRow[] = [];
-      const read = logicalFromRows(logical.result, [...layout], changed, { now });
+      const read = selfContained(logical, layout)
+        ? logicalFromRows(logical.result, [...layout], changed, { now })
+        : owningRows(logical, layout, rows, changed, removed, last.tables, now);
+      if (!read) return null;
       for (const [model, list] of Object.entries(read)) {
         for (const row of list as LogicalRow[]) {
           const key = logicalRowKey(row);
@@ -508,7 +590,9 @@ export class CollectionProjections {
           changes.push({ model, key: stamped.key, row: stamped });
         }
       }
-      for (const [model, list] of Object.entries(logicalFromRows(logical.result, [...layout], removed, { now }))) {
+      // A logical row is gone only when its own table's row is.
+      const removedOwn: RowsByTable = Object.fromEntries(Object.entries(removed).filter(([name]) => !layout.find((t) => t.name === name)?.ends));
+      for (const [model, list] of Object.entries(logicalFromRows(logical.result, layout.filter((t) => !t.ends), removedOwn, { now }))) {
         for (const row of list) changes.push({ model, key: row.key as LogicalRow["key"], row: null });
       }
       if (!changes.length) {
@@ -708,7 +792,7 @@ export class CollectionProjections {
         database.transaction(() => {
           if (created) database.exec(setupSql(tables, "sqlite"));
           if (legacy) this.dropLegacyLog(database);
-          applyChanges(database, set.tables, changes, rows);
+          applyChanges(database, set.tables, tables, changes, rows);
         }).immediate();
         this.databases.set(directory, { file: fileIdentity(path), rows });
       } finally {
@@ -739,7 +823,7 @@ export class CollectionProjections {
           database.exec(`create table ${BASE_META} (schema text not null)`);
           database.query(`insert into ${BASE_META} (schema) values (?)`).run(schemaHash);
         }
-        applyChanges(database, schemas, changes, rows);
+        applyChanges(database, schemas, tables, changes, rows);
       }).immediate();
       this.bases.set(directory, rows);
     } finally {

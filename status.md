@@ -78,8 +78,12 @@ rows hash (collections §1, data model §5).
 - Story Sync finds a projection's changed rows once (Performance 007, 2026-11-16): a read
   compares each stored row with the last read's and reads only the changed ones as logical
   rows, checks them against the rest of the collection in memory (`checkStateChanges`) and
-  appends them to its log, for layouts whose logical rows are each one table's row (others
-  read whole). `replayCollectionRows` applies operations to just the rows they name and
+  appends them to its log. In linked layouts (join tables, members, ordered ends) a changed
+  stored row's owners (its own row and every row its old and new versions name) are taken
+  from the read's logical rows, so only they are compared and checked
+  (`collection-changed-rows.test.ts`: each JSONL and SQLite edit gives the root a whole read
+  gives). Story Sync's SQLite writer stores an empty required value array as `[]`; it wrote
+  null, which the layout refuses. `replayCollectionRows` applies operations to just the rows they name and
   checks those (`changed-rows.ts`; its entry is the one encoding the whole collection gives,
   `changed-rows.test.ts`), and `collectionEdits` reads only the entries between two heads.
   The change log validates and decodes only records it hasn't, and shares frozen records
