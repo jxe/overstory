@@ -29,6 +29,11 @@ describe("Story private state", () => {
     await mkdir(join(privateRoot, "sync"), { recursive: true });
     await mkdir(join(privateRoot, "workspaces", "one"), { recursive: true });
     await writeFile(join(privateRoot, "sync", "tree.json"), "{}\n");
+    await mkdir(join(privateRoot, "trees", "dHJlZQ", "sync"), { recursive: true });
+    await writeFile(join(privateRoot, "trees", "dHJlZQ", "sync", "folder.json"), "{}\n");
+    await mkdir(join(privateRoot, "accounts", "tr_config", "refs"), { recursive: true });
+    await writeFile(join(privateRoot, "accounts", "tr_config", "refs", "tr_tree.json"), "{}\n");
+    await writeFile(join(privateRoot, "accounts", "tr_config", "credential.json"), "keep\n");
     await writeFile(join(privateRoot, "workspaces", "one", "index.json"), "{}\n");
     await writeFile(join(privateRoot, "device.json"), "keep\n");
     await writeFile(join(privateRoot, "version"), "2\n");
@@ -36,12 +41,17 @@ describe("Story private state", () => {
     await prepareStoryDataRoot();
 
     await expect(stat(join(privateRoot, "sync"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(privateRoot, "trees"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(privateRoot, "accounts", "tr_config", "refs"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(privateRoot, "accounts", "tr_config", "credential.json"), "utf8")).toBe("keep\n");
     await expect(stat(join(privateRoot, "workspaces", "one", "index.json"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(join(privateRoot, "device.json"), "utf8")).toBe("keep\n");
     expect(await readFile(join(privateRoot, "version"), "utf8")).toBe(`${STORY_SYNC_STATE_VERSION}\n`);
     const archives = await readdir(join(privateRoot, "format-recovery"));
     expect(archives).toHaveLength(1);
     expect(await readFile(join(privateRoot, "format-recovery", archives[0]!, "sync", "tree.json"), "utf8")).toBe("{}\n");
+    expect(await readFile(join(privateRoot, "format-recovery", archives[0]!, "trees", "dHJlZQ", "sync", "folder.json"), "utf8")).toBe("{}\n");
+    expect(await readFile(join(privateRoot, "format-recovery", archives[0]!, "accounts", "tr_config", "refs", "tr_tree.json"), "utf8")).toBe("{}\n");
     await prepareStoryDataRoot();
     expect(await readdir(join(privateRoot, "format-recovery"))).toEqual(archives);
   });

@@ -84,11 +84,13 @@ export async function prepareStoryDataRoot(): Promise<Diagnostic[]> {
  */
 export const STORY_SYNC_STATE_VERSION = "7";
 
-const REBUILDABLE_PRIVATE_ENTRIES = ["sync"] as const;
+/** Per-tree sync state: change logs, control and folder records (`trees`; `sync` is the older layout). */
+const REBUILDABLE_PRIVATE_ENTRIES = ["sync", "trees"] as const;
 
 /**
- * A private state written by an older build archives per-tree sync journals,
- * then discards rebuildable workspace indexes, so every
+ * A private state written by an older build archives per-tree sync journals
+ * and each account's placement refs (the accepted root and update a placement
+ * last held), then discards rebuildable workspace indexes, so every
  * placement re-places itself from a snapshot on the next pass; authored files
  * are compared byte for byte before anything is rewritten. Credentials,
  * device identity, and system records are kept.
@@ -103,6 +105,16 @@ async function reconcilePrivateStateVersion(state: string): Promise<void> {
     await mkdir(recovery, { recursive: true, mode: 0o700 });
     for (const name of REBUILDABLE_PRIVATE_ENTRIES) {
       if (await pathKind(join(state, name)) !== "missing") await rename(join(state, name), join(recovery, name));
+    }
+    // A placement with no ref places itself again from the host's head.
+    const accounts = join(state, "accounts");
+    if (await pathKind(accounts) === "directory") {
+      for (const id of await readdir(accounts)) {
+        const refs = join(accounts, id, "refs");
+        if (await pathKind(refs) !== "directory") continue;
+        await mkdir(join(recovery, "accounts", id), { recursive: true, mode: 0o700 });
+        await rename(refs, join(recovery, "accounts", id, "refs"));
+      }
     }
     const workspaces = join(state, "workspaces");
     if (await pathKind(workspaces) === "directory") {
