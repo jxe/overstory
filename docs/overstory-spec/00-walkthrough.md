@@ -150,16 +150,18 @@ read changed, and a new `result` with a new `outputHash` follows
 The same file declares a mutation:
 
 ```
-mutation addPractice(title: Text):
-  require me != null else user-required
-  require title != "" else invalid-input "A practice needs a title"
-  insert Practice { title: title, published: false }
+mutation addPractice(title Text):
+  if me == null:
+    unauthorized
+  if title == "":
+    invalid "A practice needs a title"
+  Practice(title: title, published: false)
 ```
 
 A form on the page names it as its action, `<Form action={addPractice}>`.
 The browser sends `POST /.overstory/trees/tr_…/mutate` with the handle, the input, and a
-caller-chosen `mutationID`. The runtime checks the guards, then submits the
-insert as one guarded update of row operations. The receipt's `affected` names
+caller-chosen `mutationID`. The runtime checks the error conditions, then submits the
+new row as one guarded update of row operations. The receipt's `affected` names
 that accepted update, and Alice's watch sees an ordinary `tree.update` frame;
 Joe's Mac rewrites the CSV. A retry with the same `mutationID` returns the
 original receipt and does nothing twice ([mutations](1.5-beetle.md#4-mutations),

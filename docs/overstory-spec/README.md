@@ -94,7 +94,7 @@ Every HTTP route an Overstory host exposes, and the section that defines it.
 
 | Route | Defined in |
 |---|---|
-| `GET /.overstory/health`, `GET /.overstory/integrity`, `GET /.overstory/account`, `GET /.overstory/account/directory` (optional), `GET /.overstory/trees`, `GET /.well-known/overstory[/{path}]` | [locators §5](1.6-locators.md#5-finding-trees) |
+| `GET /.overstory/health`, `GET /.overstory/integrity`, `GET /.overstory/account`, `GET /.overstory/account/directory` (optional), `GET /.overstory/trees`, `GET /.well-known/overstory[/{path}]` | [locators §5.2](1.6-locators.md#52-host-reads) |
 | `GET /.overstory/trees/{TreeID}`, `/snapshots/{root}`, `/objects/{hash}` | [reading and watching §1–1.2](1.2-reading-and-watching.md#1-reading-trees) |
 | `GET /.overstory/trees/{TreeID}/snapshots/{root}/path/{path}` | [reading and watching §1.2.4](1.2-reading-and-watching.md#124-reading-a-path) |
 | `GET /.overstory/trees/{TreeID}/conflicts` | [reading and watching §1.2.3](1.2-reading-and-watching.md#123-reading-conflicts) |
@@ -133,8 +133,8 @@ Authentication headers apply to every route ([access control §2](3.2-access-con
   in sync through the update machine ([working trees](2.1-working-trees.md)),
   and never discloses credentials or link secrets.
 - An **app runtime** serves a view at its node's own address, passes it the
-  caller's user context, runs its mutations, and streams validated results
-  without exposing the data behind them ([reading and watching §4](1.2-reading-and-watching.md#4-views)).
+  caller's user context, runs its mutations, and streams validated results,
+  disclosing no more than the view's plan reads ([reading and watching §4](1.2-reading-and-watching.md#4-views)).
 
 The protocol does not dictate private indexes, journals, caches, local
 client/daemon transport, or UI.
@@ -151,7 +151,7 @@ inline mention links here; accepted implementation work is indexed under
 3. **External non-tree side effects** need an effect and consent contract distinct from deterministic collection mutations ([Beetle](1.5-beetle.md#4-mutations)).
 4. **Agents beside an app**: pages whose body is a prompt, with the app's views and mutations as their tools, run by a runner, and their transcripts ([Apps 002](../../plans/features/apps-002-agents-beside-an-app.md)).
 5. **A Markdown-readable link carrying both a stable key and a content fragment.** The `#overstory-key=` alias has no room for a heading; such a link uses the `;overstory-key=` path suffix, which Overstory resolves but other Markdown readers do not ([locators §2.1](1.6-locators.md#21-links-written-in-markdown)).
-6. **Grouping beyond expansion, aggregates beyond `count`, `sum`, `min` and `max`, pagination, and unbounded traversal** in views; today they are capability extensions ([reading and watching §4.2](1.2-reading-and-watching.md#42-plans-and-live-dependencies)).
+6. **Aggregates beyond `count`, `sum`, `min` and `max`, pagination, and unbounded traversal** in views; today they are capability extensions ([reading and watching §4.2](1.2-reading-and-watching.md#42-plans-and-live-dependencies)).
 7. **A capability field that may reference a `system:` address** without making it a content locator ([locators](1.6-locators.md#1-forms)).
 8. **Additional fine-grained operation families** beyond the resource operations defined in access control. Exact-state preconditions are concurrency guards, not permissions ([updates and merging §3.1](1.3-updates-and-merging.md#31-exact-state-preconditions), [access control §3.2](3.2-access-control.md#32-updates-and-guards)).
 9. **Several simultaneous local placements of one TreeID**, including the ownership and conflict rules needed when more than one path is writable.
