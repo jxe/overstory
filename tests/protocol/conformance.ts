@@ -1,5 +1,6 @@
 import { installAccountHome } from "../helpers/account-home.ts";
 import { executeExactSourceEdits } from "../support/source-edits.ts";
+import { entryText } from "../helpers/entry-text.ts";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -114,7 +115,8 @@ try {
       // Exercise a real accepted conflict through the baseline filesystem client.
       const basis = (await owner.descriptor(tree)).tree;
       const snapshot = await owner.snapshot(tree, basis.root);
-      const file = decodeProtocolDirectory(snapshot.objects.get(basis.root)!).entries.find(e => e.name === "page.md")!.file!;
+      // page.md is a page; its edit replaces the body.
+      const file = decodeProtocolDirectory(snapshot.objects.get(basis.root)!).entries.find(e => e.name === "page.md")!.page!;
       const objects = new Map(snapshot.objects);
       async function replacement(text: string) {
         const operations: SourceOperation[] = [{ key: "replace", kind: "editSource", source: { material: { kind: "basis", path: "/page.md", object: file } }, text }];
@@ -136,8 +138,8 @@ try {
       const inspection = await owner.conflicts(tree, continued.update, continued.root);
       if (!continued.conflicted || inspection.decisions.length !== 1 || inspection.decisions[0]!.alternatives.length !== 2) throw new Error("Filesystem sync lost accepted alternatives");
       const current = await owner.snapshot(tree, continued.root);
-      const currentFile = decodeProtocolDirectory(current.objects.get(continued.root)!).entries.find(e => e.name === "page.md")!.file!;
-      if (new TextDecoder().decode(current.objects.get(currentFile)) !== "Filesystem continued after accepted ambiguity\n") throw new Error("Filesystem sync paused on accepted ambiguity");
+      const currentEntry = decodeProtocolDirectory(current.objects.get(continued.root)!).entries.find(e => e.name === "page.md");
+      if (entryText(currentEntry, current.objects) !== "Filesystem continued after accepted ambiguity\n") throw new Error("Filesystem sync paused on accepted ambiguity");
 
     } finally {
       control.server.stop(true);

@@ -28,7 +28,7 @@ struct TreeSessionTests {
     }
 
     private func fixture() throws -> Fixture {
-        let markdown = try ProtocolObjectCodec.object(.file(Data("# Note\n".utf8)))
+        let markdown = try markdownPage("# Note\n")
         let image = try ProtocolObjectCodec.object(.file(Data([0x89, 0x50, 0x4E, 0x47])))
         let nested = try ProtocolObjectCodec.object(.directory([
             ProtocolDirectoryEntry(name: "photo.png", file: image.hash, created: 0, modified: 0),
@@ -36,7 +36,7 @@ struct TreeSessionTests {
         let root = try ProtocolObjectCodec.object(.directory([
             ProtocolDirectoryEntry(name: "assets", directory: nested.hash),
             ProtocolDirectoryEntry(name: "cover.png", file: image.hash, created: 0, modified: 0),
-            ProtocolDirectoryEntry(name: "note.md", file: markdown.hash, created: 0, modified: 0),
+            ProtocolDirectoryEntry(name: "note.md", page: markdown.hash, created: 0, modified: 0),
         ]))
         return Fixture(markdown: markdown, image: image, nested: nested, root: root)
     }
@@ -101,8 +101,8 @@ struct TreeSessionTests {
     @Test("A fork loading everything takes bodies from the folder and its parent, not the sources")
     func forkLoadsThroughParent() async throws {
         let body = Data("# Plan\n".utf8)
-        let plan = try ProtocolObjectCodec.object(.file(body))
-        let march = try ProtocolObjectCodec.object(.directory([ProtocolDirectoryEntry(name: "plan.md", file: plan.hash, created: 0, modified: 0)]))
+        let plan = try markdownPage("# Plan\n")
+        let march = try ProtocolObjectCodec.object(.directory([ProtocolDirectoryEntry(name: "plan.md", page: plan.hash, created: 0, modified: 0)]))
         let root = try ProtocolObjectCodec.object(.directory([ProtocolDirectoryEntry(name: "march", directory: march.hash)]))
         let folder = FileManager.default.temporaryDirectory.appending(path: "fork-folder-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder.appending(path: "march"), withIntermediateDirectories: true)
@@ -125,12 +125,12 @@ struct TreeSessionTests {
 
     @Test("A directory that arrives without its pages' bodies is held unloaded, not refused")
     func directoryWithoutBodies() throws {
-        let inner = try ProtocolObjectCodec.object(.file(Data("# Plan\n".utf8)))
-        let folder = try ProtocolObjectCodec.object(.directory([ProtocolDirectoryEntry(name: "plan.md", file: inner.hash, created: 0, modified: 0)]))
-        let note = try ProtocolObjectCodec.object(.file(Data("# Note\n".utf8)))
+        let inner = try markdownPage("# Plan\n")
+        let folder = try ProtocolObjectCodec.object(.directory([ProtocolDirectoryEntry(name: "plan.md", page: inner.hash, created: 0, modified: 0)]))
+        let note = try markdownPage("# Note\n")
         let root = try ProtocolObjectCodec.object(.directory([
             ProtocolDirectoryEntry(name: "march", directory: folder.hash),
-            ProtocolDirectoryEntry(name: "note.md", file: note.hash, created: 0, modified: 0),
+            ProtocolDirectoryEntry(name: "note.md", page: note.hash, created: 0, modified: 0),
         ]))
         // An own update's projection can hold the directory but not plan.md.
         let projection = ProtocolSnapshot(root: root.hash, objects: [root, folder, note])

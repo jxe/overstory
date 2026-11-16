@@ -38,6 +38,11 @@ struct LocalFolderPreviewTests {
                 guard !name.hasPrefix(".") else { continue }
                 if try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
                     entries.append(.init(name: name, directory: try walk(url)))
+                } else if ProtocolPage.isPageName(name), let page = ProtocolPage.parse(try Data(contentsOf: url)) {
+                    // Markdown goes up as the page it reads as (directory format §3).
+                    let object = try ProtocolObjectCodec.object(.page(page))
+                    objects.append(object)
+                    entries.append(.init(name: name, page: object.hash, created: 0, modified: 0))
                 } else {
                     let object = try ProtocolObjectCodec.object(.file(try Data(contentsOf: url)))
                     objects.append(object)

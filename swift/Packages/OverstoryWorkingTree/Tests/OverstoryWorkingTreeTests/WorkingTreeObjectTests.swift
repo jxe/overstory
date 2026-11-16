@@ -85,7 +85,7 @@ struct WorkingTreeObjectTests {
             let first = try await workingTree.importFile(name: "one.bin", bytes: Data([1, 1, 1]), mediaType: nil, parent: home)
             let note = try await workingTree.createMarkdown(parent: home, name: "note", source: "# Note\n")
             let noteReference = WorkspaceReference(tree: tree, path: note.path, stableKey: note.pageID.map(markdownStableKey))
-            let oldNoteObject = ProtocolObjectCodec.hash(Data((note.source ?? "").utf8))
+            let oldNoteObject = try markdownPage(note.source ?? "").hash
             let acceptedRoot = try await workingTree.currentSnapshot().root
             try await workingTree.recordAccepted(root: acceptedRoot, update: "up_one")
             let firstHash = try #require(try await workingTree.resolve(.init(tree: tree, path: first.path)).ref?.objectHash)

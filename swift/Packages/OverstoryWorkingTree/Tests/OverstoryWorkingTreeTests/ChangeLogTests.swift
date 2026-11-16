@@ -40,9 +40,12 @@ struct ChangeLogTests {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
-    func graph(_ source: String) throws -> ProtocolSnapshot {
-        let file = Data(source.utf8), fileHash = ProtocolObjectCodec.hash(file)
-        let nested = try ProtocolObjectCodec.encode(.directory([.init(name: "note.md", file: fileHash, created: 0, modified: 0)])), nestedHash = ProtocolObjectCodec.hash(nested)
+    /// `/nested/note.md` holding `source`: a file, as the shared vectors
+    /// state it, or (`page`) the page a working tree writes.
+    func graph(_ source: String, page: Bool = false) throws -> ProtocolSnapshot {
+        let file = page ? try markdownPage(source).bytes : Data(source.utf8), fileHash = ProtocolObjectCodec.hash(file)
+        let entry: ProtocolDirectoryEntry = page ? .init(name: "note.md", page: fileHash, created: 0, modified: 0) : .init(name: "note.md", file: fileHash, created: 0, modified: 0)
+        let nested = try ProtocolObjectCodec.encode(.directory([entry])), nestedHash = ProtocolObjectCodec.hash(nested)
         let root = try ProtocolObjectCodec.encode(.directory([.init(name: "nested", directory: nestedHash)]))
         return ProtocolSnapshot(root: ProtocolObjectCodec.hash(root), objects: [file, nested, root].map { .init(hash: ProtocolObjectCodec.hash($0), bytes: $0) })
     }
@@ -317,9 +320,9 @@ struct ChangeLogTests {
     func capturedBasis() async throws {
         let f = try fixture(), root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let tree = try await WorkingTree.inMemory(tree: TreeID(rawValue: f.tree))
-        try await tree.initializeFromSystem(SnapshotBridge.replacement(snapshot: graph(f.source), tree: TreeID(rawValue: f.tree), update: "up_r1"))
+        try await tree.initializeFromSystem(SnapshotBridge.replacement(snapshot: graph(f.source, page: true), tree: TreeID(rawValue: f.tree), update: "up_r1"))
         let captured = try await tree.captureSourceBasis(.init(tree: TreeID(rawValue: f.tree), path: "/nested/note"))
-        let peer = try graph("Peer at R2\n")
+        let peer = try graph("Peer at R2\n", page: true)
         try await tree.replaceFromSystem(SnapshotBridge.replacement(snapshot: peer, tree: TreeID(rawValue: f.tree), update: "up_r2"))
         let patch = WorkspaceDocumentPatch(baseContentRevision: captured.document.contentRevision,
             edits: [.init(utf8Range: 0..<6, replacement: "After", expected: "Before")])

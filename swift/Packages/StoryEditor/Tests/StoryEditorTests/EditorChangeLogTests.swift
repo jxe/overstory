@@ -14,8 +14,9 @@ struct EditorChangeLogTests {
     private let tree: TreeID = "tr_editor_log"
 
     private func placed(_ source: String) async throws -> WorkingTree {
-        let file = try ProtocolObjectCodec.object(.file(Data(source.utf8)))
-        let root = try ProtocolObjectCodec.object(.directory([.init(name: "note.md", file: file.hash, created: 0, modified: 0)]))
+        // Markdown is a page (directory format §3), as the working tree writes it.
+        let file = try ProtocolObjectCodec.object(.page(try #require(ProtocolPage.parse(Data(source.utf8)))))
+        let root = try ProtocolObjectCodec.object(.directory([.init(name: "note.md", page: file.hash, created: 0, modified: 0)]))
         let snapshot = ProtocolSnapshot(root: root.hash, objects: [file, root].sorted { $0.hash < $1.hash })
         let workingTree = try await WorkingTree.inMemory(tree: tree)
         try await workingTree.initializeFromSystem(SnapshotBridge.replacement(snapshot: snapshot, tree: tree, update: "up_initial"))

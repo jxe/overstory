@@ -138,8 +138,8 @@ struct PublicationTests {
     }
 
     static func branchFixture(tree: String = "tr_publication") throws -> [LocalChange] {
-        let files = try ["A", "B", "C"].map { try ProtocolObjectCodec.object(.file(Data($0.utf8))) }
-        let root = try ProtocolObjectCodec.object(.directory(zip(["a.md", "b.md", "c.md"], files).map { .init(name: $0, file: $1.hash, created: 0, modified: 0) }))
+        let files = try ["A", "B", "C"].map(markdownPage)
+        let root = try ProtocolObjectCodec.object(.directory(zip(["a.md", "b.md", "c.md"], files).map { .init(name: $0, page: $1.hash, created: 0, modified: 0) }))
         let graph = ProtocolSnapshot(root: root.hash, objects: files + [root])
         func edit(_ change: String, _ parent: LocalChange?, _ path: String, _ source: String, _ next: String) throws -> LocalChange {
             let basis = WorkspaceDocumentSnapshot(reference: .init(tree: TreeID(rawValue: tree), path: path), source: source, contentRevision: change)

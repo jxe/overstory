@@ -26,9 +26,10 @@ enum ConflictReviewCompiler {
             let bytes = try ProtocolObjectCodec.encode(object), hash = ProtocolObjectCodec.hash(bytes)
             objects[hash] = bytes; return hash
         }
-        // Markdown is a page entry when its front matter parses (directory format §3).
-        func markdown(_ bytes: Data) throws -> ProtocolDirectoryEntry {
-            if let page = ProtocolPage.parse(bytes) { return .init(name: "", page: try store(.page(page))) }
+        // Markdown is a page entry when its name is a page's and its front
+        // matter parses (directory format §3); other text stays a file.
+        func markdown(_ bytes: Data, at path: String) throws -> ProtocolDirectoryEntry {
+            if let name = path.split(separator: "/").last, ProtocolPage.isPageName(String(name)), let page = ProtocolPage.parse(bytes) { return .init(name: "", page: try store(.page(page))) }
             return .init(name: "", file: try store(.file(bytes)))
         }
         /// The source text a content object holds: a file's bytes, or a page's
@@ -144,7 +145,7 @@ enum ConflictReviewCompiler {
                 guard alternative.value.file != nil || alternative.value.page != nil || alternative.value.text != nil else {
                     throw ConflictReviewProposalError("Compose text only for a file alternative.")
                 }
-                value = try markdown(Data(source.utf8))
+                value = try markdown(Data(source.utf8), at: destination)
             } else if let file = alternative.value.file { value = .init(name: "", file: file) }
             else if let page = alternative.value.page { value = .init(name: "", page: page) }
             else if let directory = alternative.value.directory { value = .init(name: "", directory: directory) }

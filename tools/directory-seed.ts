@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { compileLogicalSchema, encodeCollection } from "@ovst/collection-schema";
-import { encodeProtocolDirectory, hashObject, type ProtocolDirectory, type ProtocolDirectoryEntry } from "@ovst/protocol";
+import { encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, type ProtocolDirectory, type ProtocolDirectoryEntry } from "@ovst/protocol";
 
 const source = join(import.meta.dir, "directory-seed");
 export const directorySeedSwiftPath = join(import.meta.dir, "../swift/Packages/OverstoryClient/Sources/OverstoryClient/PersonalDirectorySeed.swift");
@@ -36,7 +36,8 @@ export function directorySeed(): { root: string; objects: Map<string, Uint8Array
     return { name, directory: directory([{ name: "schema.beetle", file: put(schema), created: 0, modified: 0 }], encoded.reference) };
   };
   const root = directory([
-    { name: "_index.md", file: put(readFileSync(join(source, "_index.md"))), created: 0, modified: 0 },
+    // Markdown is a page (directory format §3); clients re-encode it so.
+    { name: "_index.md", page: put(encodeProtocolPage(parsePage(readFileSync(join(source, "_index.md")))!)), created: 0, modified: 0 },
     { name: "_version", file: put(readFileSync(join(source, "_version"))), created: 0, modified: 0 },
     collection("people"),
     collection("trees"),

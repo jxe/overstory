@@ -172,7 +172,8 @@ struct LiveChangeLogTests {
             guard case let .array(affected) = decision["affected"], case let .object(parent) = affected.first else {
                 Issue.record("Missing nested decision location"); return
             }
-            guard case let .object(material) = parent["material"] else { Issue.record("Missing source material"); return }
+            // A basis reference names its path and object (spec 1.2 §1.2.2), here or under `material`.
+            guard case let .object(material) = parent["material"] ?? .object(parent) else { Issue.record("Missing source material"); return }
             #expect(material["path"] == .string("/sub/child.md"))
             #expect(parent["range"] != nil)
         }
@@ -361,6 +362,7 @@ extension LiveChangeLogTests {
         struct Fixture: Decodable { let graph: ProtocolSnapshot }
         let path = URL(fileURLWithPath:#filePath).deletingLastPathComponent().appending(path:"../../../../../docs/overstory-spec/conformance/entry-actions.json")
         let fixture = try JSONDecoder().decode(Fixture.self,from:Data(contentsOf:path))
+        let graph = try withPages(fixture.graph)
         let root = FileManager.default.temporaryDirectory.appending(path:"compound-live-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at:root) }
         let client = ProtocolClient(origin:origin,credential:token)
@@ -368,11 +370,11 @@ extension LiveChangeLogTests {
         let current = try await client.descriptor(tree:treeID)
         let snapshot = try await client.snapshot(tree:treeID,root:current.tree.root)
         let objects = Dictionary(uniqueKeysWithValues:snapshot.objects.map { ($0.hash,$0.bytes) })
-        let fixtureObjects = Dictionary(uniqueKeysWithValues:fixture.graph.objects.map { ($0.hash,$0.bytes) })
+        let fixtureObjects = Dictionary(uniqueKeysWithValues:graph.objects.map { ($0.hash,$0.bytes) })
         guard case let .directory(existing,descriptor) = try ProtocolObjectCodec.decode(#require(objects[snapshot.root]),kind:.directory),
-              case let .directory(additions,_) = try ProtocolObjectCodec.decode(#require(fixtureObjects[fixture.graph.root]),kind:.directory) else { Issue.record("Expected directories"); return }
+              case let .directory(additions,_) = try ProtocolObjectCodec.decode(#require(fixtureObjects[graph.root]),kind:.directory) else { Issue.record("Expected directories"); return }
         let bytes = try ProtocolObjectCodec.encode(.directory((existing + additions).sorted { $0.name < $1.name },collection:descriptor))
-        let seed = ProtocolCandidateUpdate(candidate:ProtocolObjectCodec.hash(bytes),change:UUID().uuidString,at:ProtocolEntryTime.now(),objects:fixture.graph.objects + [.init(hash:ProtocolObjectCodec.hash(bytes),bytes:bytes)])
+        let seed = ProtocolCandidateUpdate(candidate:ProtocolObjectCodec.hash(bytes),change:UUID().uuidString,at:ProtocolEntryTime.now(),objects:graph.objects + [.init(hash:ProtocolObjectCodec.hash(bytes),bytes:bytes)])
         _ = try await client.submitUpdateResponse(client.prepareUpdates(tree:treeID,base:.init(root:current.tree.root,update:current.tree.update),updates:[seed]))
         let initial = try await client.descriptor(tree:treeID), tree = try await place(initial,client:client)
         let coordinator = try UpdateCoordinator(workingTree:tree,transport:transport,stateRoot:root ,publicationDelay:.seconds(3600),publicationMaxDelay:.seconds(3600))
@@ -436,7 +438,9 @@ extension LiveChangeLogTests {
             guard let range = decision.sourceRange else { return replacement }
             let snapshot = try await client.snapshot(tree: treeID, root: inspection.root)
             let bytes = try #require(snapshot.objects.first { $0.hash == decision.affected[0].material.object }?.bytes)
-            var result = bytes; result.replaceSubrange(range, with: Data(replacement.utf8))
+            // A page's range is over its body; this page has no front matter, so its source is the body.
+            var result = (try? ProtocolPage.decode(bytes))?.body ?? bytes
+            result.replaceSubrange(range, with: Data(replacement.utf8))
             return try #require(String(data: result, encoding: .utf8))
         }
         #expect(decision.supportsIndependentResolution)

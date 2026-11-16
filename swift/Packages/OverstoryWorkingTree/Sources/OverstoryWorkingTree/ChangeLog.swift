@@ -175,13 +175,15 @@ public struct LocalChange: Codable, Equatable, Sendable {
                     bodyStart = previous.utf8.count - ProtocolPage.splitFrontmatter(previous).body.utf8.count
                     let next = ProtocolPage.parse(Data(source.utf8))
                     if next?.id != page.id || next?.properties != page.properties { snapshotOnly = true }
+                    entries[index] = try markdown(parts[depth], source, previous: entries[index])
                 } else {
                     guard let current = entries[index].file, case let .file(value)? = decoded[current],
                           value == Data(previous.utf8) else { throw Self.invalid("Source bytes do not match basis") }
                     file = current
                     bodyStart = nil
+                    // An edited file stays a file, as the TypeScript queue keeps it.
+                    entries[index] = .stamped(.file, name: entries[index].name, object: try store(.file(Data(source.utf8))), previous: entries[index], at: stamp)
                 }
-                entries[index] = try markdown(parts[depth], source, previous: entries[index])
             } else {
                 guard let directory = entries[index].directory else { throw Self.invalid("Source path crosses a file or tree boundary") }
                 entries[index].directory = try replace(directory, depth + 1, from: previous, to: source, first: first)

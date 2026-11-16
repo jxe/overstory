@@ -171,14 +171,14 @@ struct UpdateCoordinatorTests {
 
     @Test("A sparse spine with typed entries bridges to the same replacement as the complete snapshot")
     func sparseBridgeEqualsFullBridge() async throws {
-        let note = try ProtocolObjectCodec.object(.file(Data("---\nid: pg_note\n---\n\n# Note\n".utf8)))
+        let note = try markdownPage("---\nid: pg_note\n---\n\n# Note\n")
         let photo = try ProtocolObjectCodec.object(.file(Data([0xff, 0xd8, 0xff, 0xe0])))
         let clip = try ProtocolObjectCodec.object(.file(Data("not really audio".utf8)))
         let album = try ProtocolObjectCodec.object(.directory([.init(name: "photo.jpg", file: photo.hash, created: 0, modified: 0)]))
         let root = try ProtocolObjectCodec.object(.directory([
             .init(name: "album", directory: album.hash),
             .init(name: "clip.unknownext", file: clip.hash, created: 0, modified: 0),
-            .init(name: "note.md", file: note.hash, created: 0, modified: 0),
+            .init(name: "note.md", page: note.hash, created: 0, modified: 0),
         ]))
         let tree = TreeID(rawValue: "tr_sparsebridge")
         let full = ProtocolSnapshot(root: root.hash, objects: [root, album, note, photo, clip])
@@ -327,12 +327,12 @@ struct UpdateCoordinatorTests {
 
     @Test("Multiple sibling bodies fail before logical materialization")
     func ambiguousSiblingBodies() throws {
-        let markdown = try ProtocolObjectCodec.object(.file(Data("# Markdown\n".utf8)))
+        let markdown = try markdownPage("# Markdown\n")
         let mdx = try ProtocolObjectCodec.object(.file(Data("# MDX\n".utf8)))
         let directory = try ProtocolObjectCodec.object(.directory([]))
         let root = try ProtocolObjectCodec.object(.directory([
             .init(name: "x", directory: directory.hash),
-            .init(name: "x.md", file: markdown.hash, created: 0, modified: 0),
+            .init(name: "x.md", page: markdown.hash, created: 0, modified: 0),
             .init(name: "x.mdx", file: mdx.hash, created: 0, modified: 0),
         ]))
         let snapshot = ProtocolSnapshot(root: root.hash, objects: [root, directory, markdown, mdx])
@@ -345,7 +345,7 @@ struct UpdateCoordinatorTests {
         let plain = try ProtocolObjectCodec.object(.file(Data("plain".utf8)))
         let duplicateRoot = try ProtocolObjectCodec.object(.directory([
             .init(name: "same", file: plain.hash, created: 0, modified: 0),
-            .init(name: "same.md", file: markdown.hash, created: 0, modified: 0),
+            .init(name: "same.md", page: markdown.hash, created: 0, modified: 0),
         ]))
         let duplicate = ProtocolSnapshot(root: duplicateRoot.hash, objects: [duplicateRoot, plain, markdown])
         #expect(throws: ProtocolValidationError.self) {
@@ -430,7 +430,8 @@ struct UpdateCoordinatorTests {
             _ = try await coordinator.syncOnce()
             let first = try #require(await transport.requests.first).decodedRequest()
             let element = try #require(first.updates.last)
-            let delta = try #require(element.deltas.first { $0.instructions.contains(.insert(Data("Edited".utf8))) })
+            // The page's body is inside its object, so the insert may carry more than the edit.
+            let delta = try #require(element.deltas.first { $0.instructions.contains { if case let .insert(bytes) = $0 { bytes.range(of: Data("Edited".utf8)) != nil } else { false } } })
             #expect(delta.instructions.contains(where: { if case .copy = $0 { return true } else { return false } }))
             #expect(!element.objects.contains { $0.hash == delta.result })
 
@@ -444,7 +445,7 @@ struct UpdateCoordinatorTests {
             let second = try #require(await transport.requests.last).decodedRequest()
             let replaced = try #require(second.updates.last)
             #expect(!replaced.deltas.contains { $0.instructions.contains(.insert(Data(fallbackSource.utf8))) })
-            #expect(replaced.objects.contains { $0.hash == (try? ProtocolObjectCodec.object(.file(Data(fallbackSource.utf8))))?.hash })
+            #expect(replaced.objects.contains { $0.hash == (try? markdownPage(fallbackSource))?.hash })
             #expect(await coordinator.syncState.kind == "current")
         }
     }
@@ -541,7 +542,7 @@ struct UpdateCoordinatorTests {
             #expect(update.trace?.count == 1)
             let operation = try #require(update.trace?.first?.operations.first)
             #expect(operation.kind == "moveSource")
-            #expect(operation.fields["source"] == .object(["material": .object(["kind": .string("basis"), "path": .string("/note.md"), "object": .string(ProtocolObjectCodec.hash(Data("A\n\nB\n\nC\n\nD\n\n".utf8)))]), "range": .array([.integer(0), .integer(3)])]))
+            #expect(operation.fields["source"] == .object(["material": .object(["kind": .string("basis"), "path": .string("/note.md"), "object": .string(try markdownPage("A\n\nB\n\nC\n\nD\n\n").hash)]), "range": .array([.integer(0), .integer(3)])]))
             #expect(try await session.snapshot().source == "B\n\nC\n\nA\n\nD\n\n")
             // A newly observed accepted snapshot starts a fresh authored basis.
             try await admitAppend(session, "Later\n")
@@ -556,12 +557,12 @@ struct UpdateCoordinatorTests {
     /// A held Option-arrow on a page (its moves address the body) and on a
     /// block with children (several adjacent spans per step) still publishes
     /// one move, as a drag to the same place would.
-    @Test("Move bursts on pages and of several spans publish one move", arguments: [false, true])
-    func moveBurstShapes(asPage: Bool) async throws {
+    @Test("Move bursts on pages and of several spans publish one move")
+    func moveBurstShapes() async throws {
         try await withTemporaryRoot { root in
             let tree = "tr_move_shapes"
             let text = "A\n\nB\n\nC\n\nD\n\nE\n\n"
-            let initial = asPage ? try pageSnapshot(markdown: text) : try snapshot(markdown: text)
+            let initial = try snapshot(markdown: text)
             let transport = acceptingTransport(tree: tree, initial: initial)
             let workingTree = try await placeWorkingTree(tree: descriptor(tree: tree, snapshot: initial, update: "up_initial"), at: root.appending(path: "replica"), transport: transport)
             let coordinator = try UpdateCoordinator(workingTree: workingTree, transport: transport, stateRoot: root.appending(path: "sync"), publicationDelay: .milliseconds(200), pollInterval: .milliseconds(20))
@@ -1283,10 +1284,10 @@ struct UpdateCoordinatorPhase3Tests {
     @Test("Change envelopes carry only new objects; platform-served files are never packed or fetched")
     func sparseCandidateFromOverlay() async throws {
         let tree = "tr_sparse"
-        let note = try ProtocolObjectCodec.object(.file(Data("---\nid: pg_note\n---\n\n# Note\n\nBase\n".utf8)))
+        let note = try markdownPage("---\nid: pg_note\n---\n\n# Note\n\nBase\n")
         let photo = try ProtocolObjectCodec.object(.file(Data(repeating: 0xab, count: 4_096)))
         let rootDirectory = try ProtocolObjectCodec.object(.directory([
-            .init(name: "note.md", file: note.hash, created: 0, modified: 0),
+            .init(name: "note.md", page: note.hash, created: 0, modified: 0),
             .init(name: "photo.bin", file: photo.hash, created: 0, modified: 0),
         ]))
         let complete = ProtocolSnapshot(root: rootDirectory.hash, objects: [rootDirectory, note, photo].sorted { $0.hash < $1.hash })
@@ -1317,10 +1318,10 @@ struct UpdateCoordinatorPhase3Tests {
     @Test("A reconciliation delta fetches its base through the object store exactly once")
     func deltaBaseFetchedOnce() async throws {
         let tree = "tr_delta"
-        let note = try ProtocolObjectCodec.object(.file(Data("---\nid: pg_note\n---\n\n# Note\n\nBase\n".utf8)))
+        let note = try markdownPage("---\nid: pg_note\n---\n\n# Note\n\nBase\n")
         let photo = try ProtocolObjectCodec.object(.file(Data(repeating: 0x01, count: 2_048)))
         let rootDirectory = try ProtocolObjectCodec.object(.directory([
-            .init(name: "note.md", file: note.hash, created: 0, modified: 0),
+            .init(name: "note.md", page: note.hash, created: 0, modified: 0),
             .init(name: "photo.bin", file: photo.hash, created: 0, modified: 0),
         ]))
         let spine = ProtocolSnapshot(root: rootDirectory.hash, objects: [rootDirectory, note].sorted { $0.hash < $1.hash })
@@ -1342,7 +1343,7 @@ struct UpdateCoordinatorPhase3Tests {
             // The element carries the new note and root, whole or as deltas; the photo is never sent.
             let localNote = try #require((element.objects.map(\.hash) + element.deltas.map(\.result)).first { $0 != element.candidate })
             let mergedRoot = try ProtocolObjectCodec.object(.directory([
-                .init(name: "note.md", file: localNote, created: 0, modified: 0),
+                .init(name: "note.md", page: localNote, created: 0, modified: 0),
                 .init(name: "photo.bin", file: photo2.hash, created: 0, modified: 0),
             ]))
             await merged.set(mergedRoot.hash)
@@ -1564,25 +1565,26 @@ struct LiveNativePeerTests {
     }
 }
 
+/// `note.md` as a page.
 private func snapshot(markdown: String) throws -> ProtocolSnapshot {
-    let file = try ProtocolObjectCodec.object(.file(Data(markdown.utf8)))
-    let root = try ProtocolObjectCodec.object(.directory([.init(name: "note.md", file: file.hash, created: 0, modified: 0)]))
+    let file = try markdownPage(markdown)
+    let root = try ProtocolObjectCodec.object(.directory([.init(name: "note.md", page: file.hash, created: 0, modified: 0)]))
     return ProtocolSnapshot(root: root.hash, objects: [file, root].sorted { $0.hash < $1.hash })
 }
 
 /// `note.md` beside `siblings` small pages spread over folders of ten.
 private func benchmarkSnapshot(markdown: String, siblings: Int) throws -> ProtocolSnapshot {
     var objects: [ProtocolObjectEnvelope] = []
-    let note = try ProtocolObjectCodec.object(.file(Data(markdown.utf8)))
+    let note = try markdownPage(markdown)
     objects.append(note)
-    var entries = [ProtocolDirectoryEntry(name: "note.md", file: note.hash, created: 0, modified: 0)]
+    var entries = [ProtocolDirectoryEntry(name: "note.md", page: note.hash, created: 0, modified: 0)]
     for folder in stride(from: 0, to: siblings, by: 10) {
         var children: [ProtocolDirectoryEntry] = []
         for index in folder..<min(folder + 10, siblings) {
             let body = "# Page \(index)\n\n" + String(repeating: "Some words on page \(index).\n", count: 40)
-            let file = try ProtocolObjectCodec.object(.file(Data(body.utf8)))
+            let file = try markdownPage(body)
             objects.append(file)
-            children.append(.init(name: "page-\(index).md", file: file.hash, created: 0, modified: 0))
+            children.append(.init(name: "page-\(index).md", page: file.hash, created: 0, modified: 0))
         }
         let directory = try ProtocolObjectCodec.object(.directory(children.sorted { $0.name.utf8.lexicographicallyPrecedes($1.name.utf8) }))
         objects.append(directory)
@@ -1593,17 +1595,16 @@ private func benchmarkSnapshot(markdown: String, siblings: Int) throws -> Protoc
     return ProtocolSnapshot(root: root.hash, objects: Dictionary(objects.map { ($0.hash, $0) }, uniquingKeysWith: { a, _ in a }).values.sorted { $0.hash < $1.hash })
 }
 
-/// `note.md` stored as a page object, as in a tree converted to pages.
-private func pageSnapshot(markdown: String) throws -> ProtocolSnapshot {
-    let page = try ProtocolObjectCodec.object(.page(try #require(ProtocolPage.parse(Data(markdown.utf8)))))
-    let root = try ProtocolObjectCodec.object(.directory([.init(name: "note.md", page: page.hash, created: 0, modified: 0)]))
-    return ProtocolSnapshot(root: root.hash, objects: [page, root].sorted { $0.hash < $1.hash })
-}
-
 private func snapshot(files: [String: String]) throws -> ProtocolSnapshot {
     var objects: [ProtocolObjectEnvelope] = []
     let entries = try files.keys.sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }.map { name in
-        let file = try ProtocolObjectCodec.object(.file(Data(files[name, default: ""].utf8)))
+        let source = files[name, default: ""]
+        if ProtocolPage.isPageName(name) {
+            let page = try markdownPage(source)
+            objects.append(page)
+            return ProtocolDirectoryEntry(name: name, page: page.hash, created: 0, modified: 0)
+        }
+        let file = try ProtocolObjectCodec.object(.file(Data(source.utf8)))
         objects.append(file)
         return ProtocolDirectoryEntry(name: name, file: file.hash, created: 0, modified: 0)
     }
@@ -1617,20 +1618,20 @@ private func directoryBodySnapshot(
     siblingSource: String,
     indexSource: String? = nil
 ) throws -> ProtocolSnapshot {
-    let child = try ProtocolObjectCodec.object(.file(Data("# Child\n".utf8)))
-    var directoryEntries = [ProtocolDirectoryEntry(name: "child.md", file: child.hash, created: 0, modified: 0)]
+    let child = try markdownPage("# Child\n")
+    var directoryEntries = [ProtocolDirectoryEntry(name: "child.md", page: child.hash, created: 0, modified: 0)]
     var objects = [child]
     if let indexSource {
-        let index = try ProtocolObjectCodec.object(.file(Data(indexSource.utf8)))
-        directoryEntries.append(.init(name: "_index.md", file: index.hash, created: 0, modified: 0))
+        let index = try markdownPage(indexSource)
+        directoryEntries.append(.init(name: "_index.md", page: index.hash, created: 0, modified: 0))
         objects.append(index)
     }
     directoryEntries.sort { $0.name.utf8.lexicographicallyPrecedes($1.name.utf8) }
     let directory = try ProtocolObjectCodec.object(.directory(directoryEntries))
-    let sibling = try ProtocolObjectCodec.object(.file(Data(siblingSource.utf8)))
+    let sibling = try markdownPage(siblingSource)
     let root = try ProtocolObjectCodec.object(.directory([
         .init(name: stem, directory: directory.hash),
-        .init(name: stem + ".md", file: sibling.hash, created: 0, modified: 0),
+        .init(name: stem + ".md", page: sibling.hash, created: 0, modified: 0),
     ]))
     objects.append(contentsOf: [directory, sibling, root])
     return ProtocolSnapshot(root: root.hash, objects: objects.sorted { $0.hash < $1.hash })
@@ -2014,8 +2015,10 @@ extension SourceSessionPublicationTests {
             let created = try #require(try await provider.perform(.createMarkdown(parent: parent, name: "created", source: "New\n")))
             let session = try await provider.openDocument(created.reference)
             let basis = try await session.snapshot()
-            let changed = basis.source + "More\n"
-            _ = try await replace(changed, session: session, basis: basis)
+            let changed = basis.source + "More\n", end = basis.source.utf8.count
+            // An append to the page's body, which its operations can state.
+            _ = try await session.admit(intent: .init(basis: basis, patch: .init(baseContentRevision: basis.contentRevision,
+                edits: [.init(utf8Range: end..<end, replacement: "More\n", expected: "")]), source: changed))
             let directory = try #require(try await provider.perform(.createDirectory(parent: parent, name: "group")))
             let moved = try #require(try await provider.perform(.move(reference: created.reference, destination: directory.reference)))
             #expect(moved.reference.path == "/group/created")
