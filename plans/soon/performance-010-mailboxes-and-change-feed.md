@@ -52,7 +52,11 @@ sibling pages, one-level tree, local disk), with a temporary counter on
 Each step ships alone, keeps behaviour identical (existing tests, plus a differential test where
 an algorithm changes), and states before and after from the same harness.
 
-Steps 1 to 4 are built (2026-11-16, not yet deployed):
+Steps 1 to 4 are built and deployed (2026-11-16). Rehearsed first on Joe's Mac against the
+migrated 2026-11-16 backup: all 28 trees read back the same update and root as main, cold start
+the same; `rehearse-tree.ts` host time per request 3.5 to 1.9 ms median; 8 concurrent trees,
+journal syncs per update 1.00 to about 0.34. (`rehearse-tree.ts` needs fixing before it runs
+again: it passes no `at` to `executeExactSourceEdits` and edits the root `_index.md` as a file.)
 
 - **The change once:** acceptance's entry-change walk also names the collection folders whose
   log moved, and the collections follower and the snapshot check take them from it instead of
