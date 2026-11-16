@@ -193,10 +193,15 @@ public struct LocalChange: Codable, Equatable, Sendable {
             resultDirectories[depth] = result
             return result
         }
-        func copyMaterial(_ copy: WorkspaceSourceLineage, file: String) throws -> ProtocolSemanticValue {
-            guard let document = copy.document else {
-                return .object(["kind":.string("basis"),"path":.string(sourcePath),"object":.string(file)])
+        /// A copy's source as an operation states it: the material and the
+        /// range over it, a page's body when the source document is a page.
+        /// A range into a page's front matter leaves the record a snapshot.
+        func copySource(_ copy: WorkspaceSourceLineage, file: String, shifted: (Range<Int>) -> Range<Int>) throws -> ProtocolSemanticValue {
+            func source(_ path: String, _ object: String, _ range: Range<Int>) -> ProtocolSemanticValue {
+                .object(["material":.object(["kind":.string("basis"),"path":.string(path),"object":.string(object)]),
+                         "range":.array([.integer(range.lowerBound),.integer(range.upperBound)])])
             }
+            guard let document = copy.document else { return source(sourcePath, file, shifted(copy.source)) }
             let parts = document.path.dropFirst().split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             guard document.path.hasPrefix("/"), parts.allSatisfy(ProtocolGraph.isPathComponent) else { throw Self.invalid("Invalid copy path") }
             // Other documents are untouched by this record, so their basis
@@ -205,13 +210,14 @@ public struct LocalChange: Codable, Equatable, Sendable {
             for (index, part) in parts.enumerated() {
                 guard case let .directory(entries, _)? = decoded[hash], let entry = entries.first(where: { $0.name == part }) else { throw Self.invalid("Copy source missing from basis") }
                 if index == parts.count - 1 {
-                    // A copy out of a page goes as a snapshot.
-                    if let value = entry.page, case let .page(page)? = decoded[value], page.isHeld(by: Data(document.source.utf8)) {
-                        snapshotOnly = true
-                        return .object(["kind":.string("basis"),"path":.string(document.path),"object":.string(value)])
+                    if let value = entry.page {
+                        guard case let .page(page)? = decoded[value], page.isHeld(by: Data(document.source.utf8)) else { throw Self.invalid("Copy source changed or crosses a tree boundary") }
+                        let start = document.source.utf8.count - ProtocolPage.splitFrontmatter(document.source).body.utf8.count
+                        guard copy.source.lowerBound >= start else { snapshotOnly = true; return source(document.path, value, copy.source) }
+                        return source(document.path, value, (copy.source.lowerBound - start)..<(copy.source.upperBound - start))
                     }
                     guard let value = entry.file, case let .file(bytes)? = decoded[value], bytes == Data(document.source.utf8) else { throw Self.invalid("Copy source changed or crosses a tree boundary") }
-                    return .object(["kind":.string("basis"),"path":.string(document.path),"object":.string(value)])
+                    return source(document.path, value, copy.source)
                 }
                 guard let directory = entry.directory else { throw Self.invalid("Copy source crosses a tree boundary") }
                 hash = directory
@@ -227,14 +233,11 @@ public struct LocalChange: Codable, Equatable, Sendable {
             let root = try replace(previousRoot, 0, from: previousSource, to: generation.source, first: frame == 0)
             if frame == 0 { basisFile = file; basisIsPage = bodyStart != nil }
             // A page's operations address its body: shift every range, and
-            // leave a range into the front matter, a copy or lineage to a snapshot.
+            // leave a range into the front matter to a snapshot.
             func shifted(_ range: Range<Int>) -> Range<Int> {
                 guard let start = bodyStart else { return range }
                 guard range.lowerBound >= start else { snapshotOnly = true; return range }
                 return (range.lowerBound - start)..<(range.upperBound - start)
-            }
-            if bodyStart != nil, generation.patch.edits.contains(where: { !($0.lineage ?? []).isEmpty || !($0.copies ?? []).isEmpty }) {
-                snapshotOnly = true
             }
             sources[root] = generation.source
             let basisSource = Array(previousSource.utf8)
@@ -259,9 +262,10 @@ public struct LocalChange: Codable, Equatable, Sendable {
                 if edit.utf8Range.isEmpty, let copies = edit.copies, copies.count == 1,
                    copies[0].replacement == 0..<edit.replacement.utf8.count {
                     let material: ProtocolSemanticValue = .object(["kind":.string("basis"),"path":.string(sourcePath),"object":.string(file)])
+                    let at = shifted(edit.utf8Range.lowerBound..<edit.utf8Range.lowerBound)
                     return [try ProtocolSourceOperation(["key":.string("copy-\(frame)-\(index)-0"),"kind":.string("copySource"),
-                        "source":.object(["material":try copyMaterial(copies[0], file: file),"range":.array([.integer(copies[0].source.lowerBound),.integer(copies[0].source.upperBound)])]),
-                        "at":.object(["material":material,"range":.array([.integer(edit.utf8Range.lowerBound),.integer(edit.utf8Range.lowerBound)])]),"side":.string("before")])]
+                        "source":try copySource(copies[0], file: file, shifted: shifted),
+                        "at":.object(["material":material,"range":.array([.integer(at.lowerBound),.integer(at.upperBound)])]),"side":.string("before")])]
                 }
                 let range = shifted(edit.utf8Range)
                 var fields: [String: ProtocolSemanticValue] = [
@@ -271,9 +275,9 @@ public struct LocalChange: Codable, Equatable, Sendable {
                     "text": .string(edit.replacement)
                 ]
                 if let lineage = edit.lineage {
-                    fields["lineage"] = .array(lineage.map { part in .object([
+                    fields["lineage"] = .array(lineage.map { part -> ProtocolSemanticValue in let source = shifted(part.source); return .object([
                         "source": .object(["material": .object(["kind": .string("basis"), "path": .string(sourcePath), "object": .string(file)]),
-                                           "range": .array([.integer(part.source.lowerBound), .integer(part.source.upperBound)])]),
+                                           "range": .array([.integer(source.lowerBound), .integer(source.upperBound)])]),
                         "range": .array([.integer(part.replacement.lowerBound), .integer(part.replacement.upperBound)])
                     ]) })
                 }
@@ -282,9 +286,7 @@ public struct LocalChange: Codable, Equatable, Sendable {
                     let target: ProtocolSemanticValue = .object([
                         "material":.object(["kind":.string("operation"),"change":.string(change),"operation":.string(key)]),
                         "range":.array([.integer(copy.replacement.lowerBound),.integer(copy.replacement.upperBound)])])
-                    let source: ProtocolSemanticValue = .object([
-                        "material":try copyMaterial(copy, file: file),
-                        "range":.array([.integer(copy.source.lowerBound),.integer(copy.source.upperBound)])])
+                    let source = try copySource(copy, file: file, shifted: shifted)
                     operations.append(try ProtocolSourceOperation(["key":.string("copy-\(frame)-\(index)-\(copyIndex)"),"kind":.string("copySource"),"source":source,"at":target,"side":.string("before")]))
                     operations.append(try ProtocolSourceOperation(["key":.string("copy-placeholder-\(frame)-\(index)-\(copyIndex)"),"kind":.string("editSource"),"source":target,"text":.string("")]))
                 }

@@ -242,6 +242,32 @@ test("a copied page that takes a fresh id is replaced whole on the copy, and rep
   expect(evaluated.response.result.object).toBe(decodeTreeSnapshotJSON(record.candidate).root);
 });
 
+test("on pages, moves, copies and lineage address the body and replay to the candidate", async () => {
+  const fm="---\nid: p1\ntitle: Note\n---\n", other="---\nid: p2\n---\nOther text\n", body="one\ntwo\nthree\n", source=fm+body, at=fm.length;
+  const page=(text:string)=>encodeProtocolPage(parsePage(new TextEncoder().encode(text))!);
+  const a=page(source),b=page(other);
+  const directory=encodeProtocolDirectory({type:"directory",entries:[{name:"note.md",page:hashObject(a),created:0,modified:0},{name:"other.md",page:hashObject(b),created:0,modified:0}]});
+  const graph={root:hashObject(directory),objects:new Map<string,Uint8Array>([[hashObject(directory),directory],[hashObject(a),a],[hashObject(b),b]])};
+  const cases:Array<{name:string;edits:SourceEdit[];moves?:Array<{source:[number,number];anchor:[number,number];side:"before"|"after"}>;result:string;kinds:string[]}>=[
+    {name:"block move",edits:[],moves:[{source:[at,at+4],anchor:[at+8,at+14],side:"after"}],result:fm+"two\nthree\none\n",kinds:["moveSource"]},
+    {name:"same-page copy with lineage",edits:[{offset:at,length:4,replacement:"one\none\n",lineage:[{source:[at,at+4],replacement:[0,4]}],copies:[{source:[at,at+4],replacement:[4,8]}]}],result:fm+"one\none\ntwo\nthree\n",kinds:["copySource"]},
+    {name:"pasted copy",edits:[{offset:at+14,length:0,replacement:"two\n",copies:[{source:[at+4,at+8],replacement:[0,4]}]}],result:fm+body+"two\n",kinds:["copySource"]},
+    {name:"cross-page copy",edits:[{offset:at+14,length:0,replacement:"Other text\n",copies:[{source:[15,26],replacement:[0,11],document:{path:"/other.md",source:other}}]}],result:fm+body+"Other text\n",kinds:["copySource"]},
+  ];
+  for(const c of cases){
+    const record=prepareSourceChange({at:TEST_TIME,tree:fixture.tree,change:"c",graph,sourcePath:"/note.md",basis:{kind:"accepted",root:graph.root,update:"r1"},
+      intent:{basis:{tree:fixture.tree,path:"/note",revision:"r1",source},edits:c.edits,...(c.moves?{moves:c.moves}:{}),source:c.result}});
+    const operations=authored(decodeLocalUpdate(record.update)),candidate=decodeTreeSnapshotJSON(record.candidate);
+    expect(operations.map(o=>o.kind as string),c.name).toEqual(c.kinds);
+    const evaluated=await evaluateIntent({tree:fixture.tree,base:{object:graph.root},current:{object:graph.root},incoming:{change:record.change,at:entryTimeOf(record.update.at),object:candidate.root,trace:singleStep(graph.root,candidate.root,operations)},rules:{id:"tree-default",revision:1}},new Map([...graph.objects,...candidate.objects]));
+    expect(evaluated.response.result.object,c.name).toBe(candidate.root);
+  }
+  // A copy out of another page's front matter is still a snapshot.
+  const snapshot=prepareSourceChange({at:TEST_TIME,tree:fixture.tree,change:"c",graph,sourcePath:"/note.md",basis:{kind:"accepted",root:graph.root,update:"r1"},
+    intent:{basis:{tree:fixture.tree,path:"/note",revision:"r1",source},edits:[{offset:at+14,length:0,replacement:"id",copies:[{source:[4,6],replacement:[0,2],document:{path:"/other.md",source:other}}]}],source:source+"id"}});
+  expect(decodeLocalUpdate(snapshot.update).trace).toBeNull();
+});
+
 test("compound entry fixtures retain one basis and execute atomically after restart",async()=>{
   const fixtures=await Bun.file(new URL("../../docs/overstory-spec/conformance/entry-actions.json",import.meta.url)).json();
   const {prepareEntryChange}=await import("@ovst/working-tree");

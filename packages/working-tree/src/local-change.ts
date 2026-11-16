@@ -209,8 +209,15 @@ export function prepareSourceChange(input: {
     const next = encodeProtocolDirectory(directory), root = hashObject(next); objects.set(root, next); return root;
   }
   const change = input.change ?? crypto.randomUUID();
-  function copyMaterial(copy: NonNullable<SourceEdit["copies"]>[number], file: string): {kind: "basis"; path: string; object: string} {
-    if (!copy.document) return {kind: "basis", path: sourcePath, object: file};
+  /** A copy's source as an operation states it: the material, and the range
+   * over that material (a page's body when the source document is a page).
+   * Throws `PageCopy` for a copy out of a page's front matter. */
+  function copySource(copy: NonNullable<SourceEdit["copies"]>[number], file: string, bodyStart: number): {material: {kind: "basis"; path: string; object: string}; range: [number, number]} {
+    const over = (start: number): [number, number] => {
+      if (copy.source[0] < start) throw new PageCopy();
+      return [copy.source[0] - start, copy.source[1] - start];
+    };
+    if (!copy.document) return {material: {kind: "basis", path: sourcePath, object: file}, range: over(bodyStart)};
     const {path, source} = copy.document, parts = path.slice(1).split("/");
     if (!path.startsWith("/") || parts.some(p => !p || p === "." || p === "..")) throw Error("Invalid copy path");
     // Other documents are untouched by this record, so their basis object is
@@ -219,9 +226,13 @@ export function prepareSourceChange(input: {
     for (const [index, part] of parts.entries()) {
       const entry = decodeProtocolDirectory(graph.objects.get(hash)!).entries.find(e => e.name === part);
       if (index === parts.length - 1) {
-        if (entry?.page) throw new PageCopy();
+        if (entry?.page) {
+          const bytes = encoder.encode(source), page = parsePage(bytes), stored = graph.objects.get(entry.page);
+          if (!page || !stored || !samePage(page, decodeProtocolPage(stored))) throw Error("Copy source changed or crosses a tree boundary");
+          return {material: {kind: "basis", path, object: entry.page}, range: over(bytes.length - page.body.length)};
+        }
         if (!entry?.file || !graph.objects.has(entry.file) || decoder.decode(graph.objects.get(entry.file)!) !== source) throw Error("Copy source changed or crosses a tree boundary");
-        return {kind: "basis", path, object: entry.file};
+        return {material: {kind: "basis", path, object: entry.file}, range: copy.source};
       }
       if (!entry?.directory) throw Error("Copy source crosses a tree boundary");
       hash = entry.directory;
@@ -235,8 +246,9 @@ export function prepareSourceChange(input: {
     file = ""; bodyStart = 0; addedBody = undefined;
     const root = replace(previousRoot, 0, previousSource, generation.source);
     // A page's body starts after its frontmatter; edits there are stated over
-    // the body, and an edit of the frontmatter or a copy is a snapshot.
-    if (file && bodyStart && (generation.edits.some(e => e.offset < bodyStart || e.lineage?.length || e.copies?.length) ||
+    // the body; anything that touches the frontmatter is a snapshot.
+    if (file && bodyStart && (generation.edits.some(e => e.offset < bodyStart || e.lineage?.some(part => part.source[0] < bodyStart) ||
+        e.copies?.some(copy => !copy.document && copy.source[0] < bodyStart)) ||
         generation.moves?.some(m => m.source[0] < bodyStart || m.anchor[0] < bodyStart))) file = "";
     const shift = (range: [number, number]): [number, number] => [range[0] - bodyStart, range[1] - bodyStart];
     sources.set(root, generation.source);
@@ -254,18 +266,18 @@ export function prepareSourceChange(input: {
       if (!file) return [];
       const key = `edit-${frame}-${i}`;
       if(edit.length===0 && edit.copies?.length===1 && edit.copies[0]!.replacement[0]===0 && edit.copies[0]!.replacement[1]===encoder.encode(edit.replacement).length) {
-        return [{key:`copy-${frame}-${i}-0`,kind:"copySource",source:{material:copyMaterial(edit.copies[0]!, file),range:edit.copies[0]!.source},at:{material:{kind:"basis",path:sourcePath,object:file},range:[edit.offset,edit.offset]},side:"before"} as SourceOperation];
+        return [{key:`copy-${frame}-${i}-0`,kind:"copySource",source:copySource(edit.copies[0]!, file, bodyStart),at:{material:{kind:"basis",path:sourcePath,object:file},range:shift([edit.offset,edit.offset])},side:"before"} as SourceOperation];
       }
-      const operation:SourceOperation = { kind: "editSource", key, source: { material: { kind: "basis", path: sourcePath, object: file }, range: shift([edit.offset, edit.offset + edit.length]) }, text: edit.replacement, ...(edit.lineage ? {lineage: edit.lineage.map(part => ({source: {material: {kind: "basis" as const, path: sourcePath, object: file}, range: part.source}, range: part.replacement}))} : {}) };
+      const operation:SourceOperation = { kind: "editSource", key, source: { material: { kind: "basis", path: sourcePath, object: file }, range: shift([edit.offset, edit.offset + edit.length]) }, text: edit.replacement, ...(edit.lineage ? {lineage: edit.lineage.map(part => ({source: {material: {kind: "basis" as const, path: sourcePath, object: file}, range: shift(part.source)}, range: part.replacement}))} : {}) };
       const result:SourceOperation[]=[operation];
       for(const [j,copy] of (edit.copies??[]).entries()) {
         const target={material:{kind:"operation" as const,change,operation:key},range:copy.replacement};
-        result.push({key:`copy-${frame}-${i}-${j}`,kind:"copySource",source:{material:copyMaterial(copy, file),range:copy.source},at:target,side:"before"});
+        result.push({key:`copy-${frame}-${i}-${j}`,kind:"copySource",source:copySource(copy, file, bodyStart),at:target,side:"before"});
         result.push({key:`copy-placeholder-${frame}-${i}-${j}`,kind:"editSource",source:target,text:""});
       }
       return result;
     })]; } catch (error) {
-      // A copy out of a page is stated by a snapshot until copies address bodies.
+      // A copy out of a page's front matter is stated by a snapshot.
       if (!(error instanceof PageCopy)) throw error;
     }
     // Assigned inside replace(), so read it through its declared type.
