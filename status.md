@@ -15,7 +15,7 @@ in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 ## Protocol 003 flag day — 2026-11-16
 
 **Deployed and verified** on arb.nxhx.org, **released** as Story 0.2.0 (Mac; iPhone TestFlight
-build 2059; npm by Joe) with Quagmire 0.17.0. Joe's go 2026-11-16. One flag day carried:
+build 2059; npm `@ovst/cli` 0.2.0, trusted publishing moved to jxe/overstory) with Quagmire 0.17.0. Joe's go 2026-11-16. One flag day carried:
 
 - **Protocol 003:** file and page entries carry `created`/`modified` (Unix ms), updates carry
   `at`, row times are Unix ms and row dates tagged (data model §6-7, collections §2). Protocol

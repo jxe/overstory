@@ -111,10 +111,10 @@ Built 2026-11-07 ([status](../status.md#trees-at-your-own-domain--2026-11-07)).
 
 ## Releases and publishing
 
-- [ ] **Finish Story 0.2.0, the Protocol 003 release**
-  ([status](../status.md#protocol-003-flag-day--2026-11-16)): run `tools/release.sh 0.2.0 --only
-  npm` in ~/src/arbor (npm code); update your iPhone from TestFlight (build 2059) before opening
-  Story there; have Oliver update both apps. Old apps cannot sync with the host any more.
+- [ ] **Finish moving to Story 0.2.0, the Protocol 003 release**
+  ([status](../status.md#protocol-003-flag-day--2026-11-16)): update your iPhone from TestFlight
+  (build 2059) before opening Story there; have Oliver update both apps. Old apps cannot sync
+  with the host any more.
 - [ ] **After two weeks (from 2026-11-30):** delete `/data/backups/p003-20261116T164035Z` on
   the volume, `.backups/railway/20261116T164035Z` and
   `~/Documents/arbor-rehearsals/games-sandbox-before-p003` on the Mac.
