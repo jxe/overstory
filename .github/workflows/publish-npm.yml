@@ -1,6 +1,7 @@
 # Publishes the story command to npm through npm's trusted publishing: no stored
 # token and no one-time password. tools/release.sh starts it. The name of this
-# file is part of what npm trusts, so renaming it means updating each package there.
+# file and the repository (jxe/overstory) are what npm trusts, so renaming either means updating
+# each package there: @ovst/cli, its four @ovst/cli-<platform> packages and @ovst/usl.
 name: Publish npm
 
 on:

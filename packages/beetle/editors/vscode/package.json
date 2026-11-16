@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "ovst",
   "license": "UNLICENSED",
-  "repository": { "type": "git", "url": "https://github.com/jxe/arbor", "directory": "packages/beetle/editors/vscode" },
+  "repository": { "type": "git", "url": "https://github.com/jxe/overstory", "directory": "packages/beetle/editors/vscode" },
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Programming Languages"],
   "contributes": {

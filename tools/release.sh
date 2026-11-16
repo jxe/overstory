@@ -219,7 +219,7 @@ if wants npm; then
     [ "$npm_run" != "$previous_run" ] && break
     npm_run=
   done
-  [ -n "$npm_run" ] || echo "warning: could not find the npm publish run; see https://github.com/jxe/arbor/actions/workflows/publish-npm.yml" >&2
+  [ -n "$npm_run" ] || echo "warning: could not find the npm publish run; see https://github.com/jxe/overstory/actions/workflows/publish-npm.yml" >&2
 fi
 if wants mac; then
   step "Publishing the GitHub release"

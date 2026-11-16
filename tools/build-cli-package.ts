@@ -41,8 +41,8 @@ async function watcherBinding(name: string, scratch: string): Promise<string> {
 }
 
 const common = {
-  version: source.version, license: "MIT", homepage: "https://github.com/jxe/arbor#readme",
-  repository: { type: "git", url: "git+https://github.com/jxe/arbor.git", directory: "packages/cli" },
+  version: source.version, license: "MIT", homepage: "https://github.com/jxe/overstory#readme",
+  repository: { type: "git", url: "git+https://github.com/jxe/overstory.git", directory: "packages/cli" },
   publishConfig: { access: "public" },
 };
 const platformName = (target: (typeof CLI_TARGETS)[number]) => `${source.name}-${target.os}-${target.cpu}`;
@@ -118,7 +118,7 @@ process.exit(result.status ?? 1);
   await copyFile(join(root, "LICENSE"), join(output, "LICENSE"));
   await writeFile(join(output, "README.md"), `# Story CLI
 
-The \`story\` command for [Overstory](https://github.com/jxe/arbor). It runs on macOS and Linux (arm64 or x64) with Node 18 or newer; Bun is not required.
+The \`story\` command for [Overstory](https://github.com/jxe/overstory). It runs on macOS and Linux (arm64 or x64) with Node 18 or newer; Bun is not required.
 
 \`\`\`sh
 npx @ovst/cli@${source.version} --help

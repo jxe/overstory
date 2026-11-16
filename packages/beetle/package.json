@@ -5,7 +5,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jxe/arbor.git",
+    "url": "git+https://github.com/jxe/overstory.git",
     "directory": "packages/beetle"
   },
   "exports": {
