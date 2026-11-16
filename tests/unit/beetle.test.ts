@@ -379,3 +379,11 @@ describe("beetle editor support", () => {
     expect(markdown.scopeName).toBe("markdown.beetle.codeblock");
   });
 });
+
+test("a page's code version covers its view blocks, not its prose (§6)", async () => {
+  const { codeVersion } = await import("@ovst/beetle");
+  const page = (prose: string) => `# Today\n\n${prose}\n\n\`\`\`view\n<Text>hi</Text>\n\`\`\`\n`;
+  const version = (text: string) => codeVersion(new Map([["/Today.md", text], ["/List.beetle", "view():\n  <Text>x</Text>\n"]]));
+  expect(await version(page("one"))).toBe(await version(page("two")));
+  expect(await version(page("one"))).not.toBe(await version(page("one").replace("hi", "ho")));
+});

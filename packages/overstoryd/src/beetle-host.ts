@@ -10,6 +10,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   BeetleError,
+  codeVersion,
   compileProgram,
   Evaluator,
   isSchemaPath,
@@ -18,6 +19,7 @@ import {
   resolvePath,
   editedLogical,
   OverlayStore,
+  viewBlocks,
   runMutation,
   Store,
   StoreSchema,
@@ -25,8 +27,13 @@ import {
   type WriteStore,
 } from "@ovst/beetle";
 import {
+  CBORTag,
+  canonicalNodePath,
   decodeProtocolDirectory,
   decodeProtocolPage,
+  nodeBodyName,
+  parsePage,
+  resolveProtocolLogicalNode,
   liveViewStream,
   logicalRowKey,
   semanticRequestDigest,
@@ -70,9 +77,17 @@ export class BeetleRefusal extends Error {
 const STATUS: Record<string, number> = { unauthorized: 401, forbidden: 403, missing: 404, invalid: 422, conflict: 409 };
 const refusalOf = (error: BeetleError) => new BeetleRefusal(error.code, error.message, STATUS[error.code] ?? 400);
 
-/** Whether a handle's path names a Beetle file: a `.beetle` file or a page's view blocks. */
+/** Whether a handle's path names a Beetle file as written: a `.beetle` file or a page's view blocks. */
 export function isBeetlePath(path: string): boolean {
   return path.endsWith(".beetle") || path.endsWith(".md");
+}
+
+/** A page property's value as a view reads it: dates as their text. */
+function propertyValue(value: unknown): unknown {
+  if (value instanceof CBORTag) return value.value;
+  if (Array.isArray(value)) return value.map(propertyValue);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, propertyValue(v)]));
+  return value;
 }
 
 /** A bound collection's database as a view or mutation found it. */
@@ -86,6 +101,10 @@ interface Copy {
 /** A file as checked at one root: its program, its code version, and what it read. */
 interface Checked {
   program: Program;
+  /** The file it checked: a `.beetle` file, a page, or a schema. */
+  file: string;
+  /** Whether any file it uses mentions `page`, so the host reads the page only for views that may. */
+  readsPage: boolean;
   /** SHA-256 over the paths and texts of the file and every file it uses (Beetle §6). */
   version: string;
 }
@@ -166,11 +185,28 @@ export class BeetleHost implements AsyncDisposable {
     return undefined;
   }
 
-  /** The file at `path` checked at `root`, with every file it uses read first. */
-  async check(root: ObjectHash, path: string): Promise<Checked> {
-    const key = `${root}\0${path}`;
+  /**
+   * The file a handle's path names: a `.beetle` file, page or schema as written, or a node's
+   * body when the path is a node's (data model §8: `List` is `List.beetle`, and a page wins
+   * over a view at the same place).
+   */
+  async fileAt(root: ObjectHash, path: string): Promise<string | undefined> {
+    if (isBeetlePath(path)) return path;
+    const node = await resolveProtocolLogicalNode(root, path, this.read).catch(() => null);
+    if (!node) return undefined;
+    const at = canonicalNodePath(path), parent = at.slice(0, at.lastIndexOf("/"));
+    if (node.kind === "file") return nodeBodyName(node.objectName) !== null ? `${parent}/${node.objectName}` : undefined;
+    if (!node.bodyName) return undefined;
+    return node.bodyOrigin === "index" ? `${at === "/" ? "" : at}/${node.bodyName}` : `${parent}/${node.bodyName}`;
+  }
+
+  /** The file at `path` (or the body of the node at `path`) checked at `root`, with every file it uses read first. */
+  async check(root: ObjectHash, handlePath: string): Promise<Checked> {
+    const key = `${root}\0${handlePath}`;
     const cached = this.checked.get(key);
     if (cached) return cached;
+    const path = await this.fileAt(root, handlePath);
+    if (path === undefined) throw new BeetleRefusal("not-found", `There is no view at ${handlePath}`, 404);
     const files = new Map<string, string | undefined>();
     const load = async (p: string) => {
       if (!files.has(p)) files.set(p, await this.textAt(root, p));
@@ -203,9 +239,8 @@ export class BeetleHost implements AsyncDisposable {
       const first = program.check.diagnostics[0]!;
       throw new BeetleRefusal("invalid-request", `${first.path ?? path}:${first.line}:${first.column}: ${first.code}: ${first.message}`, 400);
     }
-    const hash = createHash("sha256");
-    for (const p of [...files.keys()].filter((p) => files.get(p) !== undefined).sort()) hash.update(`${p}\0${files.get(p)}\0`);
-    const checked = { program, version: `sha256:${hash.digest("hex")}` };
+    const used = new Map([...files].filter((entry): entry is [string, string] => entry[1] !== undefined));
+    const checked = { program, file: path, version: await codeVersion(used), readsPage: [...used.values()].some((text) => /\bpage\b/.test(text)) };
     this.checked.set(key, checked);
     return checked;
   }
@@ -213,9 +248,10 @@ export class BeetleHost implements AsyncDisposable {
   /** Whether a handle names something Beetle declares: any handle in a `.beetle` file or page, or a schema's view or mutation. */
   async names(tree: string, handle: HandleRef): Promise<boolean> {
     if (isBeetlePath(handle.path) && !isSchemaPath(handle.path)) return true;
-    if (!isSchemaPath(handle.path)) return false;
     const head = this.daemon.currentUpdate(tree);
     if (!head) return false;
+    // A node's path names its body's views when the body is a view or a page.
+    if (!isSchemaPath(handle.path)) return await this.fileAt(head.root as ObjectHash, handle.path) !== undefined;
     try {
       const { program } = await this.check(head.root as ObjectHash, handle.path);
       const declared = program.check.views.some((v) => v.name === handle.name) || program.check.mutations.some((m) => m.name === handle.name);
@@ -242,6 +278,7 @@ export class BeetleHost implements AsyncDisposable {
       if (found?.past) return null;
       if (found) copies.set(schemaPath, { copy: found.database, schemas: found.schemas, path, directory: found.directory, head: found.database.head });
     }
+    const page = await this.pageAt(root, checked);
     // Everything below runs without yielding, so no database changes while the view reads it.
     if ([...copies.values()].some(({ copy, head }) => copy.head !== head)) return null;
     const person = this.personFields(caller, people);
@@ -252,7 +289,7 @@ export class BeetleHost implements AsyncDisposable {
       stores.set(schemaPath, found ? new SQLiteStore(schema, found.copy.database, person) : new Store(schema, {}, person));
     }
     const sources = new Map([...copies].map(([schemaPath, c]) => [schemaPath, { path: c.path, directory: c.directory }]));
-    return { ev: new Evaluator(checked.program, stores, { me, now, person }), sources, copies: new Map(copies) };
+    return { ev: new Evaluator(checked.program, stores, { me, now, person, page }), sources, copies: new Map(copies) };
   }
 
   /** A person's card fields, as the caller may read them. */
@@ -271,6 +308,41 @@ export class BeetleHost implements AsyncDisposable {
   }
 
   // ---------------------------------------------------------------- views
+
+  /**
+   * What `page` is for a view in `file` (Beetle §3.7): the page holding its blocks, or a
+   * `.beetle` file's own node. Its fields are the page's properties with no schema, plus
+   * `name`, and `children` its child nodes read the same way. Null for a schema's views.
+   */
+  private async pageAt(root: ObjectHash, checked: Checked): Promise<Record<string, unknown> | null> {
+    if (!checked.readsPage || isSchemaPath(checked.file)) return null;
+    const path = canonicalNodePath(checked.file);
+    const fields = async (at: string): Promise<Record<string, unknown> | null> => {
+      const node = await resolveProtocolLogicalNode(root, at, this.read).catch(() => null);
+      if (!node) return null;
+      const name = at === "/" ? "" : at.slice(at.lastIndexOf("/") + 1);
+      const bodyName = node.kind === "file" ? node.objectName : node.bodyName;
+      const body = node.kind === "file" ? node.bytes : node.body;
+      const page = body && bodyName?.endsWith(".md") ? parsePage(body) : null;
+      return { ...Object.fromEntries((page?.properties ?? []).map(([key, value]) => [key, propertyValue(value)])), name, node };
+    };
+    const own = await fields(path);
+    if (!own) return null;
+    const { node, ...record } = own as { node: Awaited<ReturnType<typeof resolveProtocolLogicalNode>> } & Record<string, unknown>;
+    const names = new Set<string>();
+    if (node?.kind === "directory") {
+      for (const entry of node.directory.entries) {
+        if (entry.tree || /^_index\.(md|beetle)$/.test(entry.name) || (node.directory.collection && entry.name === "schema.beetle")) continue;
+        names.add(entry.directory ? entry.name : nodeBodyName(entry.name) ?? entry.name);
+      }
+    }
+    const children = [];
+    for (const name of [...names].sort()) {
+      const child = await fields(`${path === "/" ? "" : path}/${name}`);
+      if (child) { const { node: _, ...rest } = child; children.push(rest); }
+    }
+    return { ...record, children };
+  }
 
   /** A stream of Beetle views, kept current as their tree's accepted head moves. */
   stream(request: ViewsRequest, context: { signal: AbortSignal; user: { profile: string } | null; caller?: UpdateCaller }): ReadableStream<ViewEvent> {
@@ -311,6 +383,58 @@ export class BeetleHost implements AsyncDisposable {
         return { code: "unavailable", message: "The view could not be evaluated now", retryable: true };
       },
     });
+  }
+
+  /**
+   * A node's views drawn once for a browser `GET` (reading and watching §4.1, locators §7):
+   * with `view`, that named view of the node's file; else a `.beetle` body's unnamed view, or
+   * what each of a page's view blocks draws (Beetle §3.7). The query string is the input of
+   * the view addressed and of a page's unnamed views. Null when the node has no Beetle to draw.
+   */
+  async draw(tree: string, root: ObjectHash, path: string, query: URLSearchParams, context: { caller?: UpdateCaller; me: string | null }):
+    Promise<{ kind: "data"; value: unknown } | { kind: "view"; tree: unknown[] } | { kind: "blocks"; views: Array<unknown[] | undefined> } | null> {
+    const file = await this.fileAt(root, path);
+    if (!file) return null;
+    const named = query.get("view");
+    const input: Record<string, string | string[]> = {};
+    for (const key of new Set(query.keys())) {
+      if (key === "view") continue;
+      const values = query.getAll(key);
+      input[key] = values.length === 1 ? values[0]! : values;
+    }
+    let blocks: string[] = [];
+    if (named === null && file.endsWith(".md")) {
+      blocks = viewBlocks(await this.textAt(root, file) ?? "").map((block) => block.text);
+      if (!blocks.length) return null;
+    }
+    const checked = await this.check(root, file);
+    let ev: Evaluator | null = null;
+    for (let attempt = 0; !ev; attempt++) {
+      if (attempt === ATTEMPTS) throw new BeetleRefusal("unavailable", "The tree kept changing while the view ran", 503, true);
+      ev = (await this.sqliteEvaluator(tree, root, checked, context.caller, context.me, new Date()))?.ev ?? null;
+    }
+    if (named !== null || file.endsWith(".beetle")) {
+      const name = named ?? "";
+      const decl = ev.declaredView(name);
+      if (!decl) {
+        if (named === null) return { kind: "view", tree: [] };
+        throw new BeetleRefusal("not-found", `${path} has no view ${name}`, 404);
+      }
+      return decl.data ? { kind: "data", value: ev.data(name, input) } : { kind: "view", tree: ev.view(name, input) };
+    }
+    // Each block draws its own element or unnamed view (`#n`, counted across the page), or
+    // its named views without parameters; a block of only declarations draws nothing.
+    let n = 0;
+    const views: Array<unknown[] | undefined> = [];
+    for (const text of blocks) {
+      const drawn: unknown[] = [];
+      for (const { decl } of parseView(text).file.declarations) {
+        if (decl.kind === "element" || (decl.kind === "view" && decl.name === null)) drawn.push(...ev.view(`#${++n}`, input));
+        else if (decl.kind === "view" && decl.name && !decl.params.length && !ev.declaredView(decl.name)?.data) drawn.push(...ev.view(decl.name, {}));
+      }
+      views.push(drawn.length ? drawn : undefined);
+    }
+    return { kind: "blocks", views };
   }
 
   /** Refuse a stream's handles that aren't active before it opens. */

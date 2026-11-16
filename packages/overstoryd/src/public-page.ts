@@ -19,7 +19,13 @@ export interface PublicMarkdownPageOptions {
   /** The page's own public path. With it the page gets a link preview and an Open in Story bar. */
   publicPath?: string;
   storyDownloads?: StoryDownloads;
+  /** What each `view` block draws, in order, as view trees (Beetle §3.7); a block without one shows its code. */
+  views?: Array<ViewTree | undefined>;
 }
+
+/** A view tree as the host evaluates it (reading and watching §4.1): elements and text. */
+export type ViewTree = Array<ViewNode | string>;
+interface ViewNode { type: string; props?: Record<string, unknown>; children?: ViewTree }
 
 export function escapeHTML(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -44,6 +50,45 @@ interface RenderContext {
   /** The tree directory holding the page's Markdown file; its relative links resolve against it. */
   sourceDirectory: string;
   footnotes: Map<string, number>;
+  /** What each `view` block draws, and how many blocks are drawn so far. */
+  views?: Array<ViewTree | undefined>;
+  viewIndex?: number;
+}
+
+/**
+ * A view tree as HTML for a browser: a plain rendering of each element's type, its text
+ * and its links, until Apps 011 writes down the element vocabulary. Nothing runs: a
+ * button shows, but acting on it needs a client.
+ */
+function renderViewTree(tree: ViewTree, context: RenderContext): string {
+  return tree.map((node) => {
+    if (typeof node === "string") return escapeHTML(node);
+    const props = node.props ?? {}, inner = renderViewTree(node.children ?? [], context);
+    const style = typeof props.style === "string" ? ` v-${escapeHTML(props.style)}` : "";
+    const type = escapeHTML(node.type);
+    switch (node.type) {
+      case "Text": return `<p class="v v-Text${style}">${inner}</p>`;
+      case "Link": {
+        const href = typeof props.to === "string" ? linkHref(props.to, context) : null;
+        return href ? `<a class="v v-Link${style}" href="${escapeHTML(href)}">${inner}</a>` : `<span class="v v-Link${style}">${inner}</span>`;
+      }
+      case "Markdown": {
+        const source = typeof props.source === "string" ? props.source : "";
+        return `<div class="v v-Markdown">${renderBlocks(parseMarkdown(source).blocks, context)}</div>`;
+      }
+      case "Image": return typeof props.src === "string" ? `<img class="v v-Image" src="${escapeHTML(props.src)}" alt="${escapeHTML(String(props.alt ?? ""))}">` : "";
+      case "Button": return `<button class="v v-Button${style}" type="button" disabled>${inner}</button>`;
+      case "Portrait": return typeof props.src === "string" && props.src
+        ? `<img class="v v-Portrait" src="${escapeHTML(props.src)}" alt="${escapeHTML(String(props.name ?? ""))}">`
+        : `<span class="v v-Portrait">${escapeHTML(String(props.name ?? ""))}</span>`;
+      default: {
+        // A container's own title and subtitle, then what it holds.
+        const title = typeof props.title === "string" ? `<h2>${escapeHTML(props.title)}</h2>` : "";
+        const subtitle = typeof props.subtitle === "string" ? `<p class="v-secondary">${escapeHTML(props.subtitle)}</p>` : "";
+        return `<div class="v v-${type}${style}">${title}${subtitle}${inner}</div>`;
+      }
+    }
+  }).join("");
 }
 
 function linkHref(raw: string, context: RenderContext): string | null {
@@ -241,6 +286,10 @@ function renderBlocks(blocks: OverstoryBlock[], context: RenderContext): string 
         break;
       case "codeBlock": {
         const language = String(block.props?.language ?? "");
+        // A view block draws where it sits (Beetle §3.7).
+        const drawn = language === "view" && context.views ? context.views[context.viewIndex = (context.viewIndex ?? -1) + 1] : undefined;
+        // The raw tree beside it, until Apps 011's renderer replaces this plain one (Joe, 2026-11-16).
+        if (drawn) { html += `<div class="view-block">${renderViewTree(drawn, context)}<details class="view-json"><summary>View tree</summary><pre>${escapeHTML(JSON.stringify(drawn, null, 2))}</pre></details></div>`; break; }
         html += `<div class="code-block"><div class="code-panel">${language ? `<small>${escapeHTML(language)}</small>` : ""}<pre><code>${escapeHTML(block.content ?? "")}</code></pre></div></div>`;
         break;
       }
@@ -324,6 +373,7 @@ const PUBLIC_STYLES = `
 .story-document :is(ul,ol,details,a.child-page,.callout)+:is(ul,ol,details,a.child-page){margin-top:1px}.story-document :is(ul,ol,details,a.child-page)+.callout{margin-top:1px}.story-document :is(h1,h2,h3,h4,h5,h6)+:is(ul,ol,details,a.child-page,.callout){margin-top:7px}
 .story-bar{display:flex;justify-content:flex-end;gap:16px;padding:12px 20px;font-size:14px}.story-bar a{color:var(--muted);text-decoration:none}.story-bar a:hover{color:var(--fg)}.story-bar a.open-in-story{color:var(--link);font-weight:500}.story-bar .on-phone{display:none}@media(pointer:coarse){.story-bar .on-desktop{display:none}.story-bar .on-phone{display:inline}}
 .data-properties{margin:28px 0 0}.data-properties>div{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr);gap:24px;padding:10px 0;border-top:1px solid var(--border)}.data-properties dt{color:var(--muted);font-size:14px}.data-properties dd{min-width:0;margin:0;overflow-wrap:anywhere}.data-properties pre{margin:0;overflow:auto;white-space:pre-wrap}.data-properties code{padding:0;background:none;color:var(--fg)}
+.view-block{margin:8px 0}.view-json{margin-top:8px;color:var(--muted);font-size:13px}.view-json pre{margin:4px 0 0;padding:8px 12px;overflow:auto;border-radius:6px;background:var(--code-panel);font:400 12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.v-Column,.v-Stack,.v-Card{display:flex;flex-direction:column;gap:6px}.v-Row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}.v-Card{padding:12px 16px;border:1px solid var(--border);border-radius:8px}.v-heading{font-weight:600;font-size:18px}.v-secondary{color:var(--muted)}.v.v-Text{margin:0;padding:0}.v-Button{font:inherit;padding:2px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg)}
 @media(max-width:760px){.public-page{width:auto;max-width:none;margin:42px 20px 72px}.data-properties>div{grid-template-columns:1fr;gap:3px}}
 `;
 
@@ -335,6 +385,7 @@ export function renderPublicMarkdownPage(options: PublicMarkdownPageOptions): st
     treeCanonicalPath: options.treeCanonicalPath,
     sourceDirectory: options.sourceDirectory,
     footnotes: collectFootnotes(document.blocks),
+    ...(options.views ? { views: options.views } : {}),
   };
   // Presented headings (directory format §4.1): a page whose body does not
   // begin with an H1 opens with its name, hyphens shown as spaces, and

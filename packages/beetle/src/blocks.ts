@@ -76,3 +76,19 @@ export function formatPage(markdown: string, format: (text: string) => string): 
   }
   return lines.join("\n");
 }
+
+/**
+ * A file's code version (Beetle §6): SHA-256 over the paths and texts of the file and
+ * every file it uses, in path order. A `.beetle` file's text is its bytes; a page's is
+ * its view blocks' texts in order, each ended by a newline, so prose edits change nothing.
+ */
+export async function codeVersion(files: ReadonlyMap<string, string>): Promise<string> {
+  const encoder = new TextEncoder();
+  const parts: string[] = [];
+  for (const path of [...files.keys()].sort()) {
+    const text = files.get(path)!;
+    parts.push(`${path}\0${path.endsWith(".md") ? viewBlocks(text).map((block) => `${block.text}\n`).join("") : text}\0`);
+  }
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(parts.join(""))));
+  return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}

@@ -142,11 +142,11 @@ Left: the host refuses Markdown file entries that read as pages.
 **[Release 003: the iPhone app on the App Store](soon/release-003-app-store.md).** So Story can be found without a TestFlight invitation. A sketch of what review requires: account deletion, report
 and block, and policy pages. The sample pages are the reviewer's way in.
 
-**[Apps 015: Beetle on the host: views as nodes, view blocks, every tree](soon/apps-015-beetle-on-the-host.md).**
-Beetle views and mutations run on the host
-([status](../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). Left, host
-and TypeScript only: `.beetle` files as nodes and pages' view blocks, Beetle for every tree,
-HTML for a browser, and loose ends.
+**[Apps 015: Beetle on the host: loose ends](soon/apps-015-beetle-on-the-host.md).**
+Beetle views and mutations run on the host for every tree, at their nodes' addresses, with
+pages' view blocks and a plain browser rendering
+([status](../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). Left:
+a same-millisecond row edit, and collections in another tree.
 
 **[Apps 019: Beetle in Story](soon/apps-019-beetle-in-story.md).** Story's side of Beetle, with
 the rest of Apps 012 folded in: the `rows` answer, a Swift evaluator, collections drawn from

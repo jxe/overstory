@@ -6,7 +6,8 @@ import { HOST_PROTOCOL, decodePresenceAgentLabel, decodePresenceDevice, decodePr
 import { isCollectionSchemaName, decodePathReadPath, encodePathReadPath, encodePathReadBundle, WIRE_CONTENT_TYPE, acceptsCBOR, decodeWireBody, encodeWireBody, wireEncodingOf, type TreeSnapshot, type WireEncoding } from "@ovst/protocol";
 import type { LocatorResolution, MutationCallRuntime, ViewsRuntime, ReadWriteAccess, RemoteTreeDescriptor } from "@ovst/protocol";
 import { treeMutationResponse, treeViewsResponse } from "./view-routes.ts";
-import { BeetleHost, type BeetleHostOptions } from "./beetle-host.ts";
+import { BeetleHost, BeetleRefusal, type BeetleHostOptions } from "./beetle-host.ts";
+import { BeetleError } from "@ovst/beetle";
 import {
   HostDaemon,
   type HostAccount,
@@ -29,8 +30,9 @@ import {
   type ObjectHash,
   type RemoteAccountDescriptor,
   type RemotePlacementAccountDescriptor,
+  nodeBodyName,
 } from "@ovst/protocol";
-import { escapeHTML, publicTreePath, renderNoticePage, renderPublicDataPage, renderPublicMarkdownPage, renderReservedPage, RESERVED_PAGE_SCRIPT, PAGE_ASSETS, type PublicPageChild, type StoryDownloads } from "./public-page.ts";
+import { escapeHTML, publicTreePath, renderNoticePage, renderPublicDataPage, renderPublicMarkdownPage, renderReservedPage, RESERVED_PAGE_SCRIPT, PAGE_ASSETS, type PublicPageChild, type StoryDownloads, type ViewTree } from "./public-page.ts";
 import { ProtocolProjection, protocolCollectionRowMarkdown, protocolCollectionRowTitle, type ProtocolCollectionRow } from "./projection.ts";
 import { buildDirectory } from "./directory.ts";
 import { DOMAIN_CHECK_PATH, domainOrigin, type CustomDomains } from "./custom-domains.ts";
@@ -1179,6 +1181,29 @@ export async function serveHost(options: {
           if (!logical) return pageNotFound();
 
           const objectName = logical.objectName || canonicalPath.split("/").at(-1) || "Overstory";
+          // A view, a page's view blocks or `?view=Name`, drawn once for a browser (reading
+          // and watching §4.1); a Markdown read still gets the source.
+          let views: Array<ViewTree | undefined> | undefined;
+          if (!request.headers.get("accept")?.includes("text/markdown")) {
+            let drawn: Awaited<ReturnType<typeof beetle.draw>>;
+            try {
+              drawn = await beetle.draw(tree.id, tree.ref as ObjectHash, logicalPath, url.searchParams,
+                { caller: { account, ...(link ? { linkDigest: link } : {}), ...(authentication ? { authentication } : {}) }, me: account?.id ?? null });
+            } catch (error) {
+              if (!(error instanceof BeetleRefusal) && !(error instanceof BeetleError)) throw error;
+              const status = error instanceof BeetleRefusal ? error.status : 422;
+              return html(renderNoticePage("View not shown", `<h1>This view can't be shown</h1><p>${escapeHTML(error.message)}</p>`), status);
+            }
+            if (drawn?.kind === "data") return new Response(JSON.stringify(drawn.value), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+            if (drawn?.kind === "view") {
+              const name = logicalPath.split("/").filter(Boolean).at(-1) ?? overstoryd.communityHandle();
+              return html(renderPublicMarkdownPage({
+                source: "```view\n```\n", views: [drawn.tree as ViewTree], fallbackTitle: url.searchParams.get("view") ?? name, origin: shownOrigin,
+                treeCanonicalPath: shown(canonicalPath), sourceDirectory: markdownSourceDirectory(logicalPath, "sibling"), publicPath, storyDownloads: options.storyDownloads,
+              }));
+            }
+            if (drawn?.kind === "blocks") views = drawn.views as Array<ViewTree | undefined>;
+          }
           if (logical.kind === "file") {
             if (objectName.endsWith(".md")) {
               if (request.headers.get("accept")?.includes("text/markdown")) {
@@ -1195,6 +1220,7 @@ export async function serveHost(options: {
                 sourceDirectory: markdownSourceDirectory(logicalPath, "sibling"),
                 publicPath,
                 storyDownloads: options.storyDownloads,
+                views,
               }));
             }
             // A tree's raw file: an inert image or text type is shown, and
@@ -1212,14 +1238,16 @@ export async function serveHost(options: {
           const collectionTables = await projection.collectionTables(logical.directory, logicalPath);
           const physicalChildren = (await Promise.all(logical.directory.entries
             // A collection's schema is its contract, not one of its children.
-            .filter((entry) => entry.name !== "_index.md" && !(logical.directory.collection && isCollectionSchemaName(entry.name)))
+            .filter((entry) => entry.name !== "_index.md" && entry.name !== "_index.beetle" && !(logical.directory.collection && isCollectionSchemaName(entry.name)))
             .map(async (entry): Promise<PublicPageChild | null> => {
               if (entry.tree) {
                 const nested = overstoryd.get(entry.tree);
                 if (!nested || !overstoryd.canRead(account, nested, link)) return null;
               }
-              const markdown = (entry.file ?? entry.page) !== undefined && entry.name.endsWith(".md");
-              const publicName = markdown ? entry.name.slice(0, -3) : entry.name;
+              // A page or a view (`x.beetle`) is the body of node `x` (data model §8).
+              const body = (entry.file ?? entry.page) !== undefined ? nodeBodyName(entry.name) : null;
+              const markdown = body !== null;
+              const publicName = body ?? entry.name;
               return {
                 name: publicName,
                 href: `${prefix}/${encodeURIComponent(publicName)}${url.search}`,
@@ -1243,6 +1271,7 @@ export async function serveHost(options: {
             children,
             publicPath,
             storyDownloads: options.storyDownloads,
+            views,
           }));
         }
         return protocolError("not-found", "Route not found", 404);

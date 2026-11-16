@@ -1,9 +1,10 @@
-# Apps 015: Beetle on the host: views as nodes, view blocks, every tree
+# Apps 015: Beetle on the host: loose ends
 
 **Why and when:** Joe decided on 2026-11-11 that views and mutations are written in Beetle,
 in `.beetle` files and pages' `view` blocks, and that TypeScript support for both goes. The
 parser, checker, host evaluator, mutations and the Supplies port are deployed, and the host
-runs Beetle for every tree (2026-11-16)
+runs Beetle for every tree, serves views at their nodes' addresses and pages' view blocks,
+and draws them for a browser (2026-11-16)
 ([status](../../status.md#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)). This
 plan is the host and TypeScript work left. Story's side (the Swift evaluator, view blocks
 drawn in pages, highlighting, the `rows` answer it reads) is
@@ -17,32 +18,10 @@ The spec describes the target: [Beetle](../../docs/overstory-spec/1.5-beetle.md)
 
 ## Status
 
-**PLANNED · M effort · low risk.** Host and TypeScript only; nothing here needs a Story
+**PLANNED · S effort · low risk.** Host and TypeScript only; nothing here needs a Story
 release.
 
-## 1. Views as nodes, and view blocks served by the host
-
-Joe decided on 2026-11-11 that a `.beetle` file is a node's body, like a `.md` file, so
-`List.beetle` answers at `List`, and that pages may hold fenced `view` blocks
-([§3.6](../../docs/overstory-spec/1.5-beetle.md#36-beetle-files),
-[§3.7](../../docs/overstory-spec/1.5-beetle.md#37-view-blocks-in-pages)).
-
-- Node mapping in `packages/protocol` (pages and path reads): `x.beetle` and
-  `x/_index.beetle` supply node `x`; `x.md` beside `x.beetle` reports
-  `duplicate-node-representation` and reads the Markdown. Conformance vectors for the new
-  spellings, so Apps 019 can port them to Swift.
-- A page's view blocks as one source on the host: code version over the blocks' text only,
-  `page` (properties, `name`, `children`), unnamed views addressed internally as `#n`, named
-  ones as `Page?view=Name`.
-- A view block's unnamed view receives its page's query string.
-
-## 2. HTML for a browser
-
-- `GET` of a `.beetle` file (or a page with view blocks) from a browser renders its view tree
-  as HTML, using the same element vocabulary Apps 011 writes down. Until that vocabulary
-  exists, a plain fallback rendering of `{type, props, children}`.
-
-## 3. Loose ends
+## Loose ends
 
 - A row created and edited in the same millisecond: its `modified` can't move, so the diff
   refuses it. Check whether Protocol 003's times still allow this, and fix it if they do.

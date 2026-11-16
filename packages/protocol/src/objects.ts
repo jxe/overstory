@@ -137,8 +137,32 @@ export type ResolvedProtocolLogicalNode = (
   objectName: string;
   body?: Uint8Array;
   bodyOrigin?: "sibling" | "index";
+  /** The entry name the body was read from (`_index.md`, `x.beetle`, …): a `.beetle` body is a view. */
+  bodyName?: string;
   shadowedBody: boolean;
+  /** A page and a view (or a file and a body) both claim the node; it reads its Markdown (data model §8). */
+  duplicateRepresentation?: true;
 };
+
+/** The extensions of a node's body, in precedence order: a page, then a view (data model §8). */
+export const NODE_BODY_EXTENSIONS = [".md", ".beetle"] as const;
+
+/** The node name a body entry supplies (`x.md`, `x.beetle` → `x`), or null when the entry isn't a body. */
+export function nodeBodyName(name: string): string | null {
+  for (const extension of NODE_BODY_EXTENSIONS) if (name.endsWith(extension) && name.length > extension.length) return name.slice(0, -extension.length);
+  return null;
+}
+
+/** Whether a body entry is a view (`.beetle`) rather than a page. */
+export function isViewBodyName(name: string): boolean {
+  return name.endsWith(".beetle");
+}
+
+/** The body entries of node `name` in a directory, Markdown first; `schema.beetle` in a collection's folder is its schema, not a body. */
+function bodyEntries(directory: ProtocolDirectory, name: string): ProtocolDirectoryEntry[] {
+  return NODE_BODY_EXTENSIONS.flatMap((extension) => directory.entries.filter((entry) => entry.name === `${name}${extension}`
+    && !(directory.collection && entry.name === "schema.beetle")));
+}
 
 export interface TreeSnapshot {
   root: ObjectHash;
@@ -503,33 +527,38 @@ export async function loadProtocolContent(entry: ProtocolDirectoryEntry, load: (
   return loadVerified(entry.file!, load);
 }
 
-async function directoryBody(directory: ProtocolDirectory, sibling: ProtocolDirectoryEntry | undefined, load: (hash: ObjectHash) => Promise<Uint8Array>): Promise<Pick<ResolvedProtocolLogicalNode, "body" | "bodyOrigin" | "shadowedBody">> {
-  const index = directory.entries.find((entry) => entry.name === "_index.md");
+async function directoryBody(directory: ProtocolDirectory, siblings: ProtocolDirectoryEntry[], load: (hash: ObjectHash) => Promise<Uint8Array>): Promise<Pick<ResolvedProtocolLogicalNode, "body" | "bodyOrigin" | "bodyName" | "shadowedBody" | "duplicateRepresentation">> {
+  const indexes = bodyEntries(directory, "_index");
   const content = (entry: ProtocolDirectoryEntry | undefined) => !!protocolContentObject(entry);
-  if (index && !content(index)) throw new Error("Directory _index.md body must be a file or page");
-  if (sibling && !content(sibling)) throw new Error("Sibling Markdown body must be a file or page");
-  if (index) return { body: await loadProtocolContent(index, load), bodyOrigin: "index", shadowedBody: !!sibling };
-  if (sibling) return { body: await loadProtocolContent(sibling, load), bodyOrigin: "sibling", shadowedBody: false };
+  if (indexes.some((index) => !content(index))) throw new Error("Directory _index body must be a file or page");
+  if (siblings.some((sibling) => !content(sibling))) throw new Error("Sibling body must be a file or page");
+  const index = indexes[0], sibling = siblings[0];
+  const duplicate = (indexes.length > 1 || (!index && siblings.length > 1)) ? { duplicateRepresentation: true as const } : {};
+  if (index) return { body: await loadProtocolContent(index, load), bodyOrigin: "index", bodyName: index.name, shadowedBody: !!sibling, ...duplicate };
+  if (sibling) return { body: await loadProtocolContent(sibling, load), bodyOrigin: "sibling", bodyName: sibling.name, shadowedBody: false, ...duplicate };
   return { shadowedBody: false };
 }
 
-/** Resolve an extensionless logical path; _index.md takes precedence over a sibling body. */
+/** Resolve an extensionless logical path (data model §8): `_index.md` takes precedence over a
+ * sibling body, and a page over a view (`x.beetle`, `x/_index.beetle`) at the same place. */
 export async function resolveProtocolLogicalNode(root: ObjectHash, path: string, load: (hash: ObjectHash) => Promise<Uint8Array>): Promise<ResolvedProtocolLogicalNode | null> {
   const parts = path.split("/").filter(Boolean);
   let directory = decodeProtocolDirectory(await loadVerified(root, load));
-  if (!parts.length) return { kind: "directory", directory, objectName: "", ...await directoryBody(directory, undefined, load) };
+  if (!parts.length) return { kind: "directory", directory, objectName: "", ...await directoryBody(directory, [], load) };
   for (const [index, part] of parts.entries()) {
     const exact = directory.entries.find((entry) => entry.name === part);
-    const sibling = directory.entries.find((entry) => entry.name === `${part}.md`);
+    const siblings = bodyEntries(directory, part);
     const last = index === parts.length - 1;
     if (exact?.tree) return null;
     if (exact?.directory) {
       directory = decodeProtocolDirectory(await loadVerified(exact.directory, load));
-      if (last) return { kind: "directory", directory, objectName: exact.name, ...await directoryBody(directory, sibling, load) };
+      if (last) return { kind: "directory", directory, objectName: exact.name, ...await directoryBody(directory, siblings, load) };
     } else if (exact && protocolContentObject(exact)) {
-      return last ? { kind: "file", bytes: await loadProtocolContent(exact, load), objectName: exact.name, shadowedBody: false } : null;
+      // A file named `x` beside a body `x.md` or `x.beetle`: the file reads, and both claim the node.
+      return last ? { kind: "file", bytes: await loadProtocolContent(exact, load), objectName: exact.name, shadowedBody: false, ...(siblings.length ? { duplicateRepresentation: true as const } : {}) } : null;
     } else {
-      return last && sibling && protocolContentObject(sibling) ? { kind: "file", bytes: await loadProtocolContent(sibling, load), objectName: sibling.name, shadowedBody: false } : null;
+      const sibling = siblings[0];
+      return last && sibling && protocolContentObject(sibling) ? { kind: "file", bytes: await loadProtocolContent(sibling, load), objectName: sibling.name, shadowedBody: false, ...(siblings.length > 1 ? { duplicateRepresentation: true as const } : {}) } : null;
     }
   }
   return null;

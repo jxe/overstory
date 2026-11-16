@@ -13,9 +13,14 @@ export function normalizeTreePath(input: string): string {
 /** Canonical browser/API identity for x.md, x/, or x/_index.md. */
 export function canonicalNodePath(input: string): string {
   const path = normalizeTreePath(input);
-  if (path === "/_index.md") return "/";
-  if (path.endsWith("/_index.md")) return path.slice(0, -"/_index.md".length) || "/";
-  if (path.endsWith(".md")) return path.slice(0, -3) || "/";
+  // A body (a page, or a view: data model §8) names its node; a collection's
+  // `schema.beetle` is a file of its folder, not a body.
+  for (const extension of [".md", ".beetle"]) {
+    if (extension === ".beetle" && path.endsWith("/schema.beetle")) return path;
+    if (path === `/_index${extension}`) return "/";
+    if (path.endsWith(`/_index${extension}`)) return path.slice(0, -`/_index${extension}`.length) || "/";
+    if (path.endsWith(extension)) return path.slice(0, -extension.length) || "/";
+  }
   return path;
 }
 

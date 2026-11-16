@@ -8,7 +8,7 @@ import { entryText } from "../helpers/entry-text.ts";
 // handle with another code version is refused.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -44,6 +44,10 @@ beforeAll(async () => {
     await cp(join(EXAMPLES, name), join(folder, "supplies", name), { recursive: true });
   }
   for (const name of ["schema.beetle", "_store.sqlite3"]) await cp(join(EXAMPLES, "data", name), join(folder, "supplies", "data", name));
+  // A page with a view block that reads its page, and two children.
+  await mkdir(join(folder, "supplies", "Today"), { recursive: true });
+  await writeFile(join(folder, "supplies", "Today.md"), "---\ntitle: Today's lists\n---\n# Today\n\n```view\n<Text>{page.title}: {count(page.children)}</Text>\n```\n");
+  for (const name of ["a", "b"]) await writeFile(join(folder, "supplies", "Today", `${name}.md`), `---\ndone: true\n---\n# ${name}\n`);
   host = await serveHost({
     dataRoot, accounts: [testAccount("owner", token, { communityWriter: true })],
     publicOrigin: "http://127.0.0.1:0", hostname: "127.0.0.1", port: 0,
@@ -295,6 +299,44 @@ describe.serial("Beetle on the host", () => {
       // It read the collection's database on the host.
       expect(existsSync(join(dataRoot, "collections", tree, encodeURIComponent("/supplies/data"), "_store.sqlite3"))).toBe(true);
     } finally { controller.abort(); }
+  }, 30_000);
+
+  test("a view's node path names its .beetle file, and a page's unnamed view block reads its page", async () => {
+    const head = host.overstoryd.currentUpdate(tree)!;
+    // `List` is the view `List.beetle` supplies (data model §8), at one code version.
+    expect((await host.beetle!.check(head.root as ObjectHash, "/supplies/List")).version).toBe((await handle("/supplies/List.beetle")).version);
+    const controller = new AbortController();
+    try {
+      const response = await requestViews(controller, [
+        { id: "list", handle: await handle("/supplies/List"), input: { id: LIST } },
+        { id: "today", handle: await handle("/supplies/Today", "#1"), input: {} },
+      ]);
+      expect(response.status).toBe(200);
+      const stream = events(response);
+      const results = new Map<string, any>();
+      while (results.size < 2) { const result = await nextResult(stream); results.set(result.id, result); }
+      expect(results.get("list").error).toBeUndefined();
+      expect(results.get("today").error).toBeUndefined();
+      expect(nodes(results.get("today").value)[0].children.join("")).toBe("Today's lists: 2");
+    } finally { controller.abort(); }
+  }, 30_000);
+
+  test("a browser gets a view, a page's view blocks and a data view as HTML or JSON", async () => {
+    const base = `${host.url}${host.overstoryd.get(tree)!.canonicalPath!}`.replace(/\/$/, "");
+    const session = await deviceSession(host.url, token);
+    const get = (path: string) => fetch(`${base}${path}`, { headers: { accept: "text/html", authorization: `Bearer ${session}` } });
+    const page = await get("/supplies/Today");
+    expect(page.status).toBe(200);
+    const text = await page.text();
+    expect(text).toContain("Today&#39;s lists: 2".replace("&#39;", "'"));
+    expect(text).not.toContain("count(page.children)");
+    const list = await get(`/supplies/List?id=${LIST}`);
+    expect(list.status).toBe(200);
+    expect(await list.text()).toContain('class="v v-');
+    const data = await get("/supplies/Feeds?view=ListsByOwner&owner=tr_aaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(data.headers.get("content-type")).toContain("application/json");
+    expect((await data.json() as any).lists.length).toBe(2);
+    expect((await get("/supplies/Feeds?view=Nowhere")).status).toBe(404);
   }, 30_000);
 
   test("a handle with another code version, or a view the file doesn't declare, is refused", async () => {

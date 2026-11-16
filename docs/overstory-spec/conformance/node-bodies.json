@@ -1,0 +1,46 @@
+{
+  "version": "node-bodies-v1",
+  "about": "Which entry supplies a node's body (data model §8): `_index` before a sibling, a page (`.md`) before a view (`.beetle`), and a collection's `schema.beetle` is never a body. `tree` lists a root directory's entries: a string value is a file or page body's text (a name ending in .md is a page), an object is a directory (`collection: true` makes it a collection's folder). `nodes` gives, for a logical path, the entry the node reads and its diagnostics, or null when no node is there. `canonical` gives a spelling's node path.",
+  "tree": {
+    "Drafts.beetle": "view():\n  <Text>drafts</Text>\n",
+    "Today.md": "# Today\n",
+    "Today.beetle": "view():\n  <Text>today</Text>\n",
+    "Both": {
+      "_index.md": "# Both\n",
+      "_index.beetle": "view():\n  <Text>both</Text>\n"
+    },
+    "Lists": {
+      "_index.beetle": "view():\n  <Text>lists</Text>\n",
+      "Weekly.md": "# Weekly\n"
+    },
+    "Lists.md": "# Lists beside\n",
+    "Notes": {
+      "Inbox.md": "# Inbox\n"
+    },
+    "Notes.beetle": "view():\n  <Text>notes</Text>\n",
+    "photo": "bytes",
+    "photo.beetle": "view():\n  <Text>photo</Text>\n",
+    "data": {
+      "collection": true,
+      "schema.beetle": "main table Item:\n  name Text\n"
+    }
+  },
+  "nodes": [
+    { "path": "/Drafts", "kind": "file", "objectName": "Drafts.beetle", "diagnostics": [] },
+    { "path": "/Today", "kind": "file", "objectName": "Today.md", "diagnostics": ["duplicate-node-representation"] },
+    { "path": "/Both", "kind": "directory", "bodyName": "_index.md", "bodyOrigin": "index", "diagnostics": ["duplicate-node-representation"] },
+    { "path": "/Lists", "kind": "directory", "bodyName": "_index.beetle", "bodyOrigin": "index", "diagnostics": ["shadowed-body"] },
+    { "path": "/Notes", "kind": "directory", "bodyName": "Notes.beetle", "bodyOrigin": "sibling", "diagnostics": [] },
+    { "path": "/photo", "kind": "file", "objectName": "photo", "diagnostics": ["duplicate-node-representation"] },
+    { "path": "/data", "kind": "directory", "diagnostics": [] },
+    { "path": "/data/schema", "node": null }
+  ],
+  "canonical": [
+    { "spelling": "/Drafts.beetle", "node": "/Drafts" },
+    { "spelling": "/Lists/_index.beetle", "node": "/Lists" },
+    { "spelling": "/_index.beetle", "node": "/" },
+    { "spelling": "/Today.md", "node": "/Today" },
+    { "spelling": "/data/schema.beetle", "node": "/data/schema.beetle" },
+    { "spelling": "/photo.bin", "node": "/photo.bin" }
+  ]
+}

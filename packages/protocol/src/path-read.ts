@@ -20,7 +20,7 @@ export interface PathReadRow {
  * loopback) and every consumer, so it lives here once.
  */
 
-const INDEX_NAMES = ["_index.md"] as const;
+const INDEX_NAMES = ["_index.md", "_index.beetle"] as const;
 
 /** Whether an entry addresses an object (rather than a nested tree's boundary). */
 function entryObject(entry: ProtocolDirectoryEntry): { hash: ObjectHash; directory: boolean } | null {
@@ -33,19 +33,19 @@ function entryObject(entry: ProtocolDirectoryEntry): { hash: ObjectHash; directo
 /** The path's components as the walk follows them; `/` has none. */
 export function pathReadComponents(path: string): string[] {
   const normalized = normalizeTreePath(path);
-  // `x.md`, `x/` and `x/_index.md` are spellings of node `x` (locators §2);
-  // a literal file such as `photo.bin` stays as it is.
-  const node = /(?:^|\/)_index\.md$|\.md$/.test(normalized) ? canonicalNodePath(normalized) : normalized;
+  // `x.md`, `x.beetle`, `x/` and `x/_index.md` are spellings of node `x`
+  // (locators §2); a literal file such as `photo.bin` stays as it is.
+  const node = /\.(?:md|beetle)$/.test(normalized) ? canonicalNodePath(normalized) : normalized;
   return node.split("/").filter(Boolean);
 }
 
 /**
  * The entries of `directory` that the last component `name` names: an entry
- * of that exact name, and the page body of node `name` (`name.md`). A
- * directory named `name` brings its own index page too.
+ * of that exact name, and the bodies of node `name` (`name.md`, `name.beetle`).
+ * A directory named `name` brings its own index bodies too.
  */
 function namedEntries(directory: ProtocolDirectory, name: string): ProtocolDirectoryEntry[] {
-  const names = new Set([name, `${name}.md`]);
+  const names = new Set([name, `${name}.md`, `${name}.beetle`]);
   return directory.entries.filter((entry) => names.has(entry.name));
 }
 
@@ -59,8 +59,8 @@ function indexEntries(directory: ProtocolDirectory): ProtocolDirectoryEntry[] {
  * - every directory from the root down to the path's parent, as far as the
  *   path exists;
  * - for the last component, the objects of the entries it names (exact name,
- *   `.md`), and when one of them is a directory, that directory's
- *   index page;
+ *   `.md`, `.beetle`), and when one of them is a directory, that directory's
+ *   index bodies;
  * - for `/`, the root directory and its index page.
  *
  * A missing component or a nested tree's boundary ends the walk: the bundle

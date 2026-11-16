@@ -55,7 +55,8 @@ after.
 ## 4. Views as nodes and view blocks in Story
 
 - Swift node mapping (`ProtocolPage`, `ProtocolPathRead`): `x.beetle` and `x/_index.beetle`
-  supply node `x`, from the conformance vectors Apps 015 step 1 adds.
+  supply node `x`, from `docs/overstory-spec/conformance/node-bodies.json`; a page's code version covers its view
+  blocks only (`codeVersion` in `@ovst/beetle`).
 - Story draws a page's view blocks in place, and shows the source while editing.
 
 ## 5. Highlighting

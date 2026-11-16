@@ -5,7 +5,7 @@
 export * from "./ast.ts";
 export { parseView, ViewSyntaxError, COMPREHENSION_FUNCTIONS, type ParseResult } from "./parse.ts";
 export { formatView, FormatError } from "./fmt.ts";
-export { viewBlocks, pageSource, formatPage, type ViewBlock, type PageSource } from "./blocks.ts";
+export { viewBlocks, pageSource, formatPage, codeVersion, type ViewBlock, type PageSource } from "./blocks.ts";
 export { compileSchema, uslFileOf, type SchemaResult } from "./schema.ts";
 export {
   checkView,

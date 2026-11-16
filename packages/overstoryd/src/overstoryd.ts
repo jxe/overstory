@@ -818,7 +818,7 @@ export class HostDaemon implements AsyncDisposable {
     const components = pathReadComponents(path);
     let directory = decodeProtocolDirectory(await read(root));
     for (const [index, component] of components.entries()) {
-      const entry = directory.entries.find((e) => e.name === component || e.name === `${component}.md`);
+      const entry = directory.entries.find((e) => e.name === component || e.name === `${component}.md` || e.name === `${component}.beetle`);
       if (entry?.directory && entry.name === component) { directory = decodeProtocolDirectory(await read(entry.directory)); continue; }
       if (entry || !directory.collection) return { objects };
       const rest = components.slice(index);

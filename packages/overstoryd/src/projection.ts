@@ -53,7 +53,8 @@ export type ProtocolResolution =
 /** A Markdown document's frontmatter `id` is its stable key; a directory's is
  * its body's. Other files carry none. */
 function protocolNodeStableKey(node: ResolvedProtocolLogicalNode): string | null {
-  const file = node.kind === "file" ? isMarkdownName(node.objectName) ? node.bytes : undefined : node.body;
+  const file = node.kind === "file" ? isMarkdownName(node.objectName) ? node.bytes : undefined
+    : node.bodyName && isMarkdownName(node.bodyName) ? node.body : undefined;
   if (!file) return null;
   const id = parseMarkdown(new TextDecoder().decode(file)).frontmatter.id;
   return isPageID(id) ? markdownStableKey(id) : null;
@@ -145,8 +146,8 @@ export class ProtocolProjection {
       if (index && !protocolContentObject(index)) throw new Error("Directory _index.md body must be a file or page");
       if (sibling && !protocolContentObject(sibling)) throw new Error("Sibling Markdown body must be a file or page");
       const node = { kind: "directory" as const, directory, objectName };
-      if (index) return { ...node, body: await loadProtocolContent(index, load), bodyOrigin: "index", shadowedBody: !!sibling };
-      if (sibling) return { ...node, body: await loadProtocolContent(sibling, load), bodyOrigin: "sibling", shadowedBody: false };
+      if (index) return { ...node, body: await loadProtocolContent(index, load), bodyOrigin: "index", bodyName: index.name, shadowedBody: !!sibling };
+      if (sibling) return { ...node, body: await loadProtocolContent(sibling, load), bodyOrigin: "sibling", bodyName: sibling.name, shadowedBody: false };
       return { ...node, shadowedBody: false };
     };
     const root = await directoryNode(decodeProtocolDirectory(await load(this.options.root)), "");
@@ -159,7 +160,8 @@ export class ProtocolProjection {
         .filter((entry) => !entry.tree && (entry.file ?? entry.page ?? entry.directory) && entry.name !== "_index.md" && !isMarkdownName(entry.name))
         .map((entry) => entry.name));
       for (const entry of directory.entries) {
-        if (entry.tree || !(entry.file ?? entry.page ?? entry.directory) || entry.name === "_index.md") continue;
+        // A view (`x.beetle`) carries no stable key; its node's directory, if any, is still visited.
+        if (entry.tree || !(entry.file ?? entry.page ?? entry.directory) || entry.name === "_index.md" || entry.name.endsWith(".beetle")) continue;
         const name = isMarkdownName(entry.name) ? entry.name.slice(0, -3) : entry.name;
         if (isMarkdownName(entry.name) && directories.has(name)) continue;
         const childPath = canonicalNodePath(`${path === "/" ? "" : path}/${name}`);

@@ -129,7 +129,13 @@ rows hash (collections §1, data model §5).
 
 **Deployed** with the Protocol 003 flag day on 2026-11-16 (built 2026-11-11 to 2026-11-12 on
 branch `claude/project-thread-kn7ley`). Since 2026-11-16 (Apps 015 step 2) the host runs
-Beetle for every tree, and `OVERSTORYD_BEETLE` is gone. What is left is in
+Beetle for every tree, and `OVERSTORYD_BEETLE` is gone. Also since 2026-11-16: views are nodes
+(`x.beetle`, `x/_index.beetle` supply node `x`; a page wins, reporting
+`duplicate-node-representation`; vectors `conformance/node-bodies.json`), handles may name a
+node's path, a page's view blocks get `page` (properties, `name`, `children`) and `#n`, a
+page's code version covers only its view blocks, and a browser `GET` draws a view, a page's
+view blocks or `?view=Name` as plain HTML with the raw view tree beside it (a data view answers
+JSON) until Apps 011's renderer. What is left is in
 [Apps 015](plans/soon/apps-015-beetle-on-the-host.md) (host) and
 [Apps 019](plans/soon/apps-019-beetle-in-story.md) (Story).
 
