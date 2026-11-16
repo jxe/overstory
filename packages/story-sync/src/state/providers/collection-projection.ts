@@ -351,6 +351,16 @@ function owningRows(logical: LogicalSchema, layout: readonly Table[], rows: Rows
   return out;
 }
 
+/**
+ * A changed row's `modified`: now, unless the projection gives it a time later than the one
+ * the tree holds. A time at or before the tree's is the one the file held before the row's
+ * last accepted edit, which the folder keeps until its projection is rewritten, so taking
+ * it would move the row's time backwards.
+ */
+function laterModified(stored: number, held: number, now: number): number {
+  return stored > held && stored !== now ? stored : now;
+}
+
 /** A basis whose rows are read from its state only when something asks for them all. */
 function lazyBasis(logical: LogicalSchema, state: CollectionState): CollectionBasis {
   let tables: LogicalTables | undefined;
@@ -419,8 +429,8 @@ export class CollectionProjections {
   /**
    * Times for rows read from a projection: a row whose fields are unchanged
    * from the folder's last state keeps that state's times; a changed one
-   * keeps its `created` and is modified now; a new one is created now unless
-   * the projection stored its times.
+   * keeps its `created` and is modified now (or at a later time the projection
+   * gives it); a new one is created now unless the projection stored its times.
    */
   private stamp(read: LogicalTables, before: LogicalTables | null, now: number): LogicalTables {
     const out: LogicalTables = {};
@@ -430,7 +440,7 @@ export class CollectionProjections {
         const was = prior.get(logicalRowKey(row));
         if (!was) return row;
         if (sameFields(was, row as LogicalRow)) return { ...row, created: was.created, modified: was.modified };
-        return { ...row, created: was.created, modified: row.modified !== was.modified && row.modified !== now ? row.modified : now };
+        return { ...row, created: was.created, modified: laterModified(row.modified, was.modified, now) };
       });
     }
     return out;
@@ -585,7 +595,7 @@ export class CollectionProjections {
           const prior = was ? plainRows(logical, model, [was])[0] as LogicalRow : null;
           const stamped = !prior ? row
             : sameFields(prior, row) ? { ...row, created: prior.created, modified: prior.modified }
-            : { ...row, created: prior.created, modified: row.modified !== prior.modified && row.modified !== now ? row.modified : now };
+            : { ...row, created: prior.created, modified: laterModified(row.modified, prior.modified, now) };
           if (was && encodedRow(was).hash === encodedRow(treeTables(logical, { [model]: [stamped] } as LogicalTables)[model]![0]!).hash) continue;
           changes.push({ model, key: stamped.key, row: stamped });
         }
@@ -644,6 +654,7 @@ export class CollectionProjections {
     const set = this.schemas.compileTables(schemaBytes, "files");
     for (const [index, name] of formFiles({ kind: "files", format }, tables).entries()) {
       const schema = set.tables.find((t) => t.model === tables[index]!.name)!;
+      const connection = !!tables[index]!.ends;
       const path = join(directory, name);
       const rows = (wanted[schema.model] ?? []).map(withoutAbsent);
       const keyed = new Map(rows.map((row) => [stableKeyFromProperties(schema.primaryKey, row)!, row]));
@@ -676,8 +687,10 @@ export class CollectionProjections {
           seen.add(row.stableKey);
           const next = keyed.get(row.stableKey);
           if (!next) replaced.set(row.sourceKey, null);
-          // A stored value that reads back as the wanted one is left as stored.
-          else if (comparable(row.properties) !== comparable(next)) replaced.set(row.sourceKey, next);
+          // A stored value that reads back as the wanted one is left as stored. A connection
+          // row's times aren't logical (they are its holder's), so they change only with the row.
+          else if (connection ? comparable({ ...row.properties, created: null, modified: null }) !== comparable({ ...next, created: null, modified: null })
+            : comparable(row.properties) !== comparable(next)) replaced.set(row.sourceKey, next);
         }
         const appended = [...keyed].filter(([key]) => !seen.has(key)).sort(([a], [b]) => compareUTF8(a, b)).map(([, row]) => row);
         if (!replaced.size && !appended.length) continue;
