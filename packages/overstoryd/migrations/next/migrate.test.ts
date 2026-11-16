@@ -58,9 +58,11 @@ async function legacyRoot(path: string): Promise<void> {
   const schema = put(enc.encode(usl));
   const rows = put(encodeCanonicalCBOR({ type: "rows", rows: [
     { key: [["id", "e1"]], fields: { name: "Launch", on: "2026-11-11" }, created: "2026-11-01T10:00:00.000Z", modified: "2026-11-02T10:00:00.000Z" },
+    // The old format let a row be created after its last change (an import kept old modified times).
+    { key: [["id", "e2"]], fields: { name: "Imported", on: "2020-01-01" }, created: "2026-10-24T18:55:13.152Z", modified: "2020-06-01T00:00:00.000Z" },
   ] }));
   // A legacy table object, as the tree held collections before the flag day.
-  const table = put(encodeCanonicalCBOR({ type: "table", rows: 1, chunks: [{ rows: 1, chunk: rows }] }));
+  const table = put(encodeCanonicalCBOR({ type: "table", rows: 2, chunks: [{ rows: 2, chunk: rows }] }));
   const events = directory([{ name: "schema.usl", file: schema }], {
     collection: { version: 1, modelFingerprint: fingerprint, tables: [{ model: "Event", table }] },
   });
@@ -117,6 +119,7 @@ test("each tree starts again at one update holding its head with entry times, pa
   expect(report).toMatchObject({ migrated: true, from: 32, to: 34, steps: ["033-device-clients", "034-protocol-003"] });
   expect(report.protocol003).toEqual({
     trees: 4, droppedUpdates: 6, converted: { pages: 2, mdx: 1, collections: 1, schemas: 1 }, conflicted: ["t_two"], undated: [],
+    clampedRows: { "t_two:/events": 1 },
   });
   expect(report.shortIds!.trees.map((tree) => tree.id)).toEqual(["c_one", "c_two", "t_one", "t_two"]);
 
@@ -155,6 +158,8 @@ test("each tree starts again at one update holding its head with entry times, pa
   const row = "changes" in head ? head.changes[0]!.row : null;
   expect(row).toMatchObject({ created: Date.parse("2026-11-01T10:00:00.000Z"), modified: Date.parse("2026-11-02T10:00:00.000Z") });
   expect(row!.fields.on).toBeInstanceOf(CBORTag);
+  const imported = "changes" in head ? head.changes[1]!.row : null;
+  expect(imported).toMatchObject({ created: Date.parse("2020-06-01T00:00:00.000Z"), modified: Date.parse("2020-06-01T00:00:00.000Z") });
   expect(events.collection!.modelFingerprint).toBe(fingerprint);
   expect(events.entries.map((e) => e.name)).toEqual(["schema.beetle"]);
   expect(new TextDecoder().decode(await store.read(events.entries[0]!.file!))).toBe(convertVerified(usl));

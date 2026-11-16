@@ -15,7 +15,9 @@
 //   collection's folder, as the host's conversion did), and a `.mdx` page
 //   becomes its canonical file (Apps 011);
 // - a collection's rows get Unix-ms times and tagged Date fields, and its
-//   schema.usl becomes the schema.beetle it converts to (same models);
+//   schema.usl becomes the schema.beetle it converts to (same models). A
+//   legacy row created after its last modification (the old format allowed
+//   it) takes its modified time as its created time, since a log refuses it;
 // - its profile facts are read again from the new root.
 import { Database } from "bun:sqlite";
 import { join, resolve } from "node:path";
@@ -23,7 +25,7 @@ import { ObjectStore } from "@ovst/object-store";
 import { compileLogicalSchema, encodeCollection } from "@ovst/collection-schema";
 import { LOG_ENTRY_FORMAT, validatedLogEntry } from "@ovst/merge-protocol";
 import {
-  canonicalPageFile, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject,
+  canonicalPageFile, decodeProtocolLog, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject,
   isPageName, parsePage, readRootProfile, type CollectionReference, type ObjectHash, type ProtocolDirectoryEntry,
 } from "@ovst/protocol";
 import { decodeCBOR } from "@ovst/protocol/cbor";
@@ -57,6 +59,8 @@ export interface Protocol003Report {
   conflicted: string[];
   /** Entries no history dated, given their tree's head time. */
   undated: string[];
+  /** Rows created after they were last modified, by `tree:folder`: their created time becomes their modified time. */
+  clampedRows: Record<string, number>;
 }
 
 /** A directory as the data before the flag day holds it: no entry times. */
@@ -208,7 +212,7 @@ async function entryTimes(db: Database, objects: Objects, tree: string, head: Ob
 }
 
 /** Legacy rows: RFC 3339 times and untagged dates, as the rows objects before the flag day hold them. */
-async function legacyRows(objects: Objects, table: ObjectHash) {
+async function legacyRows(objects: Objects, table: ObjectHash, clamped: { rows: number }) {
   const rows: Array<{ key: [string, unknown][]; fields: Record<string, unknown>; created: number; modified: number }> = [];
   const legacy = decodeCBOR(await objects.bytes(table)) as { type?: unknown; chunks?: unknown };
   if (legacy?.type !== "table" || !Array.isArray(legacy.chunks)) throw new Error(`${table} is not a table object`);
@@ -221,7 +225,10 @@ async function legacyRows(objects: Objects, table: ObjectHash) {
         if (!Number.isSafeInteger(ms)) throw new Error(`A row time ${JSON.stringify(text)} is not RFC 3339`);
         return ms;
       };
-      rows.push({ key: row.key, fields: row.fields, created: time(row.created), modified: time(row.modified) });
+      const modified = time(row.modified);
+      let created = time(row.created);
+      if (created > modified) { created = modified; clamped.rows++; }
+      rows.push({ key: row.key, fields: row.fields, created, modified });
     }
   }
   return rows;
@@ -274,9 +281,15 @@ async function rewrite(objects: Objects, tree: string, head: ObjectHash, held: M
       const schema = compileLogicalSchema(beetle);
       if (schema.fingerprint !== directory.collection.modelFingerprint && !movesColors(uslText)) throw new Error(`${tree}:${path || "/"}: schema.beetle changes the model fingerprint`);
       const tables: Record<string, Awaited<ReturnType<typeof legacyRows>>> = {};
-      for (const { model, table } of directory.collection.tables) tables[model] = await legacyRows(objects, table);
+      const clamped = { rows: 0 };
+      for (const { model, table } of directory.collection.tables) tables[model] = await legacyRows(objects, table, clamped);
+      if (clamped.rows > 0) report.clampedRows[`${tree}:${path || "/"}`] = clamped.rows;
       const encoded = encodeCollection(schema, tables as Parameters<typeof encodeCollection>[1]);
-      for (const [object, bytes] of encoded.objects) objects.written.set(object, bytes);
+      for (const [object, bytes] of encoded.objects) {
+        // The host must read the log back: refuse here what it would refuse.
+        decodeProtocolLog(bytes);
+        objects.written.set(object, bytes);
+      }
       collection = encoded.reference;
       report.converted.collections++;
     }
@@ -295,7 +308,7 @@ export async function planProtocol003(dataRoot: string): Promise<{ plans: TreePl
   const root = resolve(dataRoot);
   const db = new Database(join(root, "overstoryd.sqlite3"), { readonly: true });
   const store = new ObjectStore(join(root, "objects"));
-  const report: Protocol003Report = { trees: 0, droppedUpdates: 0, converted: { pages: 0, mdx: 0, collections: 0, schemas: 0 }, conflicted: [], undated: [] };
+  const report: Protocol003Report = { trees: 0, droppedUpdates: 0, converted: { pages: 0, mdx: 0, collections: 0, schemas: 0 }, conflicted: [], undated: [], clampedRows: {} };
   const plans: TreePlan[] = [];
   try {
     for (const { id: tree, ref } of db.query("SELECT id, ref FROM trees ORDER BY id").all() as Array<{ id: string; ref: ObjectHash }>) {
