@@ -43,6 +43,14 @@ the old "pure plugins" (Apps 016, deleted) and "host plugins" sketches.
 - How a reader sees that a runner keeps a field up to date, and what happens when it's
   offline.
 - Whether a community's shared runner (not one person's device) is needed, and whose it is.
+- **Durable multi-step work** (from Apps 006, dissolved 2026-11-16). A runner job that
+  writes Overstory and something outside it (send an email, then mark the row sent; create a
+  page, then record it) needs to survive a crash between steps: an intent recorded before
+  the effect, stable step keys so a retry replays a finished step instead of redoing it,
+  revocation that stops further steps but keeps committed ones, and no claim of exactly-once
+  delivery outside Overstory. Apps 006's two-store crash matrix (process death before and
+  after each commit and before the response) is the test to borrow. Whether this lives in
+  `story` for runners, or each runner handles it, is open.
 
 ## Completion
 
