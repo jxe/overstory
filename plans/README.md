@@ -173,9 +173,16 @@ Rows only their authors edit, as access policy (`who: {property: authors}`, one
 `unless`/`when` predicate), with device updates authorized by effect. Formerly 002's
 milestone 5.
 
-**[Apps 014: USL plugins](later/apps-014-usl-plugins.md).** A sketch: real code extends
-the data (value types, two-way relations, derived fields and models, live sources) instead
-of UVL. After Apps 015.
+**[Apps 014: client plugins](later/apps-014-client-plugins.md).** A sketch: mutations
+written in code that write only session tables, run by `every` and `on key` lines, with
+views drawing the rows (a built-in `Canvas` for games). After Apps 015.
+
+**[Apps 018: shaders](later/apps-018-shaders.md).** A sketch: WGSL shaders as values an
+element draws with (`fill`, `distort`, `effect`), fed by Beetle values. With Apps 014.
+
+**[Apps 017: runners for data work](later/apps-017-data-runners.md).** A sketch: runners
+(devices of your account, present or webhook) also handle data events: feeding data in,
+acting on changes, computing derived fields. Code never runs in the host. After Agents 005.
 
 **[Apps 010: activation and lending](later/apps-010-activation-and-lending.md).**
 After Apps 005: code runs as an activated app under an execution token with lenders, not as
