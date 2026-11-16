@@ -43,18 +43,32 @@ export function prepareEntryTransfer(graph: TreeSnapshot, input: EntryTransfer, 
     const parts=relative ? components("/"+relative) : [];
     let {hash:oldHash,kind:oldKind}=protocolEntryObject(entry)!;
     for(const name of parts){const e=directory(oldHash).entries.find(e=>e.name===name),object=e&&protocolEntryObject(e);if(!object)throw Error("Missing copied material");({hash:oldHash,kind:oldKind}=object);}
+    if(!context.change)throw Error("Missing copy rewrite context");
+    const copiedRef={material:{kind:"operation" as const,change:context.change,operation:"entry-transfer"},...(parts.length?{within:parts}:{})};
+    const target=[...parent,input.name,...parts];
+    const place=()=>{root=change(root,target.slice(0,-1),d=>{const e=d.entries.find(e=>e.name===target.at(-1));if(oldKind==="page"&&e?.page)e.page=hash;else if(oldKind==="file"&&e?.file)e.file=hash;else throw Error("Copy rewrite is not a file");});};
+    // A copied page that takes a fresh id or other properties has no body edit to say so: the
+    // copy's page is replaced whole (updates §2.4 replaceEntry), keeping the copy's lineage.
+    if(oldKind==="page"){
+      const before=objects.get(oldHash),after=objects.get(hash);
+      if(!before||!after)throw Error("Missing copy rewrite context");
+      const a=decodeProtocolPage(before),b=decodeProtocolPage(after);
+      if(a.id!==b.id||JSON.stringify(a.properties)!==JSON.stringify(b.properties)){
+        operations.push({key:`copy-edit-${index}`,kind:"replaceEntry",source:copiedRef,value:{page:hash}} as SourceOperation);
+        place();continue;
+      }
+    }
     // A page's text is its body; a rewrite of a copied page is another page.
     const body=(bytes:Uint8Array|undefined)=>bytes&&oldKind==="page"?decodeProtocolPage(bytes).body:bytes;
     const old=body(objects.get(oldHash)),bytes=body(objects.get(hash));
-    if(!old||!bytes||!context.change)throw Error("Missing copy rewrite context");
+    if(!old||!bytes)throw Error("Missing copy rewrite context");
     const decoder=new TextDecoder("utf-8",{fatal:true,ignoreBOM:true});
     const a=[...decoder.decode(old)],b=[...decoder.decode(bytes)];let start=0,end=0;
     while(start<Math.min(a.length,b.length)&&a[start]===b[start])start++;
     while(end<Math.min(a.length,b.length)-start&&a[a.length-1-end]===b[b.length-1-end])end++;
     const lower=Buffer.byteLength(a.slice(0,start).join("")),upper=old.length-Buffer.byteLength(a.slice(a.length-end).join(""));
-    operations.push({key:`copy-edit-${index}`,kind:"editSource",source:{material:{kind:"operation",change:context.change,operation:"entry-transfer"},...(parts.length?{within:parts}:{}),range:[lower,upper]},text:b.slice(start,b.length-end).join("")});
-    const target=[...parent,input.name,...parts];
-    root=change(root,target.slice(0,-1),d=>{const e=d.entries.find(e=>e.name===target.at(-1));if(oldKind==="page"&&e?.page)e.page=hash;else if(oldKind==="file"&&e?.file)e.file=hash;else throw Error("Copy rewrite is not a file");});
+    operations.push({key:`copy-edit-${index}`,kind:"editSource",source:{...copiedRef,range:[lower,upper]},text:b.slice(start,b.length-end).join("")});
+    place();
   }
   const reachable=new Set<string>();function visit(hash:string,dir:boolean){if(reachable.has(hash))return;reachable.add(hash);if(dir)for(const e of directory(hash).entries){const object=protocolEntryObject(e);if(object)visit(object.hash,object.kind==="directory");}}
   visit(root,true);

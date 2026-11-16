@@ -222,6 +222,26 @@ test("copy metadata edits bind to operation output and survive recovery", async 
   expect(evaluated.response.result.object).toBe(candidate.root);
 }));
 
+test("a copied page that takes a fresh id is replaced whole on the copy, and replays to the candidate", async () => {
+  const {prepareEntryChange,prepareEntryTransfer}=await import("@ovst/working-tree");
+  const {decodeProtocolDirectory,encodeProtocolPage,parsePage}=await import("@ovst/protocol");
+  const page=(text:string)=>encodeProtocolPage(parsePage(new TextEncoder().encode(text))!);
+  const original=page("---\nid: p1\ntitle: Note\n---\nBody\n"),originalHash=hashObject(original);
+  const nested=encodeProtocolDirectory({type:"directory",entries:[{name:"note.md",page:originalHash,created:0,modified:0}]});
+  const rootBytes=encodeProtocolDirectory({type:"directory",entries:[{name:"nested",directory:hashObject(nested)}]});
+  const graph={root:hashObject(rootBytes),objects:new Map([[originalHash,original],[hashObject(nested),nested],[hashObject(rootBytes),rootBytes]])};
+  const entryTransfer={kind:"copyEntry" as const,source:"/nested/note.md",parent:"/",name:"copy.md"};
+  const pure=prepareEntryTransfer(graph,entryTransfer,{at:0}).candidate;
+  const fresh=page("---\nid: p2\ntitle: Note\n---\nBody\n"),freshHash=hashObject(fresh);
+  const directory=decodeProtocolDirectory(pure.objects.get(pure.root)!);directory.entries.find(e=>e.name==="copy.md")!.page=freshHash;
+  const encoded=encodeProtocolDirectory(directory),candidate={root:hashObject(encoded),objects:new Map([...pure.objects,[freshHash,fresh],[hashObject(encoded),encoded]])};
+  const record=prepareEntryChange({at:new Date(0).toISOString(),tree:fixture.tree,basis:{kind:"accepted",root:graph.root,update:"basis"},graph,candidate,entryTransfer:{...entryTransfer,rewrites:{"":freshHash}}});
+  const operations=authored(decodeLocalUpdate(record.update));
+  expect(operations.map(op=>op.kind)).toEqual(["copyEntry","replaceEntry"]);
+  const evaluated=await evaluateIntent({tree:fixture.tree,base:{object:graph.root},current:{object:graph.root},incoming:{change:record.change,at:entryTimeOf(record.update.at),object:decodeTreeSnapshotJSON(record.candidate).root,trace:singleStep(graph.root,decodeTreeSnapshotJSON(record.candidate).root,operations)},rules:{id:"tree-default",revision:1}},new Map([...graph.objects,...candidate.objects]));
+  expect(evaluated.response.result.object).toBe(decodeTreeSnapshotJSON(record.candidate).root);
+});
+
 test("compound entry fixtures retain one basis and execute atomically after restart",async()=>{
   const fixtures=await Bun.file(new URL("../../docs/overstory-spec/conformance/entry-actions.json",import.meta.url)).json();
   const {prepareEntryChange}=await import("@ovst/working-tree");
