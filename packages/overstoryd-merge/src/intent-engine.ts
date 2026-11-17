@@ -2013,7 +2013,11 @@ class Engine {
     for (const { change, checkpoint } of await this.addedChanges(current, base))
       if (checkpoint?.affected.includes(id))
         result.push({ change, operation: null });
-    return result;
+    // Canonical order: by change, then operation (a whole-change contribution
+    // last). History maps list entries in an order that depends on how they
+    // were built, so the same question answered from provenance indexes and
+    // from full history listed them differently (Performance 008).
+    return result.sort((a, b) => compareText(a.change, b.change) || compareOperation(a.operation, b.operation));
   }
   async run(incremental = true): Promise<IntentEvaluation> {
     const startedFast = performance.now();
@@ -4191,4 +4195,9 @@ export async function indexedIntent(
   if (recorded.object !== request.root) return fail("Provenance index does not match the root");
   await keep(engine, objects);
   return recorded;
+}
+
+function compareText(a: string, b: string): number { return a < b ? -1 : a > b ? 1 : 0; }
+function compareOperation(a: string | null, b: string | null): number {
+  return a === b ? 0 : a === null ? 1 : b === null ? -1 : compareText(a, b);
 }
