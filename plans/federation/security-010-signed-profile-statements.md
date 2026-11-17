@@ -13,7 +13,7 @@
   **Decide**).
 - **Builds on:** [Security 007](../../status.md#trees-on-other-hosts--2026-09-28),
   [Security 009](../../status.md#trees-on-other-hosts--2026-09-28), and
-  [Apps 008](../later/apps-008-app-approvals-on-placement-hosts.md) when it exists.
+  [Apps 008](apps-008-app-approvals-on-placement-hosts.md) when it exists.
 
 ## Why it waits
 

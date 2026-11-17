@@ -47,6 +47,10 @@ When one is decided, write a plan (or add it to the plan it belongs to) and dele
 - **Provider-specific materialization controls.** Only when one backing can report a
   reliable snapshot, progress, cancellation and failure boundary.
 
+- **Page lists in front matter merge member by member** as ordered lists (a known
+  simplification of per-property merge, noted in Filesystem 028 when it closed on
+  2026-11-17). Revisit if a real list property conflicts oddly.
+
 ## Security
 
 - **Validate directory-entry names on every client read path** (reverify). Reject empty,

@@ -116,8 +116,8 @@ the plan when only Joe's items are left.
 
 Not here:
 - Approvals on placement hosts
-  ([Apps 008](../later/apps-008-app-approvals-on-placement-hosts.md)).
-- Cross-host delegation ([Apps 009](../later/apps-009-cross-host-delegation.md)).
+  ([Apps 008](../federation/apps-008-app-approvals-on-placement-hosts.md)).
+- Cross-host delegation ([Apps 009](../federation/apps-009-cross-host-delegation.md)).
 - Durable multi-step work with effects outside Overstory: [Apps 017](apps-017-data-runners.md)'s
   runners. A Beetle mutation is one transaction on the host, so it needs no workflow
   machinery of its own.

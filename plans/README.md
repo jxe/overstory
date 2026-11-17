@@ -4,7 +4,9 @@ The folder a plan is in is its timing, and nothing else records it (Joe, 2026-11
 [`soon/`](soon) is what Joe wants next, features included; [`features/`](features) holds the
 other plans for things you would notice in Story; [`later/`](later) and
 [`when-needed/`](when-needed) hold the rest, the latter for plans that wait on a trigger ("when
-merges bite", "when size hurts") rather than a date. Plans and their paragraphs here don't say
+merges bite", "when size hurts") rather than a date. [`federation/`](federation) holds the
+plans for trees and apps that span hosts; together they wait for hosts Joe doesn't run
+(Joe, 2026-11-17). Plans and their paragraphs here don't say
 soon or later; they may say what they come after. A file
 is named by its topic and number, such as `soon/release-003-app-store.md`. When a plan's timing
 changes, move the file and its paragraph here.
@@ -111,10 +113,12 @@ The AFS half of the global namespace: every tree you can read is a path under
 `~/Overstory/<host>/…`, fetched when opened, through a File Provider extension on the Mac (and
 the Files app on the iPhone). Builds on visitor sessions and read-only placements (2026-11-05).
 
-**[Security 013: fine-grained read rules](features/security-013-row-read-rules.md).**
-A model's read rules in access policy (`who: {property: owner}`, later value predicates),
-applied by the host to every view, so a view or a `rows` answer never sees a row its reader
-may not. Until then, views see whatever their caller can read in the tree (Joe, 2026-11-08).
+**[Security 013: row ownership and read rules](features/security-013-row-ownership-and-read-rules.md).**
+Rows only their authors edit, and rows hidden from people who may not see them, as access
+policy that reads the row (`who: {property: authors}`, one `unless`/`when` predicate, later
+value predicates). Device updates are authorized by effect, and the host applies read rules
+to every view and `rows` answer. Until then, access is whole-tree. Merged with Schema
+language 010 on 2026-11-17.
 
 **[Security 012: get back into an account with the admin's help](features/security-012-get-back-in-with-the-admins-help.md).**
 A person who has lost every device gets back in through the host's administrator, as the
@@ -145,15 +149,6 @@ Absorbs Apps 001, 003 and 019; an HTML renderer comes later.
 
 ## Later
 
-**[Filesystem 028: provenance for page bodies, and front-matter merge cases](later/filesystem-028-page-body-provenance-and-front-matter-merges.md).**
-Left from Filesystem 026: the provenance index and line provenance cover page bodies, and the
-front-matter merge cases per-property merge now covers are closed.
-
-**[Schema language 010: row ownership](later/schema-language-010-row-ownership.md).**
-Rows only their authors edit, as access policy (`who: {property: authors}`, one
-`unless`/`when` predicate), with device updates authorized by effect. Formerly 002's
-milestone 5.
-
 **[Apps 014: client plugins](later/apps-014-client-plugins.md).** A sketch: mutations
 written in code that write only session tables, run by `every` and `on key` lines, with
 views drawing the rows (a built-in `Canvas` for games). After Apps 015.
@@ -172,17 +167,8 @@ dissolved 2026-11-16); revocation; first-run consent in Story writes `apps.yaml`
 
 **[Schema language 008: port excellences and supplies-remake to Story](later/schema-language-008-port-excellences-and-supplies.md).**
 Joe wants the excellences document and supplies-remake to run natively in Story instead of on
-Supabase. Split out of Schema language 002 on 2026-10-25; it needs 007's editor and 010's
-ownership.
-
-**[Apps 008: app approvals and lending on placement hosts](later/apps-008-app-approvals-on-placement-hosts.md).**
-Part of the lending test: an app approved at a profile's home host should work on its
-placement hosts too. With Apps 010.
-
-**[Apps 009: code on one host using access held on another](later/apps-009-cross-host-delegation.md).**
-After Apps 008, once apps span hosts: a Beetle view on one host reading a collection held on
-another. Absorbed the "executable data across servers" spec extension on 2026-11-16. A design
-sketch; no timing yet.
+Supabase. Split out of Schema language 002 on 2026-10-25; it needs 007's editor and Security
+013's row ownership.
 
 **[Web 025: Story for the web](later/story-web-025-story-web.md)**, with its
 [surface inventory](later/story-web-surfaces.md). For sharing with others: people without the Mac
@@ -210,11 +196,11 @@ Longer term. For now the point is that the design shows Postgres backings, SQLit
 and moving a collection between representations are possible. Five plans until 2026-11-01,
 when Joe had them rewritten as one against logical collections.
 
-**[Performance 009: a Story Sync scan reads only what changed](later/performance-009-scan-by-stat.md).**
-Joe, 2026-11-16: every sync re-reads and re-records every Markdown file and walks every
-directory, so an idle sync grows with the folder (~15 ms of CPU for 200 notes). Trust
-Markdown by its stat tuple as other files are, write the object index only when a row
-changes, and skip subtrees the watcher saw no events in.
+**[Performance 009: a Story Sync scan skips unchanged folders](later/performance-009-skip-unchanged-subtrees.md).**
+Markdown is trusted by its stat tuple since 2026-11-17, so a scan reads only changed files
+(5,000 notes: 1.15 s to 70 ms), but it still lists every directory and stats every file.
+Left: adopt the last hash of a folder the watcher saw no events in, once a scan can't run
+ahead of the watcher.
 
 ## When needed
 
@@ -232,15 +218,8 @@ have merged. Needs a new Quagmire release.
 When a tree's open views measurably rerun too often: view streams follow the change feed with
 their own cursor.
 
-**[Filesystem 029: the host refuses Markdown files that read as pages](when-needed/filesystem-029-host-refuses-markdown-files.md).**
-When a client other than Story, Story Sync or the CLI writes to a host, or a Markdown file
-entry turns up in a head.
-
 **[Native 006: sparse iOS placement](when-needed/performance-006-sparse-ios-placement.md).** When size hurts:
 a tree too big to place on the iPhone in one download.
-
-**[Security 010: signed profile statements](when-needed/security-010-signed-profile-statements.md).**
-When a host Joe does not control is involved, or a home host must be left behind.
 
 **[overstoryd 015: explain automatic resolutions and clear reconciled choices](when-needed/merge-015-resolve-reconciled-choices.md).**
 When a conflict that later work already reconciled shows up again. Joe encountered a whole-tree conflict after moving blocks into a new page. Later
@@ -256,10 +235,24 @@ of allowances. Markdown merges as blocks and JSON, YAML, TOML and CSV as element
 XML/HTML/CSS and code as elements, choices named by the blocks they cover, then the menu of
 cases that still go to review, which was overstoryd 014 until Joe folded it in on 2026-11-01.
 
-**[Performance 008: merge cost by edit, not by size](when-needed/performance-008-merge-cost-by-edit.md).**
-When merges of large collections get slow. What Performance 004 (merges start from a provenance index; closed 2026-11-02) left: a
-canonical contribution order inside choices, and collection merges and replay that decode
-only the chunks an edit touches instead of whole tables.
+## Federation
+
+Trees, accounts and apps that span hosts. Placements on other hosts and visitor sessions
+work today (trusting a profile's home host over HTTPS); these plans wait until apps or
+profiles span hosts Joe doesn't run.
+
+**[Apps 008: app approvals and lending on placement hosts](federation/apps-008-app-approvals-on-placement-hosts.md).**
+Part of the lending test: an app approved at a profile's home host should work on its
+placement hosts too. With Apps 010.
+
+**[Apps 009: code on one host using access held on another](federation/apps-009-cross-host-delegation.md).**
+After Apps 008, once apps span hosts: a Beetle view on one host reading a collection held on
+another. Absorbed the "executable data across servers" spec extension on 2026-11-16. A design
+sketch; no timing yet.
+
+**[Security 010: signed profile statements](federation/security-010-signed-profile-statements.md).**
+When a host Joe does not control is involved, or a home host must be left behind: signed
+statements replace trusting the home host over HTTPS.
 
 ## Groups
 
@@ -278,8 +271,8 @@ gives every automatic outcome its explanation (merge notes), which 015's authori
 and 017's "merge with a note" cases wait for. The numbers are identifiers, not an execution order. History and provenance support
 explanation but do not improve merge decisions; [overstoryd 016](later/merge-016-choice-review-extensions.md)
 extends the choice review; Web 025 owns rebuilding the web reviewer;
-merge replay cost is Performance 004, including merge and replay cost for large collections
-(its step 6). The [testing candidates](candidates.md#testing)
+merge replay cost was Performance 004 (closed), and large collections merge as the host's
+row log since Performance 007. The [testing candidates](candidates.md#testing)
 include editor alignment and round-trip characterization.
 
 ### History and revisions
@@ -292,7 +285,7 @@ link to this history; their provenance proofs and conflict rules stay with merge
 
 Latency, transfer size and storage overhead: take a plan when its stated problem occurs, and
 measure both the benefit and the cost to correctness, recovery and offline use.
-[Performance 008](when-needed/performance-008-merge-cost-by-edit.md), [Performance 009](later/performance-009-scan-by-stat.md) and
+[Performance 009](later/performance-009-skip-unchanged-subtrees.md) and
 [Native 006](when-needed/performance-006-sparse-ios-placement.md) are the plans; the
 provenance index ([Performance 004](https://github.com/jxe/arbor/blob/4844b1c/plans/soon/performance-004-provenance-index.md), closed), the object journal and
 object packing are live. Client

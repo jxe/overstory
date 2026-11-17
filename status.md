@@ -12,6 +12,49 @@ States used below: **implemented** (built and tested), **installed** (running
 in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 **verified** (exercised by hand against live data).
 
+## Quick plans from later and when-needed — 2026-11-17
+
+**Implemented** (pushed to main, which redeploys the host; Story Sync's part runs after
+`story daemon restart` on the Mac). Joe picked these from a review of `plans/later` and
+`plans/when-needed` and asked for them done and closed.
+
+- **Performance 009 steps 1 to 3: a Story Sync scan reads only changed files.** Markdown is
+  trusted by its stat tuple like other files (`packages/fs/src/protocol-tree.ts`): a `page`
+  row gives the page object without reading or parsing the file, and a `file` row says an
+  unparseable Markdown file still reads as a file. A trusted page loads on demand and is
+  checked against its hash. Nothing relied on the scan having read Markdown: the
+  `!markdownName` exclusion came with the 2026-09-09 bootstrap spine (8e4ae386), which is
+  gone. A directory's files are statted together (awaited one by one, the round trips cost
+  ten times the stats), and the object index (`packages/story-sync/src/state/object-index.ts`)
+  writes only rows that changed, through cached statements, in one transaction per walk.
+  Warm scan of 5,000 notes in 50 folders: 1.15 s to 70 ms. `tests/performance/collection-sync.ts`
+  (now reporting idle CPU), 200 notes: idle sync 59 to 29 ms wall (70 to 36 ms CPU); 5,000
+  notes in one folder: 948 to 177 ms. Tests in `tests/unit/protocol-objects.test.ts` (planted
+  rows for pages and unparseable Markdown, an unchanged walk writes no row). Skipping
+  unchanged folders is left in [Performance 009](plans/later/performance-009-skip-unchanged-subtrees.md).
+- **Filesystem 029 closed: the host refuses Markdown files that read as pages.** A client's
+  candidate (`submitCandidateLocked`) is checked in `validateGraphChange`: a file entry of a
+  changed directory, not proven a file by the basis, named `*.md` and whose bytes parse as a
+  page is refused with a 400 ("write it as a page"); host-made writes and mirrored remote trees
+  aren't checked (data model §9). 110 host tests wrote Markdown as files: most now use `.txt`
+  names, and those about Markdown merging, page identity, path reads of pages or profile
+  `_index.md` write pages (`source-acceptance` has `useMarkdownNote`). Live had no Markdown
+  file entries on 2026-11-16.
+- **Performance 008 closed.** Its first part: a choice's contributions from history are listed
+  in a canonical order, by change then operation (`IntentEngine.contributions`), instead of
+  the history map's build order, which made 7 of 604 answers from provenance indexes differ
+  from full history (Oct 28 todos copy; that rehearsal wasn't rerun, the copy is on Joe's Mac).
+  Its second part, decoding only the collection chunks an edit touches, was written against
+  the chunked tables that Performance 007's row log replaced, and was dropped.
+- **Filesystem 028 closed.** Page bodies were already in the provenance index (pieces over the
+  body, `kind: "page"`, `packages/protocol/src/updates/provenance.ts`), so copies out of a page
+  body keep their lineage; line provenance is History 007's. No front-matter cases were left
+  in overstoryd 015 or 017; "page lists merge member by member" went to candidates.
+- **Plans trimmed:** Schema language 010 (row ownership) merged into
+  [Security 013](plans/features/security-013-row-ownership-and-read-rules.md) with its read
+  rules; [Schema language 008](plans/later/schema-language-008-port-excellences-and-supplies.md)
+  rewritten without USL; Apps 008, Apps 009 and Security 010 moved to `plans/federation/`.
+
 ## USL removed from arbor — 2026-11-17
 
 **Implemented.** Joe asked for USL and its files to go, now that every tree holds
@@ -197,7 +240,7 @@ JSON) until Apps 011's renderer. A row a mutation edits in the millisecond it wa
 operation, so the diff and the authored contract accept it. Apps 015 closed 2026-11-16; what is
 left is [Apps 011](plans/soon/apps-011-widgets-in-story.md) (Story, which absorbed Apps 019),
 [Apps 020](plans/when-needed/apps-020-views-follow-the-change-feed.md) (views follow the change
-feed, when needed) and [Apps 009](plans/later/apps-009-cross-host-delegation.md) (collections in
+feed, when needed) and [Apps 009](plans/federation/apps-009-cross-host-delegation.md) (collections in
 another tree).
 
 - **Parser and checker:** `packages/beetle` (`@ovst/beetle`; first built as `packages/uvl`
@@ -281,7 +324,7 @@ steps 1-4 and [Apps 012](https://github.com/jxe/arbor/blob/95a450f/plans/soon/ap
 - **Connection models in presented views** (both stacks): a line or group shows a pure
   connection model (`Item`, `Reaction`) by what it connects to, and names any other row keyed
   by several columns (`Tag (list, id)`) by its row key. Supplies' default views all present.
-- **Left:** [Security 013](plans/features/security-013-row-read-rules.md) (fine-grained read
+- **Left:** [Security 013](plans/features/security-013-row-ownership-and-read-rules.md) (fine-grained read
   rules), one plan per view (Apps 013, dropped 2026-11-11: plans now come from `.view` source, [Apps 015](#apps-015-beetle-views-and-mutations-on-the-host--2026-11-16)); Story Sync answering and Story
   drawing declared views (folded into [Apps 011](plans/soon/apps-011-widgets-in-story.md) on 2026-11-16); hand checks
   in [Joe's to-do](plans/joe.md#views-on-the-host-apps-005-and-012).
@@ -636,7 +679,7 @@ character 17.4 -> 6.6 ms (accepted-store 10.2 -> 2.2 ms).
 
 [Performance 004](https://github.com/jxe/arbor/blob/4844b1c/plans/soon/performance-004-provenance-index.md) steps 1 to 5 are
 **deployed** and the plan is closed (Joe, 2026-11-02); its leftovers, a canonical contribution
-order and collection merge cost (step 6), are [Performance 008](plans/when-needed/performance-008-merge-cost-by-edit.md). overstoryd keeps each accepted entry's
+order and collection merge cost (step 6), were Performance 008 ([closed](#quick-plans-from-later-and-when-needed--2026-11-17)). overstoryd keeps each accepted entry's
 [provenance index](docs/architecture/overstoryd/provenance-index.md) (no fsync of its own; a
 backfill fills gaps without the merge worker). The merge sidecar starts entries from it
 instead of replaying history: a head replays only the entries after its basis, merge answers
@@ -764,10 +807,9 @@ clients write Markdown as a page whenever its front matter parses (main 753a02e;
 entries, 0 Markdown files). A copied page that takes a fresh id is replaced whole on the copy
 (43c47dc). Block moves, copies within and across pages, lineage and Move to Document on pages
 are stated over the body, not as snapshots (bd05c37, 79a5148f; all 7 Story
-`LiveEditorAdmissionTests` pass). Left: [Filesystem 028](plans/later/filesystem-028-page-body-provenance-and-front-matter-merges.md)
-(page-body provenance, front-matter merges) and, when needed,
-[Filesystem 029](plans/when-needed/filesystem-029-host-refuses-markdown-files.md) (the host
-refusing Markdown file entries).
+`LiveEditorAdmissionTests` pass). Left then: Filesystem 028 (page-body provenance,
+front-matter merges) and Filesystem 029 (the host refusing Markdown file entries), both
+[closed on 2026-11-17](#quick-plans-from-later-and-when-needed--2026-11-17).
 
 Joe set `OVERSTORYD_PAGES=1` on Railway 2026-11-09 (deploy 657f8553, 07:34Z) after a host
 backup at `/data/backups/pages-all-20261109`. Each tree converts on a writer's next Story Sync
@@ -809,7 +851,7 @@ Joe reviewed the plans in soon, the ideas and small work, and closed out these:
   to the [update machine](docs/implementing-sync-services/update-machine.md#checking-by-hand)
   and Apps 005. Schema language 007 is now all of editing collections (its write path, every
   view intent, simple edits and the structured editor), and 002's ownership milestone
-  is [Schema language 010](plans/later/schema-language-010-row-ownership.md) in later.
+  was Schema language 010, now part of [Security 013](plans/features/security-013-row-ownership-and-read-rules.md).
 - **Schema language 002 closed.** Chips and groups now say when they are people
   (`person: true`, both stacks and `presented-views.json`), so Story no longer guesses from a
   TreeID prefix. Joe dropped schema-set styling (bullet tint, Markdown as a note) and a
@@ -1092,7 +1134,7 @@ and deleted. Its text, with each milestone's design, is in git history at
 Before landing, the Swift tests passed on Joe's Mac and the performance
 benchmarks were compared with main: a one-row edit in a 10,000-row
 collection is about 35% slower, because a changed collection is re-encoded
-whole ([Performance 008](plans/when-needed/performance-008-merge-cost-by-edit.md)). Leftovers: publishing USL 0.3.0 and moving the sites ([done](#plans-and-small-work-trimmed--2026-10-28))
+whole (Performance 008, [closed](#quick-plans-from-later-and-when-needed--2026-11-17)). Leftovers: publishing USL 0.3.0 and moving the sites ([done](#plans-and-small-work-trimmed--2026-10-28))
 and the gaps each milestone left ([closed 2026-10-28](#rows-on-the-host-eviction-and-a-collection-scoped-guard--2026-10-28)).
 The USL examples moved to `packages/usl/examples` (removed 2026-11-17; now `tests/fixtures/tables`).
 

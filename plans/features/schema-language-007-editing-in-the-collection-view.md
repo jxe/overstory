@@ -220,7 +220,7 @@ an unknown selection) rather than fixing the byte-range shape.
 
 - Pages that present collections kept elsewhere, and groups that are other trees: both are
   [spec extensions](../spec-extensions/README.md).
-- Row ownership is [Schema language 010](../later/schema-language-010-row-ownership.md).
+- Row ownership is [Security 013](security-013-row-ownership-and-read-rules.md).
 - A replica on the device that encodes tables, and any SQLite there (Joe, 2026-10-25). Large
-  collections are [Performance 008](../when-needed/performance-008-merge-cost-by-edit.md)'s concern.
+  collections are the host's row log's concern ([Performance 007](../../status.md#performance-007-collections-as-a-log-of-row-changes--2026-11-12)).
 - Derived candidates for Story's text edits: allowed by the spec, not used.

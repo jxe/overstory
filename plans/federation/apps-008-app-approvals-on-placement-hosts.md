@@ -7,7 +7,7 @@
 - **Effort:** M
 - **Risk:** MEDIUM. A placement host enforces lends it read from another host.
 - **State:** PLANNED 2026-09-27, split from the portable-profiles design
-  (Security 008). Comes with [Apps 010](apps-010-activation-and-lending.md): lends mean
+  (Security 008). Comes with [Apps 010](../later/apps-010-activation-and-lending.md): lends mean
   nothing until the Beetle host runs code as an app rather than as its caller. One decision is Joe's
   (marked **Decide**).
 - **Builds on:** [Security 007](../../status.md#trees-on-other-hosts--2026-09-28) and
@@ -15,7 +15,7 @@
   grace).
 - **Trust:** the home host, over HTTPS, as for devices. That a compromised home
   host could invent lends as well as devices is closed by
-  [Security 010](../when-needed/security-010-signed-profile-statements.md).
+  [Security 010](security-010-signed-profile-statements.md).
 
 ## The problem
 

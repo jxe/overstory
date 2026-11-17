@@ -56,5 +56,5 @@ Gate: `bun run test:affected`, `bun run test:protocol`, `swift/scripts/test-stor
 
 ## Related
 
-- [Security 010](../when-needed/security-010-signed-profile-statements.md)'s first decision is the same question once a host Joe does not run is involved. This plan answers it for hosts whose administrators are trusted.
+- [Security 010](../federation/security-010-signed-profile-statements.md)'s first decision is the same question once a host Joe does not run is involved. This plan answers it for hosts whose administrators are trusted.
 - [Sharing 001](sharing-001-join-on-iphone-first.md): a phone-first person who loses the phone restores the backup on a new one and asks the same way.

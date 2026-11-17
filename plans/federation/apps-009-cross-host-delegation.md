@@ -17,7 +17,7 @@ view use remote data without treating network reachability as authority.
 - **State:** DESIGN SKETCH 2026-09-27, split from the portable-profiles design
   (Security 008). Builds on the in-process Beetle host
   ([the Beetle host](../../docs/architecture/overstoryd/beetle-host.md)),
-  [Apps 010](apps-010-activation-and-lending.md)'s execution tokens and
+  [Apps 010](../later/apps-010-activation-and-lending.md)'s execution tokens and
   [Apps 008](apps-008-app-approvals-on-placement-hosts.md). One decision is Joe's
   (marked **Decide**).
 - **Closes:** the spec's deferred item 2, cross-server plan discovery, delegated

@@ -77,7 +77,7 @@ administrator accepted.
   rule, `unless`/`when`, or a narrower grant must send row operations. Story Sync already
   diffs a projection's rows against its base and sends row operations, so the host never
   authorizes ownership from a row diff and needs no tree-level mode switch.
-- Readers can't read `access.yaml` (spec 3.2 §4), so Story learns locks from an advisory
+- Readers can't read `access.yaml`, so Story learns locks from an advisory
   per-node answer: fill `NodeCapabilities.*.writable` (`protocol/src/model/node-model.ts`)
   from the host's evaluation.
 - Supplies' `editor` rule becomes two access rules: `{property: owner}`, and the community
