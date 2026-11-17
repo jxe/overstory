@@ -29,8 +29,9 @@ import {
 
 function objectIndexOf(index: ObjectIndex): SnapshotObjectIndex {
   return {
-    fileHash: (absolute, info) => index.objectRow(absolute, info)?.hash,
+    fileHash: (absolute, info, kind) => index.objectRow(absolute, info, kind)?.hash,
     remember: (absolute, kind, info, hash) => index.rememberObject(absolute, kind, info, hash),
+    scan: (run) => index.scan(run),
   };
 }
 
@@ -63,28 +64,69 @@ describe("lazy snapshots and the object index", () => {
     }
   });
 
-  test("a second walk with the index reads no non-Markdown file", async () => {
+  test("a second walk with the index reads no file whose row matches, Markdown included", async () => {
     const { root, index, exclusions } = await fixture("story-lazy-index-");
     try {
       const first = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
       const photo = join(root, "nested", "photo.bin");
       const note = join(root, "note.md");
       const photoHash = hashObject(await readFile(photo));
+      const noteHash = hashObject(encodeProtocolPage(parsePage(await readFile(note))!));
       expect(index.objectRow(photo, await stat(photo, { bigint: true }))?.hash).toBe(photoHash);
+      expect(index.objectRow(note, await stat(note, { bigint: true }), "page")?.hash).toBe(noteHash);
       // Plant rows with wrong hashes under the current stat tuples: a walk that
       // trusts the row reproduces the planted hash, a walk that reads does not.
-      const planted = "sha256:" + "ab".repeat(32);
+      const planted = "sha256:" + "ab".repeat(32), plantedPage = "sha256:" + "cd".repeat(32);
       index.rememberObject(photo, "file", await stat(photo, { bigint: true }), planted);
-      index.rememberObject(note, "page", await stat(note, { bigint: true }), planted);
+      index.rememberObject(note, "page", await stat(note, { bigint: true }), plantedPage);
       const second = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
       expect(second.root).not.toBe(first.root);
       expect(second.objects.has(planted)).toBe(true);
       expect(second.objects.has(photoHash)).toBe(false);
+      expect(second.objects.has(plantedPage)).toBe(true);
+      expect(second.objects.has(noteHash)).toBe(false);
       await expect(second.objects.get(planted)!.bytes()).rejects.toThrow("changed after its snapshot");
-      // Markdown is read eagerly as its page regardless of the row, which the walk then repairs.
-      const noteHash = hashObject(encodeProtocolPage(parsePage(await readFile(note))!));
-      expect(second.objects.has(noteHash)).toBe(true);
-      expect(index.storedObjectHash(note)?.hash).toBe(noteHash);
+      await expect(second.objects.get(plantedPage)!.bytes()).rejects.toThrow("changed after its snapshot");
+      // A trusted page loads its page object on demand.
+      index.rememberObject(photo, "file", await stat(photo, { bigint: true }), photoHash);
+      index.rememberObject(note, "page", await stat(note, { bigint: true }), noteHash);
+      const third = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
+      expect(third.root).toBe(first.root);
+      expect(hashObject(await third.objects.get(noteHash)!.bytes())).toBe(noteHash);
+    } finally {
+      index.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("Markdown that read as a file stays a file without being read while its row matches", async () => {
+    const { root, index, exclusions } = await fixture("story-lazy-md-file-");
+    try {
+      const broken = join(root, "broken.md");
+      await writeFile(broken, "---\nkey: [unclosed\n---\nbody\n");
+      expect(parsePage(await readFile(broken))).toBeNull();
+      const first = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
+      const rootObject = decodeProtocolDirectory(await first.objects.get(first.root)!.bytes());
+      if (rootObject.type !== "directory") throw new Error("Expected a directory");
+      expect(rootObject.entries.find((entry) => entry.name === "broken.md")).toMatchObject({ file: hashObject(await readFile(broken)) });
+      const planted = "sha256:" + "ef".repeat(32);
+      index.rememberObject(broken, "file", await stat(broken, { bigint: true }), planted);
+      const second = await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
+      expect(second.objects.has(planted)).toBe(true);
+    } finally {
+      index.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("an unchanged walk rewrites no index row", async () => {
+    const { root, index, exclusions } = await fixture("story-lazy-quiet-");
+    try {
+      await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
+      const changes = () => (index as any).database.query("SELECT total_changes() AS n").get().n as number;
+      const before = changes();
+      await snapshotDirectory(root, new Map(), exclusions, undefined, objectIndexOf(index));
+      expect(changes()).toBe(before);
     } finally {
       index.close();
       await rm(root, { recursive: true, force: true });

@@ -61,8 +61,9 @@ export class FilesystemObjectSource implements AsyncDisposable {
 
   index(): SnapshotObjectIndex {
     return {
-      fileHash: (path, info) => this.rows.objectRow(path, info)?.hash,
+      fileHash: (path, info, kind) => this.rows.objectRow(path, info, kind)?.hash,
       remember: (path, kind, info, hash, bytes) => this.rows.rememberObject(path, kind, info, hash, bytes),
+      scan: (run) => this.rows.scan(run),
     };
   }
 
@@ -136,6 +137,7 @@ export class FilesystemObjectSource implements AsyncDisposable {
           if (stored && stored.kind !== "directory" && stored.hash !== hash) this.options.changed(path);
           this.rows.rememberObject(path, kind, info, hash);
         },
+        scan: (run) => this.rows.scan(run),
       };
       // Boundaries affect directory encodings, not the file rows audited here.
       const exclusions = this.options.exclusions();

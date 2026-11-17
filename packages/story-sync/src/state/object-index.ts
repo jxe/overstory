@@ -38,39 +38,60 @@ export class ObjectIndex {
     this.database.exec("DELETE FROM directories WHERE hash NOT IN (SELECT hash FROM objects WHERE kind = 'directory')");
   }
 
-  /** The cached file hash when the row's full stat tuple still matches. */
-  objectRow(absolute: string, info: BigIntStats): { hash: string } | undefined {
+  /** The cached hash of a `file` or `page` row when its full stat tuple still matches. */
+  objectRow(absolute: string, info: BigIntStats, kind: "file" | "page" = "file"): { hash: string } | undefined {
     const row = this.database.query(
-      "SELECT hash FROM objects WHERE path = ? AND kind = 'file' AND size = ? AND mtime_ns = ? AND ctime_ns = ? AND ino = ? AND dev = ?",
-    ).get(absolute, info.size, info.mtimeNs, info.ctimeNs, info.ino, info.dev) as { hash: string } | null;
+      "SELECT hash FROM objects WHERE path = ? AND kind = ? AND size = ? AND mtime_ns = ? AND ctime_ns = ? AND ino = ? AND dev = ?",
+    ).get(absolute, kind, info.size, info.mtimeNs, info.ctimeNs, info.ino, info.dev) as { hash: string } | null;
     return row ?? undefined;
   }
 
+  /** Record a row; one that already says the same is not rewritten. */
   rememberObject(absolute: string, kind: ObjectKind, info: BigIntStats | undefined, hash: string, bytes?: Uint8Array): void {
     if (kind === "directory" || !info) {
       if (kind === "directory") this.rememberDirectory(absolute, hash, bytes);
       return;
     }
-    this.database.prepare(
+    // Compared in SQL: nanosecond times don't fit a double.
+    if (this.database.query("SELECT 1 FROM objects WHERE path = ? AND kind = ? AND size = ? AND mtime_ns = ? AND ctime_ns = ? AND ino = ? AND dev = ? AND hash = ?")
+      .get(absolute, kind, info.size, info.mtimeNs, info.ctimeNs, info.ino, info.dev, hash)) return;
+    this.database.query(
       "INSERT INTO objects(path, kind, size, mtime_ns, ctime_ns, ino, dev, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET kind=excluded.kind,size=excluded.size,mtime_ns=excluded.mtime_ns,ctime_ns=excluded.ctime_ns,ino=excluded.ino,dev=excluded.dev,hash=excluded.hash",
     ).run(absolute, kind, info.size, info.mtimeNs, info.ctimeNs, info.ino, info.dev, hash);
   }
 
   rememberDirectory(absolute: string, hash: string, bytes?: Uint8Array): void {
-    if (bytes) this.database.prepare("INSERT OR IGNORE INTO directories(hash, bytes) VALUES (?, ?)").run(hash, bytes);
-    this.database.prepare(
+    const row = this.database.query("SELECT kind, hash FROM objects WHERE path = ?").get(absolute) as { kind: string; hash: string } | null;
+    if (row?.kind === "directory" && row.hash === hash) return;
+    if (bytes) this.database.query("INSERT OR IGNORE INTO directories(hash, bytes) VALUES (?, ?)").run(hash, bytes);
+    this.database.query(
       "INSERT INTO objects(path, kind, size, mtime_ns, ctime_ns, ino, dev, hash) VALUES (?, 'directory', NULL, NULL, NULL, NULL, NULL, ?) ON CONFLICT(path) DO UPDATE SET kind=excluded.kind,size=NULL,mtime_ns=NULL,ctime_ns=NULL,ino=NULL,dev=NULL,hash=excluded.hash",
     ).run(absolute, hash);
   }
 
+  /**
+   * Run `run` (one walk) with its writes in one transaction. Walks can
+   * overlap, so the transaction spans from the first to start until the last
+   * to finish; a failure still commits, since every row is only a cache.
+   */
+  async scan<T>(run: () => Promise<T>): Promise<T> {
+    if (this.scans++ === 0) this.database.exec("BEGIN");
+    try {
+      return await run();
+    } finally {
+      if (--this.scans === 0) this.database.exec("COMMIT");
+    }
+  }
+  private scans = 0;
+
   forgetObject(absolute: string): void {
-    this.database.prepare("DELETE FROM objects WHERE path = ?").run(absolute);
+    this.database.query("DELETE FROM objects WHERE path = ?").run(absolute);
   }
 
   /** Forget directory rows at `absolute` and beneath it. */
   forgetDirectoriesBeneath(absolute: string): void {
     const beneath = absolute.endsWith("/") ? absolute : `${absolute}/`;
-    this.database.prepare("DELETE FROM objects WHERE kind = 'directory' AND (path = ? OR substr(path, 1, ?) = ?)")
+    this.database.query("DELETE FROM objects WHERE kind = 'directory' AND (path = ? OR substr(path, 1, ?) = ?)")
       .run(absolute, beneath.length, beneath);
   }
 

@@ -50,11 +50,13 @@ beneath it. Those private names and layouts may change.
 
 Beneath a placed root's `.state`, `index.sqlite` holds the workspace's object
 store rows in an `objects` table: one row per absolute path the snapshot walk
-hashes, for files and directories alike, with the file's stat tuple (size,
-`mtime_ns`, `ctime_ns`, inode, device) and the SHA-256 of its raw bytes, indexed
-by hash. The walk that computes a tree's root writes these rows, so they are
-fresh whenever a root is; a file row is consulted only while its whole stat
-tuple still matches, and a hit lets the walk skip reading that file. The index
+hashes, for files, pages and directories alike, with the file's stat tuple (size,
+`mtime_ns`, `ctime_ns`, inode, device) and the hash of its object (a Markdown file's
+`page` row names the page object it reads as), indexed by hash. The walk that computes
+a tree's root writes these rows, so they are fresh whenever a root is; a row is
+consulted only while its whole stat tuple still matches, and a hit lets the walk skip
+reading (and, for Markdown, parsing) that file. A walk stats a directory's files
+together, writes only rows that changed, and keeps its writes in one transaction. The index
 is an optimization, never authority: the workspace re-runs an uncached walk
 after it opens, after any watcher overflow or gap (a `batch` event), and every
 30 minutes by default, logging a `diagnostic` event for each row whose cached

@@ -1,6 +1,6 @@
 import type { BigIntStats } from "node:fs";
 import { mkdir, readFile, readdir, realpath, rm, stat, utimes } from "node:fs/promises";
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { CollectionReference } from "@ovst/protocol";
 import {
   compareProtocolNames,
@@ -74,15 +74,13 @@ export class UnavailableCloudContentError extends Error {
  * validity tuple.
  */
 export interface SnapshotObjectIndex {
-  fileHash(absolute: string, stat: BigIntStats): ObjectHash | undefined;
-  /** A page's row names the page object its Markdown file reads as. */
+  /** The hash a row of `kind` (a file by default) holds for `absolute` while its stat tuple matches. A `page` row names the page object its Markdown file reads as. */
+  fileHash(absolute: string, stat: BigIntStats, kind?: "file" | "page"): ObjectHash | undefined;
   /** A directory comes with its bytes: its times are in no file, so they are kept here. */
   remember(absolute: string, kind: "file" | "page" | "directory", stat: BigIntStats | undefined, hash: ObjectHash, bytes?: Uint8Array): void;
   directoryHash?(absolute: string): ObjectHash | undefined;
-}
-
-function markdownName(name: string): boolean {
-  return extname(name).toLowerCase() === ".md";
+  /** Runs one walk, so its writes can be kept together (one transaction). */
+  scan?<T>(run: () => Promise<T>): Promise<T>;
 }
 
 /** Load every object of a lazy snapshot into memory. */
@@ -148,10 +146,40 @@ export async function snapshotDirectory(
     return { hash: hashObject(bytes), bytes };
   };
 
-  /** A Markdown file's page (directory format §3), or null when its front matter doesn't parse and it stays a file. */
-  const pageSource = async (absolute: string, name: string): Promise<ObjectHash | null> => {
+  /** A loader for an object the index vouched for: reads on demand and refuses bytes that no longer match. */
+  const indexedSource = (absolute: string, cached: ObjectHash, encode: (file: Uint8Array) => Uint8Array | null) => {
+    let loaded: Promise<Uint8Array> | undefined;
+    objects.set(cached, {
+      hash: cached,
+      bytes: () => loaded ??= readFile(absolute).then((file) => {
+        const bytes = encode(file);
+        if (!bytes || hashObject(bytes) !== cached) {
+          loaded = undefined;
+          throw new Error(`File changed after its snapshot was taken: ${absolute}`);
+        }
+        return bytes;
+      }),
+    });
+    return cached;
+  };
+  const pageBytes = (file: Uint8Array): Uint8Array | null => {
+    const page = parsePage(file);
+    return page ? encodeProtocolPage(page) : null;
+  };
+
+  /**
+   * A Markdown file's page (directory format §3), or null when its front
+   * matter doesn't parse and it stays a file. A file whose stat tuple matches
+   * its index row is neither read nor parsed: a `page` row gives the page, and
+   * a `file` row says it read as a file last time, which unchanged bytes still do.
+   */
+  const pageSource = async (absolute: string, name: string, info: BigIntStats | undefined): Promise<ObjectHash | null> => {
     if (!isPageName(name)) return null;
-    const info = objectIndex ? await stat(absolute, { bigint: true }) : undefined;
+    if (info) {
+      const cached = objectIndex!.fileHash(absolute, info, "page");
+      if (cached) return indexedSource(absolute, cached, pageBytes);
+      if (objectIndex!.fileHash(absolute, info, "file")) return null;
+    }
     const page = parsePage(await readFile(absolute));
     if (!page) return null;
     const bytes = encodeProtocolPage(page), hash = hashObject(bytes);
@@ -161,23 +189,9 @@ export async function snapshotDirectory(
   };
 
   /** A file's object: cached bytes when read now, otherwise a verified on-demand loader. */
-  const fileSource = async (absolute: string, name: string): Promise<ObjectHash> => {
-    const info = objectIndex ? await stat(absolute, { bigint: true }) : undefined;
-    const cached = info && !markdownName(name) ? objectIndex!.fileHash(absolute, info) : undefined;
-    if (cached) {
-      let loaded: Promise<Uint8Array> | undefined;
-      objects.set(cached, {
-        hash: cached,
-        bytes: () => loaded ??= readFileObject(absolute).then(({ hash, bytes }) => {
-          if (hash !== cached) {
-            loaded = undefined;
-            throw new Error(`File changed after its snapshot was taken: ${absolute}`);
-          }
-          return bytes;
-        }),
-      });
-      return cached;
-    }
+  const fileSource = async (absolute: string, info: BigIntStats | undefined): Promise<ObjectHash> => {
+    const cached = info && objectIndex!.fileHash(absolute, info, "file");
+    if (cached) return indexedSource(absolute, cached, (file) => file);
     const { hash, bytes } = await readFileObject(absolute);
     objects.set(hash, { hash, bytes: () => Promise.resolve(bytes) });
     if (info) objectIndex!.remember(absolute, "file", info, hash);
@@ -191,7 +205,14 @@ export async function snapshotDirectory(
     const fileNames: string[] = [];
     const seen = new Set<string>();
     const basis = new Map((await stamp.basis?.(treePath))?.entries.map((entry) => [entry.name, entry]));
-    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => compareProtocolNames(a.name, b.name))) {
+    const listed = (await readdir(directory, { withFileTypes: true })).sort((a, b) => compareProtocolNames(a.name, b.name));
+    // One stat per file, all at once: awaited one by one, the round trips
+    // cost far more than the stats (Performance 009).
+    const infos = objectIndex
+      ? new Map(await Promise.all(listed.filter((entry) => entry.isFile()).map(async (entry) =>
+        [entry.name, await stat(join(directory, entry.name), { bigint: true }).catch(() => undefined)] as const)))
+      : undefined;
+    for (const entry of listed) {
       if (isTransactionTemporaryName(entry.name) || isPlatformMetadataName(entry.name)) continue;
       if (isCloudPlaceholderName(entry.name)) {
         // An evicted file that is not tree content is not needed.
@@ -212,12 +233,13 @@ export async function snapshotDirectory(
         entries.push({ name: entry.name, directory: objectIndex?.directoryHash?.(absolute) ?? await walk(absolute, childPath(entry.name)) });
         seen.add(entry.name);
       } else if (entry.isFile()) {
-        const page = await pageSource(absolute, entry.name);
+        const info = objectIndex ? infos!.get(entry.name) ?? await stat(absolute, { bigint: true }) : undefined;
+        const page = await pageSource(absolute, entry.name, info);
         fileNames.push(entry.name);
-        const object = page ?? await fileSource(absolute, entry.name);
+        const object = page ?? await fileSource(absolute, info);
         const before = basis.get(entry.name);
         const unchanged = before && (before.file ?? before.page) === object;
-        const source = unchanged ? undefined : Math.floor(Number((await stat(absolute, { bigint: true })).mtimeNs / 1_000_000n));
+        const source = unchanged ? undefined : Math.floor(Number((info ?? await stat(absolute, { bigint: true })).mtimeNs / 1_000_000n));
         entries.push(stampedEntry(page ? "page" : "file", entry.name, object, before, stamp.at, { source }));
         seen.add(entry.name);
       }
@@ -271,7 +293,8 @@ export async function snapshotDirectory(
     return store({ type: "directory", entries });
   };
 
-  return { root: await walk(root, "/"), objects };
+  const walked = objectIndex?.scan ? await objectIndex.scan(() => walk(root, "/")) : await walk(root, "/");
+  return { root: walked, objects };
 }
 
 function contained(root: string, path: string): string {

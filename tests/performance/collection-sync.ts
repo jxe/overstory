@@ -2,6 +2,8 @@
  * edit to a JSONL collection of ROWS rows, and a one-file Markdown edit
  * beside FILES files. Runs the same on main and the plan 005 branch.
  *   ROWS=5000 EDITS=10 bun tests/performance/collection-sync.ts
+ * Idle syncs also report CPU (`idle.cpuMedian`, ms): with FILES=5000 it
+ * shows whether a scan grows with the folder (Performance 009).
  */
 import { installAccountHome } from "../helpers/account-home.ts";
 import { hostTree, readTreeConfig } from "../helpers/tree-config.ts";
@@ -46,20 +48,21 @@ try {
     let start = performance.now();
     await daemon.synchronizeNow();
     const first = performance.now() - start;
-    const rowEdits: number[] = [], noteEdits: number[] = [], idle: number[] = [];
+    const rowEdits: number[] = [], noteEdits: number[] = [], idle: number[] = [], idleCpu: number[] = [];
+    const cpuMs = () => { const { user, system } = process.cpuUsage(); return (user + system) / 1000; };
     for (let edit = 0; edit < EDITS; edit++) {
       await writeFile(join(folder, "items", "_store.jsonl"), rows(edit));
       start = performance.now(); await daemon.synchronizeNow(); rowEdits.push(performance.now() - start);
       await writeFile(join(folder, "notes", `n${edit % FILES}.md`), `# Note ${edit}\n\nEdited ${edit}.\n`);
       start = performance.now(); await daemon.synchronizeNow(); noteEdits.push(performance.now() - start);
-      start = performance.now(); await daemon.synchronizeNow(); idle.push(performance.now() - start);
+      start = performance.now(); const cpu = cpuMs(); await daemon.synchronizeNow(); idle.push(performance.now() - start); idleCpu.push(cpuMs() - cpu);
     }
     const updates = host.overstoryd.acceptedUpdates(tree).length;
     const r = (n: number) => Math.round(n);
     quiet(JSON.stringify({ label: "collection-sync", rows: ROWS, files: FILES, edits: EDITS, addCollection: r(first),
       rowEdit: { median: r(median(rowEdits)), p90: r(p90(rowEdits)) },
       noteEdit: { median: r(median(noteEdits)), p90: r(p90(noteEdits)) },
-      idle: { median: r(median(idle)), p90: r(p90(idle)) }, acceptedUpdates: updates }));
+      idle: { median: r(median(idle)), p90: r(p90(idle)), cpuMedian: r(median(idleCpu)) }, acceptedUpdates: updates }));
   } finally { await daemon[Symbol.asyncDispose](); }
 } finally {
   for (const account of await HostAccountStore.list()) await new HostAccountStore(account.configurationTree).remove();
