@@ -27,10 +27,16 @@ in Joe's Mac and iPhone builds), **deployed** (running on the public host),
   `@ovst/usl` from `tools/release.sh`. Version 0.3.0 stays on npm for cranberries,
   excellences and supplies-remake.
 - The checker's tests now run on Beetle fixtures in `tests/fixtures/tables`.
-- Left until [Apps 011 §6](plans/soon/apps-011-widgets-in-story.md): Story's Swift USL code
-  (`OverstoryWorkspace/USL`, with its fixtures in `Tests/USLFixtures`), `~views`, and
-  `conformance/presented-views.json`, whose expectations are now frozen. Story Sync still drops
-  a leftover `schema.usl` beside `schema.beetle`.
+- Swift (Joe chose to do it now): StoryKit's `OverstoryWorkspace/USL` became `Schema/`. A
+  reader for `schema.beetle`'s tables (`parseSchema`, `compileCollectionSchema`) builds the
+  table checker's syntax tree directly, replacing the USL parser and the line-for-line
+  rewrite to USL; types are `Schema…` (`SchemaCheckResult`, `schemaLayout`, …). Presented
+  views went (`PresentedView`, `PresentedViewEdits`, `StoryPresentedCollection`,
+  `conformance/presented-views.json`): Story lists a collection's main table as plain rows
+  until [Apps 011 §6](plans/soon/apps-011-widgets-in-story.md) draws Beetle views (Joe:
+  reduced function is fine meanwhile). `~views` is still accepted and ignored. Swift tests
+  read the Beetle fixtures in `tests/fixtures/tables`. Story Sync still drops a leftover
+  `schema.usl` beside `schema.beetle`.
 
 ## Performance 010: a change feed, group commit and tree mailboxes — 2026-11-16
 

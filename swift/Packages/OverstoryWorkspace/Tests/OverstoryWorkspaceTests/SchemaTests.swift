@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import OverstoryWorkspace
 
-/// The repository root, from this file (swift/Packages/StoryKit/Tests/StoryKitTests).
+/// The repository root, from this file (swift/Packages/OverstoryWorkspace/Tests/OverstoryWorkspaceTests).
 private let repositoryRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .appending(path: "../../../../..")
@@ -13,65 +13,53 @@ private var conformance: URL {
         ?? repositoryRoot.appending(path: "docs/overstory-spec/conformance")
 }
 
-private func examples(_ directory: String) throws -> [(name: String, source: String)] {
+private func beetleFiles(_ directory: String) throws -> [(name: String, source: String)] {
     let url = repositoryRoot.appending(path: directory)
     return try FileManager.default.contentsOfDirectory(atPath: url.path)
-        .filter { $0.hasSuffix(".usl") }
+        .filter { $0.hasSuffix(".beetle") }
         .sorted()
         .map { ($0, try String(contentsOf: url.appending(path: $0), encoding: .utf8)) }
 }
 
-@Suite("Ultimate Schema Language")
-struct USLTests {
-    @Test("The examples check clean")
+/// A schema.beetle's tables, read and checked as Story reads them. The TypeScript
+/// reference (packages/beetle) runs the same fixtures in tests/unit/tables.test.ts.
+@Suite("Schema tables")
+struct SchemaTests {
+    @Test("The table fixtures and the schemas Story ships check clean")
     func examplesCheckClean() throws {
-        let files = try examples("swift/Packages/OverstoryWorkspace/Tests/USLFixtures")
+        let files = try beetleFiles("tests/fixtures/tables")
         #expect(files.count >= 5)
         for file in files {
-            #expect(compileUSL(file.source).diagnostics == [], "\(file.name)")
+            #expect(compileCollectionSchema(file.source).diagnostics == [], "\(file.name)")
+        }
+        for path in ["packages/beetle/examples/supplies/data/schema.beetle", "tests/fixtures/games.beetle",
+                     "tools/directory-seed/people/schema.beetle", "tools/directory-seed/trees/schema.beetle"] {
+            let source = try String(contentsOf: repositoryRoot.appending(path: path), encoding: .utf8)
+            #expect(compileCollectionSchema(source).diagnostics == [], "\(path)")
         }
     }
 
-    @Test("Broken examples report exactly the codes they expect")
+    @Test("Broken table fixtures report exactly the codes they expect")
     func brokenExamples() throws {
-        let files = try examples("swift/Packages/OverstoryWorkspace/Tests/USLFixtures/invalid")
+        let files = try beetleFiles("tests/fixtures/tables/invalid")
         #expect(!files.isEmpty)
-        let regex = try NSRegularExpression(pattern: "^// expect: ([a-z-]+)$", options: [.anchorsMatchLines])
+        let regex = try NSRegularExpression(pattern: "^\\s*// expect: ([a-z-]+)$", options: [.anchorsMatchLines])
         for file in files {
             let range = NSRange(file.source.startIndex..., in: file.source)
             let expected = regex.matches(in: file.source, range: range).map { String(file.source[Range($0.range(at: 1), in: file.source)!]) }.sorted()
             #expect(!expected.isEmpty, "\(file.name)")
-            let actual = compileUSL(file.source).diagnostics.map(\.code).sorted()
+            let actual = compileCollectionSchema(file.source).diagnostics.map(\.code).sorted()
             #expect(actual == expected, "\(file.name)")
         }
     }
 
-    @Test("A schema.beetle lays out the tables its schema.usl did")
-    func beetleSchemasMatchUSL() throws {
-        let pairs = [
-            ("packages/beetle/examples/supplies/data/schema.beetle", "swift/Packages/OverstoryWorkspace/Tests/USLFixtures/supplies.usl"),
-            ("tests/fixtures/games.beetle", "swift/Packages/OverstoryWorkspace/Tests/USLFixtures/games.usl"),
-        ]
-        for (beetle, usl) in pairs {
-            let beetleSource = try String(contentsOf: repositoryRoot.appending(path: beetle), encoding: .utf8)
-            let uslSource = try String(contentsOf: repositoryRoot.appending(path: usl), encoding: .utf8)
-            let fromBeetle = compileCollectionSchema(beetleSource)
-            let fromUSL = compileUSL(uslSource)
-            #expect(fromBeetle.diagnostics == [], "\(beetle)")
-            #expect(fromBeetle.models.map(\.name) == fromUSL.models.map(\.name), "\(beetle)")
-            for store in [USLStore.files, .database] {
-                #expect(try uslLayout(fromBeetle, store: store) == uslLayout(fromUSL, store: store), "\(beetle)")
-            }
-        }
-    }
-
-    @Test("A schema.beetle's views, rules, mutations and state tables are left out of its tables")
+    @Test("A schema.beetle's views, rules, mutations, state tables and defaults are left out of its tables")
     func beetleSchemaSkipsTheRest() throws {
         let source = """
             // Lists.
             main table List:
               name  Text
-              first Date = today @index
+              first Date = today
               seed:
                 Inbox { name: "Inbox" }
               @index(name)
@@ -97,15 +85,14 @@ struct USLTests {
               l.name = name
 
             re List:
-              name ~label("Title")
+              ~views([{ label: "All", line: [name] }])
             """
-        let usl = uslSourceOfBeetle(source)
-        // Read as Story reads it: a seed row may leave out a defaulted field.
+        // A seed row may leave out a defaulted field.
         let result = compileCollectionSchema(source)
-        #expect(result.diagnostics == [], "\(usl)")
+        #expect(result.diagnostics == [])
         #expect(result.models.map(\.name).contains("List"))
         #expect(!result.models.map(\.name).contains("Draft"))
-        #expect(usl.components(separatedBy: "\n").count == source.components(separatedBy: "\n").count)
+        #expect(result.models.first { $0.name == "List" }?.indexes == [["name"]])
     }
 
     @Test("Collection schemas lay out the columns and keys the shared vectors give")
@@ -118,14 +105,14 @@ struct USLTests {
             let result = compileCollectionSchema(try #require(schema["source"] as? String))
             if let accept = schema["accept"] as? [String: Any] {
                 #expect(result.diagnostics == [], "\(name)")
-                let tables = try uslLayout(result, store: .files)
+                let tables = try schemaLayout(result, store: .files)
                 #expect(tables.count == 1, "\(name)")
                 #expect(tables.first?.columns.map(\.name) == accept["columns"] as? [String], "\(name)")
                 #expect(tables.first?.primaryKey == accept["primaryKey"] as? [String], "\(name)")
             } else if let reject = schema["reject"] as? [String: Any], let code = reject["code"] as? String {
                 if code == "collection-tables" {
                     #expect(result.diagnostics == [], "\(name)")
-                    #expect(try uslLayout(result, store: .files).count != 1, "\(name)")
+                    #expect(try schemaLayout(result, store: .files).count != 1, "\(name)")
                     continue
                 }
                 let first = try #require(result.diagnostics.first, "\(name)")
@@ -144,7 +131,7 @@ struct USLTests {
         var checked = 0
         for schema in schemas {
             let result = compileCollectionSchema(try #require(schema["source"] as? String))
-            guard schema["accept"] != nil, let table = try uslLayout(result, store: .files).first else { continue }
+            guard schema["accept"] != nil, let table = try schemaLayout(result, store: .files).first else { continue }
             let people = table.columns.filter(\.profile)
             guard !people.isEmpty else { continue }
             for item in schema["values"] as? [[String: Any]] ?? [] {
@@ -157,7 +144,7 @@ struct USLTests {
                         let path = column.array ? "/\(column.name)/\(index)" : "/\(column.name)"
                         var one = column
                         one.array = false
-                        let fits = (element as? String).map { uslFitsColumn(.string($0), one) } ?? false
+                        let fits = (element as? String).map { schemaFitsColumn(.string($0), one) } ?? false
                         #expect(fits == !paths.contains(path), "\(path) of \(value)")
                         checked += 1
                     }
@@ -165,40 +152,40 @@ struct USLTests {
             }
         }
         #expect(checked >= 8)
-        #expect(uslPersonPlaceholderKey(.string("contact:Bo_2")) == "Bo_2")
-        #expect(uslPersonPlaceholderKey(.string("tr_abc")) == nil)
+        #expect(schemaPersonPlaceholderKey(.string("contact:Bo_2")) == "Bo_2")
+        #expect(schemaPersonPlaceholderKey(.string("tr_abc")) == nil)
     }
 
-    @Test("Resolution: a connection model is keyed by its ends; 1:n is a column, n:m a join table")
+    @Test("Resolution: a connection table is keyed by its ends; 1:n is a column, n:m a join table")
     func resolution() throws {
-        let rating = compileUSL("model Game { name Text }\nmodel Rating { Person.ratings[], Game.ratings[], stars Number }\n")
+        let rating = compileCollectionSchema("table Game:\n  name Text\n\ntable Rating:\n  Person.ratings[]\n  Game.ratings[]\n  stars Number\n")
+        #expect(rating.diagnostics == [])
         #expect(rating.models.first { $0.name == "Rating" }?.key == ["person", "game"])
-        let storage = compileUSL("model Episode { title Text }\nmodel Series { title Text }\nSeries.episodes[] <-> Episode.series\nPerson.games[] <-> Game.authors[]\nmodel Game { name Text }\n")
+        let storage = compileCollectionSchema("table Episode:\n  title Text\n\ntable Series:\n  title Text\n\nSeries.episodes[] <-> Episode.series\nPerson.games[] <-> Game.authors[]\n\ntable Game:\n  name Text\n")
         #expect(storage.connections.map(\.storage) == [.column(on: "Episode", field: "series"), .array(on: "Game", field: "authors")])
-        let tables = try uslLayout(storage)
+        let tables = try schemaLayout(storage)
         #expect(tables.map(\.name) == ["Episode", "Series", "Game", "Person_games"])
     }
 
-    @Test("re blocks annotate, header keys key, and one model is main")
+    @Test("re blocks annotate, header keys key, and one table is main")
     func layers() {
-        let result = compileUSL("main model Tag (list, id) {\n  name Text\n}\nTag.list <-> List.tags[]\nmodel List { name Text }\nenum Status { A, B }\nre Status {\n  A ~color(\"#111111\") @stored(\"a\")\n}\n")
+        let result = compileCollectionSchema("main table Tag (list, id):\n  name Text\n\nTag.list <-> List.tags[]\n\ntable List:\n  name Text\n\nenum Status:\n  A\n  B\n\nre Status:\n  A @stored(\"a\")\n")
         #expect(result.diagnostics == [])
         let tag = result.models.first { $0.name == "Tag" }
         #expect(tag?.main == true)
         #expect(tag?.key == ["list", "id"])
-        let value = result.models.first { $0.name == "Status" }?.schemaRows.first
-        #expect(value?.color == "#111111")
-        #expect(value?.stored == "a")
-        #expect(compileUSL("model A {\n  @@views([])\n}\n").diagnostics.map(\.code) == ["syntax"])
+        #expect(result.models.first { $0.name == "Status" }?.schemaRows.first?.stored == "a")
+        #expect(compileCollectionSchema("table A:\n  name Text ~label(\"Name\")\n").diagnostics.map(\.code).contains("presentation-attribute"))
     }
 
     @Test("Limits and syntax errors carry positions")
     func syntaxErrors() {
-        let broken = parseUSL("model Book {\n  title Text\n  author ?\n}\n")
+        let broken = parseSchema("table Book:\n  title Text\n  author ?\n")
         #expect(broken.file == nil)
         #expect(broken.diagnostics.first?.code == "syntax")
         #expect(broken.diagnostics.first?.line == 3)
         let deep = String(repeating: "[", count: 40) + String(repeating: "]", count: 40)
-        #expect(parseUSL("model A { ~views(\(deep)) }").diagnostics.first?.code == "limit")
+        #expect(parseSchema("table A:\n  name Text\n  ~views(\(deep))\n").diagnostics.first?.code == "limit")
+        #expect(parseSchema(String(repeating: "x", count: 1_100_000)).diagnostics.first?.code == "limit")
     }
 }

@@ -64,9 +64,10 @@ Settled with Joe on 2026-10-15 (the editor):
   field, and derives a candidate whose roots are left out. Story Sync derives row operations
   from projection edits and sends stated frames.
 - **Swift:** Overstory has `RowOperation` and derived candidates; StoryKit has
-  `uslRowsFromLogical`, `presentView`, `viewEdits` and `applyRowEdits`; Story draws the view
-  read-only (`StoryCollectionView`, `StoryPresentedCollection`) from
-  `WorkspaceProvider.collectionRows`.
+  `schemaRowsFromLogical` and `applyRowEdits`; Story lists the main table's rows read-only
+  (`StoryCollectionView`) from `WorkspaceProvider.collectionRows`. Presented views
+  (`presentView`, `viewEdits`) went with USL on 2026-11-17; Apps 011 draws lists from Beetle
+  views, and view intents become Beetle row-action mutations.
 - **Story:** row edits go through the row queue (`UpdateCoordinator+Rows.swift`,
   `WorkspaceProvider.appendRowEdits`); the People directory writes through it.
 
@@ -80,7 +81,7 @@ Settled with Joe on 2026-10-15 (the editor):
    operations (a join-table row is a connect on its holder, a position is a move), and the
    rest of cranberries' `src/model.ts` intents: create in a group (preset the forward field, or
    connect the reverse owner), move within an `ordered` group, move to another group, and
-   `checkValue`/`validate` before publishing. Vectors beside `presented-views.json`. Done when
+   `checkValue`/`validate` before publishing. Vectors in `docs/overstory-spec/conformance`. Done when
    every intent over the games and excellences tables (`tests/fixtures/tables`) round-trips to
    row operations that the store check (`@ovst/beetle/tables/verify`) accepts, in both stacks.
 7. **Simple edits in the collection view, Mac and iPhone.** A bullet choice's dot opens a menu
@@ -96,7 +97,7 @@ Settled with Joe on 2026-10-15 (the editor):
 - A new library target and product in the quagmire repo (`QuagmireRecords`,
   say), added to `scripts/verify.sh` and to the public-API test targets.
 - It's host-neutral by Quagmire's own rule: no schema language, no storage, no paths.
-- Input: a presented view (`presentView`'s shape, in the editor's own types),
+- Input: a drawn list (a Beetle `Rows` view's shape, in the editor's own types),
   per-row and per-cell capabilities, and per-cell conflicts.
 - Output: intents.
 - Host seam: like `EditorHost` (`persistCommit` plus `flush`). The host

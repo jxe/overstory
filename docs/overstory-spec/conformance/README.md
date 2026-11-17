@@ -53,15 +53,6 @@ array of n copies. `node-model.json` and `protocol-objects.json` carry
 version-1 descriptors naming `schema.beetle` and invalid version and schema-file
 pairings.
 
-`presented-views.json` binds presented views (plan schema-language/002
-milestone 3): a schema, data-file rows and people's names presented by one
-view, and each view intent with the row operations
-([updates and merging §2.5](../1.3-updates-and-merging.md#25-property-operations)) and rows it
-leads to. Only StoryKit (`PresentedView`) runs it now: its TypeScript
-reference went with USL, so its expectations are frozen, and its schemas are
-still in USL syntax. It is deleted when Story draws collection lists from
-Beetle views (plan Apps 011), which also retires `~views`.
-
 `client-state-machines.json` freezes the transition scenarios of the one
 client synchronization machine, `working-tree-updates` (`UpdateMachine` in
 `OverstoryWorkingTree`, `reduceUpdate` in `@ovst/working-tree`): a working tree

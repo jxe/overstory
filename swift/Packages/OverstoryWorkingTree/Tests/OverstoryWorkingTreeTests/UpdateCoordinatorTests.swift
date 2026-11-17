@@ -154,7 +154,7 @@ struct UpdateCoordinatorTests {
             let complete = try await workingTree.completeSnapshot()
             #expect(try ProtocolObjectGraph.validate(complete).count == 5)
 
-            // Story reads the rows as data-file rows and presents them (Schema language 006).
+            // Story reads the rows as data-file rows (Schema language 006).
             let provider = WorkingTreeProvider(workingTree: workingTree)
             let loaded = try await provider.collectionRows(WorkspaceReference(tree: TreeID(rawValue: "tr_collection"), path: "/"))
             #expect(loaded.rows["Game"]?.map { $0["id"] } == [.string("chess"), .string("go")])
@@ -164,8 +164,6 @@ struct UpdateCoordinatorTests {
             // The head entry counts the rows.
             let node = try await provider.resolve(WorkspaceReference(tree: TreeID(rawValue: "tr_collection"), path: "/"))
             #expect(node.surface == .collection(kind: "Collection", rowCount: 2))
-            let presented = try presentView(loaded.schema, rows: loaded.rows, options: PresentOptions())
-            #expect(presented.groups.flatMap(\.lines).count == 2)
         }
     }
 

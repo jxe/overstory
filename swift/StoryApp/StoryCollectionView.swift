@@ -2,9 +2,9 @@ import OverstoryClient
 import StoryKit
 import SwiftUI
 
-/// A logical collection folder, read-only (Schema language 006): its main
-/// model's rows arranged by the schema's views, with tabs, groups that
-/// collapse and a search field. Editing comes with Schema language 007.
+/// A logical collection folder, read-only: its main table's rows as a plain
+/// list with a search field. Story drew rows arranged by the schema's
+/// `~views` until USL went (2026-11-17); Apps 011 draws them from Beetle views.
 struct StoryCollectionView: View {
     let node: WorkspaceNode
     let workspace: StoryWorkspaceState
@@ -20,10 +20,7 @@ struct StoryCollectionView: View {
     }
 
     @State private var load = Load.loading
-    @State private var tab = 0
     @State private var query = ""
-    /// Collapsed groups by tab and group id; the client's own, never stored in the tree.
-    @State private var collapsed: Set<String> = []
 
     private struct LoadKey: Hashable {
         var node: WorkspaceNode
@@ -65,27 +62,99 @@ struct StoryCollectionView: View {
 
     @ViewBuilder
     private func presented(_ collection: WorkspaceCollectionRows) -> some View {
-        let listed = workspace.directory.map { PresentedPerson(id: $0.id, name: $0.title) }
-        // The directory tree names people no host lists any more, and placeholders.
-        let people = listed + workspace.rememberedPeople.filter { remembered in !listed.contains { $0.id == remembered.id } }
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch Result(catching: {
-            try presentView(collection.schema, rows: collection.rows, options: PresentOptions(
-                view: tab, people: people, query: trimmed.isEmpty ? nil : trimmed
-            ))
-        }) {
+        let names = Dictionary(
+            (workspace.directory.map { ($0.id, $0.title) } + workspace.rememberedPeople.map { ($0.id, $0.name) }),
+            uniquingKeysWith: { first, _ in first })
+        switch Result(catching: { try CollectionList(collection, people: names) }) {
         case let .failure(error):
             ContentUnavailableView("Can't show this collection", systemImage: "tablecells.badge.ellipsis",
-                                   description: Text((error as? ViewError)?.message ?? error.localizedDescription))
-        case let .success(view):
-            let directory = Dictionary(workspace.directory.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            StoryPresentedCollection(view: view, tab: $tab, query: $query, collapsed: $collapsed) { chip, size in
-                if case let .string(id) = chip.member, let person = directory[id] {
-                    StoryAvatarView(person: person, workspace: workspace, size: size)
-                } else {
-                    StoryCollectionInitials(chip: chip, size: size)
+                                   description: Text((error as? RowEditError)?.message ?? error.localizedDescription))
+        case let .success(list):
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lines = trimmed.isEmpty ? list.lines : list.lines.filter { line in
+                ([line.title] + line.details).contains { $0.localizedCaseInsensitiveContains(trimmed) }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(list.table).font(.headline)
+                    Text(list.lines.count.formatted()).foregroundStyle(.secondary)
+                    Spacer()
+                    TextField("Search", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 220)
+                }
+                ForEach(lines) { line in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(line.title)
+                        if !line.details.isEmpty {
+                            Text(line.details.joined(separator: " · "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 2)
                 }
             }
+        }
+    }
+}
+
+/// A person a collection names, by profile id.
+struct PresentedPerson: Sendable, Equatable {
+    var id: String
+    var name: String
+}
+
+/// A collection's main table as plain lines: each row's title (its `name` or
+/// `title`, else its first text field, else its key) and its other single values.
+private struct CollectionList {
+    struct Line: Identifiable {
+        var id: String
+        var title: String
+        var details: [String]
+    }
+
+    var table: String
+    var lines: [Line]
+
+    init(_ collection: WorkspaceCollectionRows, people: [String: String]) throws {
+        let schema = collection.schema
+        if let first = schema.diagnostics.first { throw RowEditError(message: first.message) }
+        let data = schema.models.filter { $0.rows != .fixed && $0.ends.isEmpty && $0.name != "Person" }
+        guard let model = data.first(where: \.main) ?? (data.count == 1 ? data.first : nil) else {
+            throw RowEditError(message: "This collection has no main table to list")
+        }
+        let tables = try schemaLayout(schema, store: .files)
+        guard let stored = tables.first(where: { $0.ends == nil && $0.stores == model.name }) else {
+            throw RowEditError(message: "No table stores \(model.name)")
+        }
+        let columns = stored.fields.reduce(into: [String: String]()) { $0[$1.name] = $1.columns.first }
+        let shown = model.fields.filter { $0.arity != .many && !["id", "created", "modified"].contains($0.name) }
+        let titleField = shown.first { $0.name == "name" || $0.name == "title" }
+            ?? shown.first { $0.type == "Text" }
+        func text(_ value: JSONValue?, type: String) -> String? {
+            let plain: String
+            switch value {
+            case .string(let s): plain = s
+            case .bool(let b): plain = b ? "yes" : "no"
+            case .number(let n): plain = n.formatted()
+            default: return nil
+            }
+            if type == "Person" { return people[plain] ?? plain }
+            if type == "Markdown" { return plain.split(separator: "\n").first.map(String.init) }
+            return plain.isEmpty ? nil : plain
+        }
+        table = model.name
+        lines = (collection.rows[stored.name] ?? []).enumerated().map { index, row in
+            let value = { (field: SchemaResolvedField) in text(row[columns[field.name] ?? field.name], type: field.type) }
+            let key = schemaRowKey(stored, row) ?? "\(index)"
+            return Line(
+                id: key,
+                title: titleField.flatMap(value) ?? key,
+                details: shown.filter { $0.name != titleField?.name }.compactMap(value)
+            )
         }
     }
 }

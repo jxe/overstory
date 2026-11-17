@@ -168,7 +168,7 @@ public struct DirectoryVisit: Sendable, Equatable {
 extension RowEdit {
     /// A new row of `model` keyed by `id`, with the non-nil `values`.
     static func directoryRow(_ model: String, id: String, _ values: [String: String?], at: Date) -> RowEdit {
-        var row: USLRow = ["id": .string(id)]
+        var row: SchemaRow = ["id": .string(id)]
         for case let (name, value?) in values { row[name] = .string(value) }
         return .create(table: model, row: rowKey(id), values: row, at: ProtocolSourceOperation.rowTime(at))
     }
@@ -360,7 +360,7 @@ public actor PersonalDirectoryKeeper {
     }
 
     /// Rows already written: from the replica and the queue.
-    public func rows(_ collection: String, model: String) async -> [USLRow] {
+    public func rows(_ collection: String, model: String) async -> [SchemaRow] {
         guard let opened else { return [] }
         let reference = WorkspaceReference(tree: TreeID(rawValue: opened.tree.id), path: collection)
         return (try? await opened.provider.collectionRows(reference).rows[model]) ?? []

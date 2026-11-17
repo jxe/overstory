@@ -27,11 +27,10 @@ client's current document and working-tree coordinator. Story Sync tree-list
 status remains a daemon/CLI diagnostic and is not folded into Native's badge,
 tree conflict state, or publication eligibility.
 
-A folder holding a logical collection is shown as its rows, not as a document: the schema's
-main model arranged by its `~views` (tabs, groups, lines), read-only for now. The presentation
-is StoryKit's `presentView` (held to `presented-views.json`), until Apps 011 draws it from Beetle views; a client
-chooses only styling and keeps collapsed groups and the open tab as its own view state. A
-schema that does not check, or rows not on the device, show a diagnostic in place of the rows.
+A folder holding a logical collection is shown as its rows, not as a document: for now a plain,
+read-only list of the main table's rows with a search field (`StoryCollectionView`), until
+Apps 011 draws them from the schema's Beetle views. A schema that does not check, or rows not
+on the device, show a diagnostic in place of the rows.
 
 ## Editing
 

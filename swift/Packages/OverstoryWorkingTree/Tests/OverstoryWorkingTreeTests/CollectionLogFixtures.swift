@@ -58,12 +58,12 @@ enum GamesCollection {
     /// A SQLite file of `games` in the schema's database layout, as a host writes a snapshot.
     static func sqliteSnapshot(_ games: [ProtocolLogicalRow]) throws -> Data {
         let schema = compileCollectionSchema(source)
-        let layout = try uslLayout(schema, store: .database)
+        let layout = try schemaLayout(schema, store: .database)
         let logical = games.map { row in
-            USLLogicalRow(key: row.key.map { USLKeyPart(name: $0.field, value: json($0.value)) }, fields: row.fields.mapValues(json),
+            SchemaLogicalRow(key: row.key.map { SchemaKeyPart(name: $0.field, value: json($0.value)) }, fields: row.fields.mapValues(json),
                           created: ProtocolEntryTime.string(row.created), modified: ProtocolEntryTime.string(row.modified))
         }
-        let rows = try uslRowsFromLogical(schema, layout: layout, tables: ["Game": logical])
+        let rows = try schemaRowsFromLogical(schema, layout: layout, tables: ["Game": logical])
         var database: OpaquePointer?
         guard sqlite3_open(":memory:", &database) == SQLITE_OK, let database else { throw CocoaError(.fileReadUnknown) }
         defer { sqlite3_close(database) }

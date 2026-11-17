@@ -919,13 +919,13 @@ public actor WorkingTree {
         if let first = schema.diagnostics.first { throw WorkspaceCollectionError.schema(first.message) }
         do {
             let tables = try await collectionTables(schema, head: reference.log)
-            let layout = try uslLayout(schema, store: .files)
-            return WorkspaceCollectionRows(schema: schema, rows: try uslRowsFromLogical(schema, layout: layout, tables: tables))
+            let layout = try schemaLayout(schema, store: .files)
+            return WorkspaceCollectionRows(schema: schema, rows: try schemaRowsFromLogical(schema, layout: layout, tables: tables))
         } catch ObjectStoreError.missing {
             throw WorkspaceCollectionError.missingRows
-        } catch let error as USLLayoutError {
+        } catch let error as SchemaLayoutError {
             throw WorkspaceCollectionError.unreadable(error.message)
-        } catch let error as USLSnapshotError {
+        } catch let error as SchemaSnapshotError {
             throw WorkspaceCollectionError.unreadable(error.message)
         }
     }
@@ -939,22 +939,22 @@ public actor WorkingTree {
     /// Each entry's row count is checked; its rows hash is not, since that
     /// needs SHAKE256, which CryptoKit doesn't offer. The host checked every
     /// entry when it accepted it, and the root commits to them all.
-    private func collectionTables(_ schema: USLCheckResult, head: String) async throws -> USLLogicalTables {
+    private func collectionTables(_ schema: SchemaCheckResult, head: String) async throws -> SchemaLogicalTables {
         var pending: [(hash: String, log: ProtocolLog)] = []
-        var tables: [String: [String: USLLogicalRow]] = [:]
+        var tables: [String: [String: SchemaLogicalRow]] = [:]
         var count = 0
         var at: String? = head
         while let hash = at {
             guard case let .log(entry) = try ProtocolObjectCodec.decode(try await objectBytes(hash: hash), kind: .log) else { break }
             if let file = entry.snapshot {
-                let layout = try uslLayout(schema, store: .database)
-                let rows = try uslSnapshotRows(layout, bytes: try await objectBytes(hash: file))
-                for (model, list) in try uslLogicalFromRows(schema, layout: layout, rows: rows, now: ProtocolEntryTime.string(0)) {
+                let layout = try schemaLayout(schema, store: .database)
+                let rows = try schemaSnapshotRows(layout, bytes: try await objectBytes(hash: file))
+                for (model, list) in try schemaLogicalFromRows(schema, layout: layout, rows: rows, now: ProtocolEntryTime.string(0)) {
                     for row in list { tables[model, default: [:]][row.keyText] = row }
                     count += list.count
                 }
                 guard count == entry.rows else {
-                    throw USLSnapshotError(message: "The snapshot in log entry \(hash) doesn't hold the rows its entry says")
+                    throw SchemaSnapshotError(message: "The snapshot in log entry \(hash) doesn't hold the rows its entry says")
                 }
                 break
             }
@@ -963,10 +963,10 @@ public actor WorkingTree {
         }
         for (hash, entry) in pending.reversed() {
             for change in entry.changes {
-                let key = uslKeyText(change.key.map { USLKeyPart(name: $0.field, value: Self.jsonValue($0.value)) })
+                let key = schemaKeyText(change.key.map { SchemaKeyPart(name: $0.field, value: Self.jsonValue($0.value)) })
                 let was = tables[change.model]?[key]
                 if was != nil { count -= 1 }
-                else if change.row == nil { throw USLSnapshotError(message: "Log entry \(hash) removes \(change.model) \(key), which isn't there") }
+                else if change.row == nil { throw SchemaSnapshotError(message: "Log entry \(hash) removes \(change.model) \(key), which isn't there") }
                 if let row = change.row {
                     tables[change.model, default: [:]][key] = Self.logicalRow(row)
                     count += 1
@@ -975,15 +975,15 @@ public actor WorkingTree {
                 }
             }
             guard count == entry.rows else {
-                throw USLSnapshotError(message: "Log entry \(hash) doesn't hold the rows its count says")
+                throw SchemaSnapshotError(message: "Log entry \(hash) doesn't hold the rows its count says")
             }
         }
         return tables.mapValues { rows in rows.keys.sorted { Self.compareUTF8($0, $1) }.map { rows[$0]! } }
     }
 
-    private static func logicalRow(_ row: ProtocolLogicalRow) -> USLLogicalRow {
-        USLLogicalRow(
-            key: row.key.map { USLKeyPart(name: $0.field, value: jsonValue($0.value)) },
+    private static func logicalRow(_ row: ProtocolLogicalRow) -> SchemaLogicalRow {
+        SchemaLogicalRow(
+            key: row.key.map { SchemaKeyPart(name: $0.field, value: jsonValue($0.value)) },
             fields: row.fields.mapValues(jsonValue),
             created: ProtocolEntryTime.string(row.created),
             modified: ProtocolEntryTime.string(row.modified)

@@ -7,7 +7,7 @@ import Foundation
 // are at the top of logical.ts.
 
 /// One field of a row's key, with its value.
-public struct USLKeyPart: Sendable, Equatable {
+public struct SchemaKeyPart: Sendable, Equatable {
     public var name: String
     public var value: JSONValue
 
@@ -18,13 +18,13 @@ public struct USLKeyPart: Sendable, Equatable {
 }
 
 /// A row as the tree holds it: its key, its stored fields and its times.
-public struct USLLogicalRow: Sendable, Equatable {
-    public var key: [USLKeyPart]
+public struct SchemaLogicalRow: Sendable, Equatable {
+    public var key: [SchemaKeyPart]
     public var fields: [String: JSONValue]
     public var created: String
     public var modified: String
 
-    public init(key: [USLKeyPart], fields: [String: JSONValue], created: String, modified: String) {
+    public init(key: [SchemaKeyPart], fields: [String: JSONValue], created: String, modified: String) {
         self.key = key
         self.fields = fields
         self.created = created
@@ -38,7 +38,7 @@ public struct USLLogicalRow: Sendable, Equatable {
 }
 
 /// Rows by model name, each table in stable-key order.
-public typealias USLLogicalTables = [String: [USLLogicalRow]]
+public typealias SchemaLogicalTables = [String: [SchemaLogicalRow]]
 
 private struct LogicalField {
     enum Kind { case value, reference, members }
@@ -56,10 +56,10 @@ private struct LogicalModel {
 }
 
 /// Where a connection field's data is held, from the model that has the field.
-private func holdsHere(_ result: USLCheckResult, _ model: USLResolvedModel, _ field: String) -> Bool {
+private func holdsHere(_ result: SchemaCheckResult, _ model: SchemaResolvedModel, _ field: String) -> Bool {
     func hasRows(_ name: String) -> Bool { name != "Person" && result.models.first { $0.name == name }?.rows != .fixed }
     for c in result.connections {
-        let here: USLResolvedEnd, other: USLResolvedEnd
+        let here: SchemaResolvedEnd, other: SchemaResolvedEnd
         if c.a.model == model.name && c.a.field == field { here = c.a; other = c.b }
         else if c.b.model == model.name && c.b.field == field { here = c.b; other = c.a }
         else { continue }
@@ -83,17 +83,17 @@ private func holdsHere(_ result: USLCheckResult, _ model: USLResolvedModel, _ fi
 }
 
 /// The models with data rows and the fields their logical rows hold.
-private func logicalModels(_ result: USLCheckResult) -> [LogicalModel] {
+private func logicalModels(_ result: SchemaCheckResult) -> [LogicalModel] {
     var out: [LogicalModel] = []
     for model in result.models where model.name != "Person" && model.rows != .fixed {
         let keyFields = model.key.map { k -> LogicalField in
             if k == "id" { return LogicalField(name: "id", type: "Text", kind: .value) }
             let f = model.fields.first { $0.name == k }!
-            return LogicalField(name: k, type: f.type, kind: uslValueTypes.contains(f.type) ? .value : .reference)
+            return LogicalField(name: k, type: f.type, kind: schemaValueTypes.contains(f.type) ? .value : .reference)
         }
         var fields: [LogicalField] = []
         for f in model.fields where !model.key.contains(f.name) {
-            if uslValueTypes.contains(f.type) {
+            if schemaValueTypes.contains(f.type) {
                 fields.append(LogicalField(name: f.name, type: f.type, kind: .value, ordered: f.ordered))
             } else if f.origin == .end {
                 fields.append(LogicalField(name: f.name, type: f.type, kind: .reference))
@@ -111,12 +111,12 @@ private final class Record {
     var values: [String: JSONValue] = [:]
 }
 
-/// The rows of `layout`'s tables (a `uslLayout` result) that hold `tables`.
+/// The rows of `layout`'s tables (a `schemaLayout` result) that hold `tables`.
 /// Every n:m connection gets its arrays on both ends first, so any layout can
 /// store it; timestamps go to the `created` and `modified` columns.
-public func uslRowsFromLogical(_ result: USLCheckResult, layout: [USLTable], tables: USLLogicalTables) throws -> USLRowsByTable {
-    if !result.diagnostics.isEmpty { throw USLLayoutError(message: "The schema has errors; check it first", location: nil) }
-    var layoutTables: [String: USLTable] = [:]
+public func schemaRowsFromLogical(_ result: SchemaCheckResult, layout: [SchemaTable], tables: SchemaLogicalTables) throws -> SchemaRowsByTable {
+    if !result.diagnostics.isEmpty { throw SchemaLayoutError(message: "The schema has errors; check it first", location: nil) }
+    var layoutTables: [String: SchemaTable] = [:]
     for t in layout where t.ends == nil { layoutTables[t.stores] = t }
     var models: [String: LogicalModel] = [:]
     for m in logicalModels(result) { models[m.name] = m }
@@ -126,7 +126,7 @@ public func uslRowsFromLogical(_ result: USLCheckResult, layout: [USLTable], tab
         return try model.key.map { k in
             let columns = table.fields.first { $0.name == k }?.columns ?? [k]
             guard columns.count == 1 else {
-                throw USLLayoutError(message: "`\(target).\(k)` refers to a key of several fields, which logical collections don't hold yet", location: target)
+                throw SchemaLayoutError(message: "`\(target).\(k)` refers to a key of several fields, which logical collections don't hold yet", location: target)
             }
             return (k, columns[0])
         }
@@ -197,19 +197,19 @@ public func uslRowsFromLogical(_ result: USLCheckResult, layout: [USLTable], tab
             }
         }
     }
-    return uslRowsFromRecords(layout, records: records.mapValues { $0.map(\.values) })
+    return schemaRowsFromRecords(layout, records: records.mapValues { $0.map(\.values) })
 }
 
 // MARK: - Records and rows (`records.ts`)
 
 /// Reads a stored key: one column's value, or an object of `keyColumns`.
-private func readKey(_ row: USLRow, _ columns: [String], _ keyColumns: [String]) -> JSONValue {
+private func readKey(_ row: SchemaRow, _ columns: [String], _ keyColumns: [String]) -> JSONValue {
     if columns.count == 1 { return row[columns[0]] ?? .null }
     return .object(Dictionary(uniqueKeysWithValues: zip(keyColumns, columns).map { ($0, row[$1] ?? .null) }))
 }
 
 /// Writes a key into `columns` of `row`.
-private func writeKey(_ row: inout USLRow, _ columns: [String], _ keyColumns: [String], _ key: JSONValue) {
+private func writeKey(_ row: inout SchemaRow, _ columns: [String], _ keyColumns: [String], _ key: JSONValue) {
     if columns.count == 1 { row[columns[0]] = key; return }
     let value: [String: JSONValue]
     if case let .object(members) = key { value = members } else { value = [:] }
@@ -217,11 +217,11 @@ private func writeKey(_ row: inout USLRow, _ columns: [String], _ keyColumns: [S
 }
 
 private struct LayoutTables {
-    var byModel: [String: USLTable] = [:]
+    var byModel: [String: SchemaTable] = [:]
     var models: [String] = []
-    var joins: [USLTable] = []
+    var joins: [SchemaTable] = []
 
-    init(_ tables: [USLTable]) {
+    init(_ tables: [SchemaTable]) {
         for t in tables {
             if t.ends != nil { joins.append(t) } else { byModel[t.stores] = t; models.append(t.stores) }
         }
@@ -230,9 +230,9 @@ private struct LayoutTables {
         guard let model, let key = byModel[model]?.primaryKey, !key.isEmpty else { return ["id"] }
         return key
     }
-    func keyColumnsOf(_ field: USLStoredField) -> [String] { field.target.map { keyColumns($0) } ?? field.columns }
+    func keyColumnsOf(_ field: SchemaStoredField) -> [String] { field.target.map { keyColumns($0) } ?? field.columns }
     /// Which ends of a join table carry its array on records.
-    func carriers(_ join: USLTable) -> [USLJoinEnd] {
+    func carriers(_ join: SchemaTable) -> [SchemaJoinEnd] {
         let ends = join.ends!.filter { byModel[$0.model] != nil }
         let folded = ends.filter(\.fold)
         return folded.isEmpty ? ends : folded
@@ -240,8 +240,8 @@ private struct LayoutTables {
 }
 
 /// The row of `table` (a model's table) that stores `record`.
-private func rowOf(_ t: LayoutTables, _ table: USLTable, _ record: [String: JSONValue]) -> USLRow {
-    var row: USLRow = [:]
+private func rowOf(_ t: LayoutTables, _ table: SchemaTable, _ record: [String: JSONValue]) -> SchemaRow {
+    var row: SchemaRow = [:]
     var held = Set<String>()
     for field in table.fields {
         held.formUnion(field.columns)
@@ -256,15 +256,15 @@ private func rowOf(_ t: LayoutTables, _ table: USLTable, _ record: [String: JSON
 }
 
 /// Rows for every table, from records by model.
-public func uslRowsFromRecords(_ tables: [USLTable], records: [String: [[String: JSONValue]]]) -> USLRowsByTable {
+public func schemaRowsFromRecords(_ tables: [SchemaTable], records: [String: [[String: JSONValue]]]) -> SchemaRowsByTable {
     let t = LayoutTables(tables)
-    var out: USLRowsByTable = [:]
+    var out: SchemaRowsByTable = [:]
     for model in t.models {
         let table = t.byModel[model]!
         out[table.name] = (records[model] ?? []).map { rowOf(t, table, $0) }
     }
     for join in t.joins {
-        var rows = OrderedMap<USLRow>()
+        var rows = OrderedMap<SchemaRow>()
         for end in t.carriers(join) {
             let other = join.ends![0] == end ? join.ends![1] : join.ends![0]
             let table = t.byModel[end.model]!
@@ -272,13 +272,13 @@ public func uslRowsFromRecords(_ tables: [USLTable], records: [String: [[String:
                 guard let members = record[end.field]?.arrayValue else { continue }
                 let key = readKey(rowOf(t, table, record), table.primaryKey, table.primaryKey)
                 for (i, member) in members.enumerated() {
-                    var row: USLRow = [:]
+                    var row: SchemaRow = [:]
                     writeKey(&row, end.columns, t.keyColumns(end.model), key)
                     writeKey(&row, other.columns, t.keyColumns(other.model), member)
                     if let position = end.position { row[position] = .number(Double(i)) }
                     let id = JSONValue.array(join.primaryKey.map { row[$0] ?? .null }).jsonText
                     // A connection's times are its holder's, the latest it can have changed.
-                    var merged: USLRow = [:]
+                    var merged: SchemaRow = [:]
                     if case let .string(modified)? = record["modified"] {
                         merged["created"] = .string(modified)
                         merged["modified"] = .string(modified)
@@ -296,13 +296,13 @@ public func uslRowsFromRecords(_ tables: [USLTable], records: [String: [[String:
 
 // MARK: - Rows to logical (`logicalFromRows`, `recordsFromRows`)
 
-/// The logical tables that rows of `layout` (a `uslLayout` result) hold, each
+/// The logical tables that rows of `layout` (a `schemaLayout` result) hold, each
 /// table in stable-key order. Rows a store doesn't time get `now`. Values are
 /// taken as the store gives them; validating them against the schema is the
 /// caller's.
-public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], rows: USLRowsByTable, now: String) throws -> USLLogicalTables {
-    if !result.diagnostics.isEmpty { throw USLLayoutError(message: "The schema has errors; check it first", location: nil) }
-    var layoutTables: [String: USLTable] = [:]
+public func schemaLogicalFromRows(_ result: SchemaCheckResult, layout: [SchemaTable], rows: SchemaRowsByTable, now: String) throws -> SchemaLogicalTables {
+    if !result.diagnostics.isEmpty { throw SchemaLayoutError(message: "The schema has errors; check it first", location: nil) }
+    var layoutTables: [String: SchemaTable] = [:]
     for t in layout where t.ends == nil { layoutTables[t.stores] = t }
     let modelList = logicalModels(result)
     var models: [String: LogicalModel] = [:]
@@ -313,7 +313,7 @@ public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], row
         return try model.key.map { k in
             let columns = table.fields.first { $0.name == k }?.columns ?? [k]
             guard columns.count == 1 else {
-                throw USLLayoutError(message: "`\(target).\(k)` refers to a key of several fields, which logical collections don't hold yet", location: target)
+                throw SchemaLayoutError(message: "`\(target).\(k)` refers to a key of several fields, which logical collections don't hold yet", location: target)
             }
             return (k, columns[0])
         }
@@ -325,10 +325,10 @@ public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], row
         guard columns.count > 1, case let .object(members) = value else { return value }
         return .array(columns.map { .array([.string($0.field), members[$0.column] ?? .null]) })
     }
-    func keyOf(_ model: LogicalModel, _ record: [String: JSONValue]) throws -> [USLKeyPart] {
+    func keyOf(_ model: LogicalModel, _ record: [String: JSONValue]) throws -> [SchemaKeyPart] {
         try model.keyFields.map { f in
             let value = record[f.name] ?? .null
-            return USLKeyPart(name: f.name, value: f.kind == .reference ? try referenceIn(f.type, value) : value)
+            return SchemaKeyPart(name: f.name, value: f.kind == .reference ? try referenceIn(f.type, value) : value)
         }
     }
     func keyValue(_ model: LogicalModel, _ record: [String: JSONValue]) throws -> JSONValue {
@@ -336,7 +336,7 @@ public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], row
         return key.count == 1 ? key[0].value : .array(key.map { .array([.string($0.name), $0.value]) })
     }
 
-    let records = uslRecordsFromRows(layout, rows: rows)
+    let records = schemaRecordsFromRows(layout, rows: rows)
     // Each n:m connection's pairs, from whichever end a store carries them on,
     // as members by "Model.field" and the row's key value text.
     var members: [String: [String: [JSONValue]]] = [:]
@@ -369,9 +369,9 @@ public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], row
             }
         }
     }
-    var out: USLLogicalTables = [:]
+    var out: SchemaLogicalTables = [:]
     for model in modelList {
-        var rowsOut: [USLLogicalRow] = []
+        var rowsOut: [SchemaLogicalRow] = []
         for record in records[model.name] ?? [] {
             let key = try keyOf(model, record)
             let keyText = try keyValue(model, record).jsonText
@@ -393,32 +393,32 @@ public func uslLogicalFromRows(_ result: USLCheckResult, layout: [USLTable], row
                 guard let value, !value.isNull else { continue }
                 if case let .array(list) = value {
                     if list.isEmpty { continue }
-                    fields[f.name] = f.ordered ? value : .array(uslSet(list))
+                    fields[f.name] = f.ordered ? value : .array(schemaSet(list))
                 } else {
                     fields[f.name] = value
                 }
             }
             let created = timestampText(record["created"]) ?? now
             let modified = timestampText(record["modified"]) ?? created
-            rowsOut.append(USLLogicalRow(key: key, fields: fields, created: created, modified: modified))
+            rowsOut.append(SchemaLogicalRow(key: key, fields: fields, created: created, modified: modified))
         }
         out[model.name] = rowsOut.sorted { compareText($0.keyText, $1.keyText) < 0 }
     }
     return out
 }
 
-extension USLLogicalRow {
+extension SchemaLogicalRow {
     /// The row's stable key: the canonical JSON of its key pairs.
-    public var keyText: String { uslKeyText(key) }
+    public var keyText: String { schemaKeyText(key) }
 }
 
 /// A row's stable key from its key pairs: their canonical JSON (spec 03 §2).
-public func uslKeyText(_ key: [USLKeyPart]) -> String {
+public func schemaKeyText(_ key: [SchemaKeyPart]) -> String {
     JSONValue.array(key.map { .array([.string($0.name), $0.value]) }).jsonText
 }
 
 /// Sorts and dedupes a set's members by their canonical JSON.
-private func uslSet(_ values: [JSONValue]) -> [JSONValue] {
+private func schemaSet(_ values: [JSONValue]) -> [JSONValue] {
     var byText: [String: JSONValue] = [:]
     for value in values { byText[value.jsonText] = value }
     return byText.keys.sorted { compareText($0, $1) < 0 }.map { byText[$0]! }
@@ -437,7 +437,7 @@ private func timestampText(_ value: JSONValue?) -> String? {
 }
 
 /// The record `row` of `table` (a model's table) stores, with its timestamps.
-private func recordOf(_ t: LayoutTables, _ table: USLTable, _ row: USLRow) -> [String: JSONValue] {
+private func recordOf(_ t: LayoutTables, _ table: SchemaTable, _ row: SchemaRow) -> [String: JSONValue] {
     var record: [String: JSONValue] = [:]
     var held = Set<String>()
     for field in table.fields {
@@ -458,7 +458,7 @@ private func recordOf(_ t: LayoutTables, _ table: USLTable, _ row: USLRow) -> [S
 }
 
 /// Normalizes what a driver returns: SQLite's 0/1 flags and JSON-text arrays.
-private func fromStored(_ value: JSONValue, _ column: USLColumn) -> JSONValue {
+private func fromStored(_ value: JSONValue, _ column: SchemaColumn) -> JSONValue {
     if column.array, case let .string(text) = value {
         return (try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))) ?? value
     }
@@ -467,7 +467,7 @@ private func fromStored(_ value: JSONValue, _ column: USLColumn) -> JSONValue {
 }
 
 /// Records by model, from rows by table.
-public func uslRecordsFromRows(_ tables: [USLTable], rows: USLRowsByTable) -> [String: [[String: JSONValue]]] {
+public func schemaRecordsFromRows(_ tables: [SchemaTable], rows: SchemaRowsByTable) -> [String: [[String: JSONValue]]] {
     let t = LayoutTables(tables)
     var out: [String: [Record]] = [:]
     var byKey: [String: [String: Record]] = [:]

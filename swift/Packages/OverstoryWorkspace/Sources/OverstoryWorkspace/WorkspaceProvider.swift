@@ -499,7 +499,7 @@ public protocol WorkspaceProvider: Sendable {
     /// resolving it again. Providers whose resolve is costly implement it.
     func openDocument(resolved node: WorkspaceNode) async throws -> any WorkspaceDocumentSession
     /// A collection folder's checked schema and its rows, laid out as data files
-    /// lay them out, for `presentView`. Throws `WorkspaceCollectionError` when the
+    /// lay them out. Throws `WorkspaceCollectionError` when the
     /// folder holds no logical collection or can't be read here.
     func collectionRows(_ reference: WorkspaceReference) async throws -> WorkspaceCollectionRows
     /// Queue edits to a collection folder's rows (Schema language 007). The
@@ -510,10 +510,10 @@ public protocol WorkspaceProvider: Sendable {
 
 /// What a collection folder holds, ready to present.
 public struct WorkspaceCollectionRows: Sendable {
-    public var schema: USLCheckResult
-    public var rows: USLRowsByTable
+    public var schema: SchemaCheckResult
+    public var rows: SchemaRowsByTable
 
-    public init(schema: USLCheckResult, rows: USLRowsByTable) {
+    public init(schema: SchemaCheckResult, rows: SchemaRowsByTable) {
         self.schema = schema
         self.rows = rows
     }

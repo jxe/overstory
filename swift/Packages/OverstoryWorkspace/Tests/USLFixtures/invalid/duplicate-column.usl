@@ -1,6 +1,0 @@
-// expect: duplicate-column
-// Two fields stored under one name.
-model Book {
-  title    Text
-  subtitle Text  @column("title")
-}
