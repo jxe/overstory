@@ -344,6 +344,9 @@ private struct Parser {
     var defaulted = Set<String>()
     /// `~` attributes other than `~views`, which Beetle doesn't have.
     var presentation: [SchemaDiagnostic] = []
+    /// Inside an attribute's arguments, where `~` marks a view line's presentation (`~bullet`)
+    /// and is not reported.
+    var argumentDepth = 0
 
     var token: Token { tokens[pos] }
     func peek(_ offset: Int = 1) -> Token { tokens[min(pos + offset, tokens.count - 1)] }
@@ -392,7 +395,8 @@ private struct Parser {
         while !atEnd {
             if token.column != 1 { throw fail("a declaration at the start of a line") }
             declarations.append(try declaration())
-            try endOfLine()
+            // A block's last member already ended its line; a connection has not.
+            if pos == 0 || tokens[pos - 1].kind != .newline { try endOfLine() }
         }
         return SchemaFile(declarations: declarations)
     }
@@ -590,7 +594,7 @@ private struct Parser {
         let sigil: SchemaSigil = next().text == "@" ? .storage : .presentation
         let name = try ident("an attribute name").text
         let arguments: [SchemaExpr] = try (`is`("(") ? args() : [])
-        if sigil == .presentation && name != "views" {
+        if sigil == .presentation && name != "views" && argumentDepth == 0 {
             presentation.append(SchemaDiagnostic(
                 code: "presentation-attribute",
                 message: name == "color"
@@ -624,6 +628,8 @@ private struct Parser {
 
     mutating func args() throws -> [SchemaExpr] {
         try expect("(")
+        argumentDepth += 1
+        defer { argumentDepth -= 1 }
         return try items(")")
     }
 
