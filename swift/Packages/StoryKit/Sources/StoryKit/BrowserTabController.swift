@@ -150,6 +150,47 @@ public final class BrowserTabController {
         }
     }
 
+    /// A page was renamed, moved, trashed or restored from `old` to `new`.
+    /// Point every tab's trail at its new place: the page itself, matched by
+    /// its page ID or, for a page without one, by its old path, and every
+    /// entry beneath it, whose path moves with it. Entries the move made
+    /// adjacent duplicates of each other collapse into one step, so Back
+    /// never lands on the page it is leaving.
+    public func relocate(from old: WorkspaceReference, to new: WorkspaceReference) {
+        guard old.path != "/" else { return reconcileReference(new) }
+        let prefix = old.path + "/"
+        let relocate: (WorkspaceLocation) -> WorkspaceLocation = { location in
+            guard case let .reference(reference) = location, reference.tree == old.tree else { return location }
+            if let key = reference.stableKey {
+                if key == old.stableKey || key == new.stableKey { return .reference(new) }
+            } else if reference.path == old.path {
+                return .reference(new)
+            }
+            guard reference.path.hasPrefix(prefix) else { return location }
+            return .reference(WorkspaceReference(
+                tree: new.tree,
+                path: new.path + "/" + reference.path.dropFirst(prefix.count),
+                stableKey: reference.stableKey
+            ))
+        }
+        launchLocation = relocate(launchLocation)
+        for index in tabs.indices {
+            var tab = tabs[index]
+            tab.current = relocate(tab.current)
+            tab.back = Self.collapsingRepeats(tab.back.map(relocate))
+            while tab.back.last == tab.current { tab.back.removeLast() }
+            tab.forward = Self.collapsingRepeats(tab.forward.map(relocate))
+            while tab.forward.last == tab.current { tab.forward.removeLast() }
+            tabs[index] = tab
+        }
+    }
+
+    private static func collapsingRepeats(_ trail: [WorkspaceLocation]) -> [WorkspaceLocation] {
+        trail.reduce(into: []) { result, location in
+            if result.last != location { result.append(location) }
+        }
+    }
+
     /// Rename one location wherever a tab holds it, as when a new page gets its path.
     public func replaceLocation(_ location: WorkspaceLocation, with replacement: WorkspaceLocation) {
         let replace: (WorkspaceLocation) -> WorkspaceLocation = { $0 == location ? replacement : $0 }

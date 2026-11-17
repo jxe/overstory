@@ -317,6 +317,29 @@ struct BrowserTabControllerTests {
         #expect(controller.navigationPath.count == 2)
     }
 
+    @Test("Relocating a page moves its entries and those beneath it, and collapses repeats")
+    func relocateMovesPageAndDescendants() {
+        let home = WorkspaceReference(tree: "tr_sample", path: "/")
+        let page = WorkspaceReference(tree: "tr_sample", path: "/a")
+        let child = WorkspaceReference(tree: "tr_sample", path: "/a/b", stableKey: markdownStableKey("pg_b"))
+        let sibling = WorkspaceReference(tree: "tr_sample", path: "/ab")
+        let moved = WorkspaceReference(tree: "tr_sample", path: "/x/a")
+        let controller = BrowserTabController(home: home)
+        controller.navigate(to: .reference(child))
+        controller.navigate(to: .reference(sibling))
+        controller.navigate(to: .reference(page))
+        controller.navigate(to: .reference(moved))
+
+        controller.relocate(from: page, to: moved)
+
+        #expect(controller.selectedTab.current == .reference(moved))
+        #expect(controller.selectedTab.back == [
+            .reference(home),
+            .reference(.init(tree: "tr_sample", path: "/x/a/b", stableKey: markdownStableKey("pg_b"))),
+            .reference(sibling),
+        ])
+    }
+
     @Test("Local locations climb through tree boundaries to filesystem root")
     func localParentReachesFilesystemRoot() {
         let location = WorkspaceLocation.local("/Users/example/tree/page")

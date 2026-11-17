@@ -202,6 +202,14 @@ struct WorkspaceStructuralReceipt: Identifiable {
     let id = UUID()
     let action: WorkspaceStructuralAction
     let result: WorkspaceNode?
+
+    /// The page this action moved away from its place, when it moved one.
+    var relocated: WorkspaceReference? {
+        switch action {
+        case let .rename(reference, _), let .move(reference, _), let .trash(reference), let .restore(reference): reference
+        case .createMarkdown, .createDirectory, .copy: nil
+        }
+    }
 }
 
 @MainActor
@@ -3847,8 +3855,11 @@ final class StoryAppModel {
         await workspace.flush()
         do {
             let receipt = try await workspace.performWithReceipt(action)
-            if navigateToResult, let result = receipt.result { await navigate(to: result.reference) }
-            else { await reconcile(receipt) }
+            if navigateToResult, let result = receipt.result {
+                // A trashed or moved page keeps one place in history, its new one.
+                relocateHistory(for: receipt)
+                await navigate(to: result.reference)
+            } else { await reconcile(receipt) }
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -3907,6 +3918,7 @@ final class StoryAppModel {
     /// that deliberately tears down and reacquires an editor surface.
     func reconcile(_ receipt: WorkspaceStructuralReceipt) async {
         guard observedWorkspaceGeneration == workspace.generation else { return }
+        relocateHistory(for: receipt)
         if case let .trash(reference) = receipt.action { sidebarRetentions.remove(reference) }
         if let result = receipt.result {
             switch receipt.action {
@@ -3927,7 +3939,8 @@ final class StoryAppModel {
                 )
             }
         }
-        if let result = receipt.result, result.reference.identity == node?.reference.identity {
+        if let result = receipt.result, let shown = node?.reference.identity,
+           result.reference.identity == shown || receipt.relocated?.identity == shown {
             node = result
             binding?.reconcileReference(result.reference)
             tabs.reconcileReference(result.reference)
@@ -3941,6 +3954,16 @@ final class StoryAppModel {
         pageIndexIsStale = true
         await refreshPageChildren()
         await search(lastSearchQuery)
+    }
+
+    /// A rename, move, trash or restore changes where a page and everything
+    /// beneath it live. Point this window's history at the new places, so
+    /// Back and Forward reach pages without IDs and never revisit the page
+    /// just moved as if it were somewhere else.
+    private func relocateHistory(for receipt: WorkspaceStructuralReceipt) {
+        guard let old = receipt.relocated, let result = receipt.result,
+              result.reference.tree == old.tree else { return }
+        tabs.relocate(from: old, to: result.reference)
     }
 
     /// Child links are a projection of tree structure, not of the page's

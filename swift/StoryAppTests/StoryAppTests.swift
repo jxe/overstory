@@ -1356,6 +1356,115 @@ struct StoryAppTests {
         #expect(model.currentReference.path != original.path)
     }
 
+    /// A tree whose pages have no page IDs, as when an agent writes a page
+    /// without front matter: `/notes` (a page with children) holds `/notes/idea`.
+    private func treeWithoutPageIDs() -> (StoryWorkspaceState, root: WorkspaceReference, notes: WorkspaceReference, idea: WorkspaceReference) {
+        let provenance = WorkspaceProvenance(authority: .local, sourceDescription: "Test")
+        let root = WorkspaceNode(
+            reference: WorkspaceReference(tree: "tr_sample", path: "/"),
+            title: "Home",
+            surface: .directoryDocument(source: "# Home\n", contentRevision: "r1", stored: true),
+            provenance: provenance
+        )
+        let notes = WorkspaceNode(
+            reference: WorkspaceReference(tree: "tr_sample", path: "/notes"),
+            title: "Notes",
+            surface: .directoryDocument(source: "# Notes\n", contentRevision: "r1", stored: true),
+            provenance: provenance
+        )
+        let idea = WorkspaceNode(
+            reference: WorkspaceReference(tree: "tr_sample", path: "/notes/idea"),
+            title: "Idea",
+            surface: .markdown(source: "# Idea\n", contentRevision: "r1"),
+            provenance: provenance
+        )
+        let provider = InMemoryWorkspaceProvider(
+            nodes: [root, notes, idea],
+            children: [root.id: [notes.id], notes.id: [idea.id]]
+        )
+        return (StoryWorkspaceState(provider: provider), root.reference, notes.reference, idea.reference)
+    }
+
+    @Test("Back reaches a page without a page ID after it is renamed")
+    func backAfterRenamingPageWithoutID() async throws {
+        let (workspace, root, notes, _) = treeWithoutPageIDs()
+        let model = StoryAppModel(workspace: workspace)
+        await model.load()
+        await model.navigate(to: notes)
+        await model.renameCurrentPage(to: "journal")
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.path == "/journal")
+        #expect(model.currentLocation == .reference(WorkspaceReference(tree: "tr_sample", path: "/journal")))
+
+        await model.navigate(to: root)
+        await model.goBack()
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.path == "/journal")
+    }
+
+    @Test("Renaming a page moves the history entries of the pages beneath it")
+    func renamingParentRelocatesChildHistory() async throws {
+        let (workspace, _, notes, idea) = treeWithoutPageIDs()
+        let model = StoryAppModel(workspace: workspace)
+        await model.load()
+        await model.navigate(to: idea)
+        await model.navigate(to: notes)
+        await model.renameCurrentPage(to: "journal")
+        #expect(model.errorMessage == nil)
+
+        await model.goBack()
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.path == "/journal/idea")
+        await model.goForward()
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.path == "/journal")
+    }
+
+    @Test("Moving a page without a page ID leaves no Back step to its old place")
+    func movingPageWithoutIDLeavesNoStaleBackStep() async throws {
+        let (workspace, root, notes, idea) = treeWithoutPageIDs()
+        let model = StoryAppModel(workspace: workspace)
+        await model.load()
+        await model.navigate(to: notes)
+        await model.navigate(to: idea)
+        let host = try #require(model.editorHost)
+
+        let move = Task { await host.moveCurrentDocument() }
+        for _ in 0..<200 where host.structuralMoveRequest == nil {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        _ = try #require(host.structuralMoveRequest)
+        host.resolveStructuralMoveRequest(with: root)
+        #expect(await move.value)
+
+        #expect(model.currentReference.path == "/idea")
+        #expect(model.tabs.selectedTab.back.last == .reference(notes))
+        await model.goBack()
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.path == "/notes")
+    }
+
+    @Test("Back after trashing the open page returns to the page before it")
+    func backAfterTrashingOpenPage() async throws {
+        let workspace = StoryWorkspaceState(provider: .sample())
+        let model = StoryAppModel(workspace: workspace)
+        await model.load()
+        let welcome = WorkspaceReference(tree: "tr_sample", path: "/welcome", stableKey: markdownStableKey("pg_welcome"))
+        await model.navigate(to: welcome)
+        let page = try #require(try await workspace.perform(.createMarkdown(
+            parent: WorkspaceReference(tree: "tr_sample", path: "/"),
+            name: "doomed",
+            source: "# Doomed\n"
+        ))).reference
+        await model.navigate(to: page)
+
+        await model.perform(.trash(reference: model.currentReference))
+        #expect(model.currentReference.path == "/Trash/doomed")
+        await model.goBack()
+        #expect(model.errorMessage == nil)
+        #expect(model.currentReference.identity == welcome.identity)
+    }
+
     @Test("New Page writes nothing until its title is set, then keeps its editor on the created page")
     func newPageCreatedFromTitle() async throws {
         let workspace = StoryWorkspaceState(provider: .sample())

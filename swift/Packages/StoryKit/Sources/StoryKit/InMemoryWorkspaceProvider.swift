@@ -320,6 +320,7 @@ public actor InMemoryWorkspaceProvider: WorkspaceProvider {
             let oldID = value.id
             let suffix = String(value.reference.path.dropFirst(oldPath.count))
             value.reference.path = path + suffix
+            if case .reference = value.location { value.location = .reference(value.reference) }
             if suffix.isEmpty, let newTitle { value.title = newTitle }
             nodesByIdentity.removeValue(forKey: oldID)
             nodesByIdentity[value.id] = value
