@@ -35,7 +35,7 @@ beforeEach(async () => {
   objects = new Map(snapshot.objects);
   const bytes = new TextEncoder().encode("abc\r\n"), file = hashObject(bytes);
   const directory = decodeProtocolDirectory(objects.get(snapshot.root)!);
-  directory.entries.push({ name: "note.md", file, created: 0, modified: 0 });
+  directory.entries.push({ name: "note.txt", file, created: 0, modified: 0 });
   directory.entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   const encoded = encodeProtocolDirectory(directory); root = hashObject(encoded);
   objects.set(file, bytes); objects.set(root, encoded);
@@ -44,8 +44,8 @@ beforeEach(async () => {
 afterEach(async () => { await stop(); await rm(dir, { recursive: true, force: true }); });
 
 async function edit(text: string, basis: ObjectHash, range: [number, number]): Promise<CandidateUpdate> {
-  const file = decodeProtocolDirectory(objects.get(basis)!).entries.find((e) => e.name === "note.md")!.file!;
-  const operations = [{ key: "edit", kind: "editSource" as const, source: { material: { kind: "basis" as const, path: "/note.md", object: file }, range }, text }];
+  const file = decodeProtocolDirectory(objects.get(basis)!).entries.find((e) => e.name === "note.txt")!.file!;
+  const operations = [{ key: "edit", kind: "editSource" as const, source: { material: { kind: "basis" as const, path: "/note.txt", object: file }, range }, text }];
   const executed = await executeExactSourceEdits(basis, operations, async (hash) => objects.get(hash)!, TEST_AT);
   for (const [hash, bytes] of executed.generated) objects.set(hash, bytes);
   return { at: TEST_TIME, change: crypto.randomUUID(), candidate: executed.root, trace: [{ before: basis, after: executed.root, operations }], resolves: [],
@@ -63,7 +63,7 @@ async function indexes(): Promise<Map<string, ProvenanceNode | null>> {
   return result;
 }
 const note = (index: ProvenanceNode | null | undefined) =>
-  index?.kind === "directory" && index.entries["note.md"]?.kind === "file" ? index.entries["note.md"].pieces.map((p) => [p.origin, p.start, p.length]) : undefined;
+  index?.kind === "directory" && index.entries["note.txt"]?.kind === "file" ? index.entries["note.txt"].pieces.map((p) => [p.origin, p.start, p.length]) : undefined;
 
 /** A fast-forward, then an answered concurrent edit, then a snapshot. */
 async function history() {
@@ -97,7 +97,7 @@ test("each accepted entry gets its index beside it, and collection keeps its rec
   // the fast-forward, the answered edit.
   expect(entries).toHaveLength(5);
   const [imported, plain, answered] = entries.slice(2).map(({ hash }) => found.get(hash));
-  const basis = (imported as Extract<ProvenanceNode, { kind: "directory" }>).entries["note.md"]!;
+  const basis = (imported as Extract<ProvenanceNode, { kind: "directory" }>).entries["note.txt"]!;
   const original = note(imported)![0]![0] as string;
   expect(original).toStartWith("snapshot:");
   // The fast-forward replaced the first three bytes with its own.
@@ -105,7 +105,7 @@ test("each accepted entry gets its index beside it, and collection keeps its rec
   // An answered entry takes the index its answer carries: the engine's own
   // lineage, both edits' bytes.
   expect(note(answered)).toEqual([[operationIdentity(first.change, "edit"), 0, 3], [operationIdentity(concurrent.change, "edit"), 0, 2]]);
-  expect((answered as Extract<ProvenanceNode, { kind: "directory" }>).entries["note.md"]!.node).toBe(basis.node);
+  expect((answered as Extract<ProvenanceNode, { kind: "directory" }>).entries["note.txt"]!.node).toBe(basis.node);
 
   // Every stored record survives a collection of everything old.
   const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -128,7 +128,7 @@ test("a backfill computes missing indexes again the same way, and rebinds an ans
   await start(true);
   const again = await filled(), answered = acceptedEntries(dir, tree).at(-1)!.hash;
   // Without its answer, an answered entry is rebound as a snapshot of its root.
-  expect(note(again.get(answered))).toEqual([[`snapshot:${concurrent.change}:/note.md`, 0, 5]]);
+  expect(note(again.get(answered))).toEqual([[`snapshot:${concurrent.change}:/note.txt`, 0, 5]]);
   again.delete(answered); live.delete(answered);
   expect(stableJSONString([...again])).toBe(stableJSONString([...live]));
 });

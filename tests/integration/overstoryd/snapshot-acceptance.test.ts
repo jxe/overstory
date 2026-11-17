@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { serveHost } from "@ovst/overstoryd";
 import { acceptedEntries } from "../../support/log-entries.ts";
 import { expectReplayableHistory } from "../../support/replay-check.ts";
-import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject,
+import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage,
   type CandidateUpdate, type Hash, type ProtocolDirectory, type ProtocolDirectoryEntry, stampedEntry } from "@ovst/protocol";
 import { appendRowChanges, compileLogicalSchema, EMPTY_COLLECTION_STATE, encodeCollection } from "@ovst/collection-schema";
 import { idRow, T0 } from "../../support/collection-trees.ts";
@@ -24,6 +24,9 @@ async function start() {
 }
 async function stop() { running.server.stop(true); await running.overstoryd[Symbol.asyncDispose](); }
 function file(text: string) { const bytes = new TextEncoder().encode(text), hash = hashObject(bytes); objects.set(hash, bytes); return hash; }
+/** The page a Markdown source reads as: clients write Markdown as pages (data model §9). */
+function page(text: string) { const bytes = encodeProtocolPage(parsePage(new TextEncoder().encode(text))!), hash = hashObject(bytes); objects.set(hash, bytes); return hash; }
+function pageBody(hash: string) { return new TextDecoder().decode(decodeProtocolPage(objects.get(hash)!).body); }
 function directory(value: ProtocolDirectory) {
   value.entries.sort((a,b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   const bytes = encodeProtocolDirectory(value), hash = hashObject(bytes); objects.set(hash, bytes); return hash;
@@ -61,7 +64,7 @@ beforeEach(async () => {
   tree = (await client.account()).account.community.id;
   const descriptor = await client.descriptor(tree), initial = await client.snapshot(tree, descriptor.tree.root);
   objects = new Map(initial.objects);
-  root = change(initial.root, { "asset.bin": { file: file("original\0") }, "note.md": { file: file("Base\n") } });
+  root = change(initial.root, { "asset.bin": { file: file("original\0") }, "note.md": { page: page("Base\n") } });
   base = (await submit(snapshot(root), descriptor.tree.update)).id;
 });
 afterEach(async () => {
@@ -97,18 +100,18 @@ test.each(["binary", "delete-edit", "kind", "nested"])("snapshot %s overlap crea
 });
 
 test("an update dated more than five minutes ahead of the host is refused; one just ahead is accepted", async () => {
-  const candidate = change(root, { "note.md": { file: file("Later\n") } });
+  const candidate = change(root, { "note.txt": { file: file("Later\n") } });
   const ahead = (minutes: number) => ({ ...snapshot(candidate), at: new Date(Date.now() + minutes * 60_000).toISOString() });
   await expect(submit(ahead(6))).rejects.toThrow("dated in the future");
   expect((await submit(ahead(1))).root).toBe(candidate);
 });
 
 test("an unresolved binary choice preserves successful Markdown rule output and its objects", async () => {
-  const left = snapshot(change(root, { "asset.bin": { file: file("left") }, "note.md": { file: file("Base\nLeft\n") } }));
-  const right = snapshot(change(root, { "asset.bin": { file: file("right") }, "note.md": { file: file("Base\nRight\n") } }));
+  const left = snapshot(change(root, { "asset.bin": { file: file("left") }, "note.md": { page: page("Base\nLeft\n") } }));
+  const right = snapshot(change(root, { "asset.bin": { file: file("right") }, "note.md": { page: page("Base\nRight\n") } }));
   await submit(left); const accepted = await submit(right); await remember(accepted.root);
   expect((await client.conflicts(tree, accepted.id, accepted.root)).decisions).toHaveLength(1);
-  const text = new TextDecoder().decode(objects.get(at(accepted.root, "note.md")!.file!));
+  const text = pageBody(at(accepted.root, "note.md")!.page!);
   expect(text).toContain("Left\n"); expect(text).toContain("Right\n");
   await running.overstoryd.verifyIntegrity();
 });
@@ -163,9 +166,9 @@ test("root directory metadata has an inspectable whole-directory choice, continu
   const unreachable = await fetch(`${running.url}/.overstory/trees/${tree}/objects/${unrelated}`, { headers: { authorization: `Bearer ${await deviceSession(running.url, token)}` } });
   expect(unreachable.status).toBe(404);
   const body = entryText(at(accepted.root, "_index.md"), objects)! + "Continued\n";
-  const continued = await submit(snapshot(change(accepted.root, { "_index.md": { file: file(body) } })), accepted.id);
+  const continued = await submit(snapshot(change(accepted.root, { "_index.md": { page: page(body) } })), accepted.id);
   expect(continued.conflicted).toBe(true); await remember(continued.root);
-  expect(at(continued.root, "_index.md")?.file).toBe(file(body));
+  expect(at(continued.root, "_index.md")?.page).toBe(page(body));
   await expect(submit({ ...snapshot(right.candidate), resolves: [guard(accepted.id, decision)] }, continued.id)).rejects.toBeInstanceOf(ProtocolUpdateConflict);
   const latest = (await client.conflicts(tree, continued.id, continued.root)).decisions[0]!;
   const resolved = await submit({ ...snapshot(right.candidate), resolves: [guard(continued.id, latest)] }, continued.id);
@@ -219,15 +222,15 @@ test("an exact-state guard still rejects snapshot work without creating accepted
 
 
 test.each([false, true])("divergent snapshot renames remain a coupled choice (nested: %s)", async nested => {
-  const page = file("---\nid: pg_moving\n---\nExact bytes\r\n");
-  const before = directory({ type: "directory", entries: [{ name: "before.md", file: page, created: 0, modified: 0 }] });
-  const left = directory({ type: "directory", entries: [{ name: "left.md", file: page, created: 0, modified: 0 }] });
-  const right = directory({ type: "directory", entries: [{ name: "right.md", file: page, created: 0, modified: 0 }] });
+  const moving = page("---\nid: pg_moving\n---\nExact bytes\r\n");
+  const before = directory({ type: "directory", entries: [{ name: "before.md", page: moving, created: 0, modified: 0 }] });
+  const left = directory({ type: "directory", entries: [{ name: "left.md", page: moving, created: 0, modified: 0 }] });
+  const right = directory({ type: "directory", entries: [{ name: "right.md", page: moving, created: 0, modified: 0 }] });
   if (nested) root = change(root, { folder: { directory: before } });
-  else root = change(root, { "before.md": { file: page } });
+  else root = change(root, { "before.md": { page: moving } });
   base = (await submit(snapshot(root))).id;
-  const a = snapshot(nested ? change(root, { folder: { directory: left } }) : change(root, { "before.md": null, "left.md": { file: page } }));
-  const b = snapshot(nested ? change(root, { folder: { directory: right } }) : change(root, { "before.md": null, "right.md": { file: page } }));
+  const a = snapshot(nested ? change(root, { folder: { directory: left } }) : change(root, { "before.md": null, "left.md": { page: moving } }));
+  const b = snapshot(nested ? change(root, { folder: { directory: right } }) : change(root, { "before.md": null, "right.md": { page: moving } }));
   const first = await submit(a), accepted = await submit(b);
   expect(accepted.conflicted).toBe(true); expect(accepted.root).toBe(first.root);
   const decisions = (await client.conflicts(tree, accepted.id, accepted.root)).decisions;
@@ -244,7 +247,9 @@ test.each([false, true])("divergent snapshot renames remain a coupled choice (ne
 // as it was before every snapshot recorded a merge state.
 function folderOf(entries: Record<string, string | ProtocolDirectoryEntry>) {
   return directory({ type: "directory", entries: Object.entries(entries).map(([name, value]) =>
-    typeof value === "string" ? { name, file: file(value), created: 0, modified: 0 } : { ...value, name }) });
+    typeof value !== "string" ? { ...value, name }
+      : name.endsWith(".md") ? { name, page: page(value), created: 0, modified: 0 }
+      : { name, file: file(value), created: 0, modified: 0 }) });
 }
 const movingPage = "---\nid: pg_moving\n---\nExact bytes\r\n";
 async function folderConflict(extra: { left?: Record<string, Omit<ProtocolDirectoryEntry, "name"> | null>; right?: Record<string, Omit<ProtocolDirectoryEntry, "name"> | null> } = {}) {

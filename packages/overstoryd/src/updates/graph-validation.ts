@@ -34,6 +34,10 @@ export async function validateGraphChange(
   ) => Promise<void>,
   basis?: ValidatedGraph,
   present?: (hash: string) => Promise<void>,
+  /** Called for each file entry of a changed directory whose object the basis
+   * doesn't prove a file, to refuse ones the update may not add (a Markdown
+   * file that reads as a page, data model §9). */
+  checkFile?: (name: string, hash: string, read: (hash: string) => Promise<Uint8Array>) => Promise<void>,
 ): Promise<ValidatedGraph> {
   const objects = new Map<string, ValidatedObject>();
   const pending: Reference[] = [{ hash: root, kind: "directory" }];
@@ -80,6 +84,9 @@ export async function validateGraphChange(
             throw Error(`Invalid or duplicate directory entry: ${entry.name}`);
           names.add(entry.name);
         }
+        if (checkFile)
+          for (const entry of directory.entries)
+            if (entry.file && basis?.objects.get(entry.file)?.kind !== "file") await checkFile(entry.name, entry.file, read);
         children = protocolDirectoryReferences(directory);
         // The collection's log is checked with it, as a whole (collections §1).
         if (directory.collection) await validateCollection(directory, read);

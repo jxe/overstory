@@ -17,7 +17,7 @@ import { StorySyncDaemon } from "@ovst/story-sync";
 import { CollectionProjections } from "@ovst/story-sync/state";
 import { serveHost } from "@ovst/overstoryd";
 import { resolveSnapshot, snapshotDirectory } from "@ovst/fs";
-import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, HostAccountStore, type HandleRef, type MutationCallRequest, type ObjectHash, type ViewsRequest } from "@ovst/protocol";
+import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, HostAccountStore, type HandleRef, type MutationCallRequest, type ObjectHash, type ViewsRequest, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import { loadDirectoryCollection } from "@ovst/collection-schema";
 import { StoreSchema } from "@ovst/beetle";
 import { rowsFromLogical } from "@ovst/beetle/tables";
@@ -380,9 +380,9 @@ describe.serial("Beetle on the host", () => {
       const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
       const index = root.entries.find((entry) => entry.name === "_index.md")!;
       const text = entryText(index, snapshot.objects)!;
-      const named = new TextEncoder().encode(text.replace(/^displayName: .*$/m, "displayName: Olive Owner"));
+      const named = encodeProtocolPage(parsePage(new TextEncoder().encode(text.replace(/^displayName: .*$/m, "displayName: Olive Owner")))!);
       const file = hashObject(named);
-      const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file, created: 0, modified: 0 } : entry) });
+      const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, page: file, created: 0, modified: 0 } : entry) });
       await owner.submitUpdate(me, current.tree.update, { root: hashObject(directory), objects: new Map([...snapshot.objects, [file, named], [hashObject(directory), directory]]) } as never);
       expect(owners(await nextResult(stream))).toContainEqual({ name: "Olive Owner", handle: "owner" });
     } finally { controller.abort(); }

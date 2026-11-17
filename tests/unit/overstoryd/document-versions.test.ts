@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { serveHost } from "@ovst/overstoryd";
-import { ProtocolClient, decodeProtocolDirectory, encodeProtocolDirectory, hashObject, type ObjectHash, type ProtocolDirectoryEntry } from "@ovst/protocol";
+import { ProtocolClient, decodeProtocolDirectory, encodeProtocolDirectory, hashObject, type ObjectHash, type ProtocolDirectoryEntry, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import { documentKey, entryChanges } from "../../../packages/overstoryd/src/updates/document-versions.ts";
 import { deviceClient, deviceSession, testAccount } from "../../helpers/devices.ts";
 
@@ -19,29 +19,29 @@ const dir = (entries: Record<string, ObjectHash | { directory: ObjectHash }>) =>
 const load = async (hash: ObjectHash) => objects.get(hash)!;
 
 test("the document key is the one frontmatter id, else the entry path", () => {
-  expect(documentKey("/a.md", "---\nid: pg_1\n---\nBody")).toBe("id:pg_1");
-  expect(documentKey("/a.md", "---\r\nid: \"pg_2\"\r\n---\r\n")).toBe("id:pg_2");
-  expect(documentKey("/a.md", "---\nid: one\nid: two\n---\n")).toBe("path:/a.md");
-  expect(documentKey("/a.md", "id: not frontmatter\n")).toBe("path:/a.md");
+  expect(documentKey("/a.txt", "---\nid: pg_1\n---\nBody")).toBe("id:pg_1");
+  expect(documentKey("/a.txt", "---\r\nid: \"pg_2\"\r\n---\r\n")).toBe("id:pg_2");
+  expect(documentKey("/a.txt", "---\nid: one\nid: two\n---\n")).toBe("path:/a.txt");
+  expect(documentKey("/a.txt", "id: not frontmatter\n")).toBe("path:/a.txt");
 });
 
 test("changes report written files, expand directories and ignore unchanged ones", async () => {
   const keep = file("keep"), note = file("---\nid: pg_note\n---\nnote");
-  const before = dir({ "keep.txt": keep, "note.md": note, old: { directory: dir({ "a.md": file("a"), "b.bin": file("b") }) } });
+  const before = dir({ "keep.txt": keep, "note.txt": note, old: { directory: dir({ "a.txt": file("a"), "b.bin": file("b") }) } });
   const after = dir({ "keep.txt": keep, "moved.md": note, fresh: { directory: dir({ "c.md": file("c") }) } });
   const changes = await entryChanges(before, after, load);
   expect(changes.set.map((c) => [c.path, c.document?.key]).sort()).toEqual([
     ["/fresh/c.md", "path:/fresh/c.md"], ["/moved.md", "id:pg_note"],
   ]);
-  expect(changes.removed.sort()).toEqual(["/note.md", "/old/a.md", "/old/b.bin"]);
+  expect(changes.removed.sort()).toEqual(["/note.txt", "/old/a.txt", "/old/b.bin"]);
   const initial = await entryChanges(null, after, load);
   expect(initial.set.map((c) => c.path).sort()).toEqual(["/fresh/c.md", "/keep.txt", "/moved.md"]);
   expect(initial.removed).toEqual([]);
 });
 
 test("a file replaced in place is only set", async () => {
-  const changes = await entryChanges(dir({ "a.md": file("one") }), dir({ "a.md": file("two") }), load);
-  expect(changes.set.map((c) => c.path)).toEqual(["/a.md"]);
+  const changes = await entryChanges(dir({ "a.txt": file("one") }), dir({ "a.txt": file("two") }), load);
+  expect(changes.set.map((c) => c.path)).toEqual(["/a.txt"]);
   expect(changes.removed).toEqual([]);
 });
 
@@ -61,8 +61,14 @@ test("accepted updates keep document versions; the entry-metadata route is gone"
   for (const [hash, bytes] of initial.objects) objects.set(hash, bytes);
   const existing = decodeProtocolDirectory(objects.get(initial.root)!).entries;
   // The community tree's own entries stay; the test adds its files beside them.
+  /** Markdown goes as the page its bytes read as (data model §9). */
+  const pageOf = (hash: ObjectHash) => {
+    const bytes = encodeProtocolPage(parsePage(objects.get(hash)!)!), page = hashObject(bytes);
+    objects.set(page, bytes); return page;
+  };
   const tree_ = (entries: Record<string, ObjectHash>) => {
-    const list: ProtocolDirectoryEntry[] = [...existing, ...Object.entries(entries).map(([name, hash]) => ({ name, file: hash, created: 0, modified: 0 }))];
+    const list: ProtocolDirectoryEntry[] = [...existing, ...Object.entries(entries).map(([name, hash]) => name.endsWith(".md")
+      ? { name, page: pageOf(hash), created: 0, modified: 0 } : { name, file: hash, created: 0, modified: 0 })];
     list.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
     const bytes = encodeProtocolDirectory({ type: "directory", entries: list }), hash = hashObject(bytes);
     objects.set(hash, bytes); return hash;

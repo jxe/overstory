@@ -1,4 +1,4 @@
-import { activationElement, decodeProtocolDirectory, encodeProtocolDirectory, generateOverstoryID, hashObject, inviteCodeDigest, sha256, HostAccountStore, ProtocolClient } from "@ovst/protocol";
+import { activationElement, decodeProtocolDirectory, encodeProtocolDirectory, generateOverstoryID, hashObject, inviteCodeDigest, sha256, HostAccountStore, ProtocolClient, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import YAML from "yaml";
 import { entryText } from "../../helpers/entry-text.ts";
 import { LocalAccountService } from "../../../packages/story-sync/src/account-service.ts";
@@ -714,8 +714,8 @@ describe("membership does not administer the host", () => {
     const head = await client.descriptor(tree);
     const snapshot = await client.snapshot(tree, head.tree.root);
     const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-    const bytes = new TextEncoder().encode(rewrite(entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!));
-    const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(bytes), created: 0, modified: 0 } : entry) });
+    const bytes = encodeProtocolPage(parsePage(new TextEncoder().encode(rewrite(entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!)))!);
+    const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, page: hashObject(bytes), created: 0, modified: 0 } : entry) });
     return { head, candidate: { root: hashObject(rootBytes), objects: new Map([...snapshot.objects, [hashObject(bytes), bytes], [hashObject(rootBytes), rootBytes]]) } };
   }
 

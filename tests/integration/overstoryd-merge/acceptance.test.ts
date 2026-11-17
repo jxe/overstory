@@ -36,7 +36,7 @@ async function scenario(run: (context: {
 }
 
 function editor(objects: Map<string, Uint8Array>) {
-  return (root: string, text: string, name = "note.md"): CandidateUpdate => {
+  return (root: string, text: string, name = "note.txt"): CandidateUpdate => {
     const bytes = new TextEncoder().encode(text), file = hashObject(bytes); objects.set(file, bytes);
     const value = decodeProtocolDirectory(objects.get(root)!);
     value.entries = [...value.entries.filter(entry => entry.name !== name), stampedEntry("file", name, file, value.entries.find(entry => entry.name === name), TEST_AT)].sort((a,b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
@@ -73,7 +73,7 @@ test("a failed tree merge accepts preserved alternatives, survives restart and p
     expect(values).toContainEqual({ directory: incoming.candidate });
     expect((await submit(base.update.id, incoming)).update.id).toBe(accepted.update.id);
     for (const [hash, bytes] of (await (await client()).snapshot(tree, accepted.update.root)).objects) objects.set(hash, bytes);
-    const later = await submit(accepted.update.id, edit(accepted.update.root, "Continue syncing\n", "later.md"));
+    const later = await submit(accepted.update.id, edit(accepted.update.root, "Continue syncing\n", "later.txt"));
     expect(later.outcome).toBe("accepted");
     expect(later.update.conflicted).toBe(true);
     await start();
@@ -138,22 +138,22 @@ test("an edit after a kept root choice leaves the deletion it declined unapplied
     const head = (await (await client()).descriptor(tree)).tree;
     const kindBase = await submit(head.update, update(directory([...entries(head.root),
       { name: "Assets", file: put(new TextEncoder().encode("Assets is a file for now.\n")), created: 0, modified: 0 },
-      { name: "Errands.md", file: put(new TextEncoder().encode(`# Errands\n\n${block}Call the landlord.\n`)), created: 0, modified: 0 },
-      { name: "List.md", file: put(new TextEncoder().encode("- Milk\n- Eggs from the farm stand\n")), created: 0, modified: 0 },
+      { name: "Errands.txt", file: put(new TextEncoder().encode(`# Errands\n\n${block}Call the landlord.\n`)), created: 0, modified: 0 },
+      { name: "List.txt", file: put(new TextEncoder().encode("- Milk\n- Eggs from the farm stand\n")), created: 0, modified: 0 },
     ]), null));
     // An entry-kind choice: a file edited on one side, a folder on the other.
     await submit(kindBase.id, snapshot(kindBase.root, "Assets", { name: "Assets", file: put(new TextEncoder().encode("Assets, edited.\n")), created: 0, modified: 0 }));
     const kind = await submit(kindBase.id, snapshot(kindBase.root, "Assets",
       { name: "Assets", directory: directory([{ name: "logo.txt", file: put(new TextEncoder().encode("logo\n")), created: 0, modified: 0 }]) }));
     // A delete/edit of the same block, each traced from the same head.
-    const edited = await submit(kind.id, traced(kind.root, "Errands.md", "€40", "€50"));
-    const kept = await submit(kind.id, traced(kind.root, "Errands.md", block, ""));
+    const edited = await submit(kind.id, traced(kind.root, "Errands.txt", "€40", "€50"));
+    const kept = await submit(kind.id, traced(kind.root, "Errands.txt", block, ""));
     expect(kept.root).toBe(edited.root);
     const choices = await (await client()).conflicts(tree, kept.id, kept.root);
     expect(choices.decisions.filter(decision => decision.kind === "directory").length).toBeGreaterThan(1);
-    const later = await submit(kept.id, traced(kept.root, "List.md", "Eggs from the farm stand", "Eggs (a dozen)"));
-    expect(text(file(later.root, "Errands.md"))).toContain("cleaners €50\n  - Groceries");
-    expect(text(file(later.root, "List.md"))).toContain("Eggs (a dozen)");
+    const later = await submit(kept.id, traced(kept.root, "List.txt", "Eggs from the farm stand", "Eggs (a dozen)"));
+    expect(text(file(later.root, "Errands.txt"))).toContain("cleaners €50\n  - Groceries");
+    expect(text(file(later.root, "List.txt"))).toContain("Eggs (a dozen)");
     await host().overstoryd.verifyIntegrity();
   });
 });

@@ -46,12 +46,12 @@ const submit = async (base: string, update: CandidateUpdate) => (await client.su
 
 test("disjoint concurrent files merge; the same file becomes an entry choice that a guarded snapshot resolves", async () => {
   const head = (await client.descriptor(tree)).tree;
-  const base = await submit(head.update, snapshot(head.root, { "a.md": "A\n", "b.md": "B\n" }));
-  const left = await submit(base.id, snapshot(base.root, { "a.md": "A left\n" }));
-  const merged = await submit(base.id, snapshot(base.root, { "b.md": "B right\n" }));
+  const base = await submit(head.update, snapshot(head.root, { "a.txt": "A\n", "b.txt": "B\n" }));
+  const left = await submit(base.id, snapshot(base.root, { "a.txt": "A left\n" }));
+  const merged = await submit(base.id, snapshot(base.root, { "b.txt": "B right\n" }));
   expect(merged.conflicted).toBe(false);
-  expect(merged.root).toBe(snapshot(left.root, { "b.md": "B right\n" }).candidate);
-  const rival = snapshot(base.root, { "a.md": "A rival\n" });
+  expect(merged.root).toBe(snapshot(left.root, { "b.txt": "B right\n" }).candidate);
+  const rival = snapshot(base.root, { "a.txt": "A rival\n" });
   const conflicted = await submit(base.id, rival);
   expect(conflicted.conflicted).toBe(true);
   expect(conflicted.root).toBe(merged.root);
@@ -65,7 +65,7 @@ test("disjoint concurrent files merge; the same file becomes an entry choice tha
   // Restart: the sidecar keeps nothing, and the choice is still the entry's.
   await stop(); await start();
   expect(await client.conflicts(tree, conflicted.id, conflicted.root)).toEqual(page);
-  const resolution = { ...snapshot(conflicted.root, { "a.md": "A rival\n" }),
+  const resolution = { ...snapshot(conflicted.root, { "a.txt": "A rival\n" }),
     resolves: [{ state: conflicted.id, conflict: decision.id, alternatives: decision.alternatives.map((a) => a.id) }] };
   const resolved = await submit(conflicted.id, resolution);
   expect(resolved.conflicted).toBe(false);
@@ -74,12 +74,12 @@ test("disjoint concurrent files merge; the same file becomes an entry choice tha
 
 test("a plain edit on the head never asks the sidecar; a concurrent one does", async () => {
   const head = (await client.descriptor(tree)).tree;
-  const base = await submit(head.update, snapshot(head.root, { "note.md": "hello\n" }));
+  const base = await submit(head.update, snapshot(head.root, { "note.txt": "hello\n" }));
   const file = hashObject(new TextEncoder().encode("hello\n"));
   const traced = (root: string, text: string): CandidateUpdate => {
-    const update = snapshot(root, { "note.md": text });
+    const update = snapshot(root, { "note.txt": text });
     return { ...update, trace: [{ before: root, after: update.candidate, operations: [{ key: "edit", kind: "editSource",
-      source: { material: { kind: "basis", path: "/note.md", object: file }, range: [0, 5] }, text: text.slice(0, -1) }] }] };
+      source: { material: { kind: "basis", path: "/note.txt", object: file }, range: [0, 5] }, text: text.slice(0, -1) }] }] };
   };
   questions = 0;
   const forward = await submit(base.id, traced(base.root, "HELLO\n"));

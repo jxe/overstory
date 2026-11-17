@@ -79,10 +79,10 @@ beforeEach(async () => {
   tree = (await client.account()).account.community.id;
   const descriptor = await client.descriptor(tree), initial = await client.snapshot(tree, descriptor.tree.root);
   objects = new Map(initial.objects);
-  root = change(initial.root, { "asset.bin": { file: file("original\0") }, "note.md": { file: file("---\nid: note\n---\nFirst\n") } });
+  root = change(initial.root, { "asset.bin": { file: file("original\0") }, "note.txt": { file: file("---\nid: note\n---\nFirst\n") } });
   base = (await submit(snapshot(root), descriptor.tree.update)).id;
   // A later version of the document, then a binary conflict with alternatives.
-  root = change(root, { "note.md": { file: file("---\nid: note\n---\nSecond\n") } });
+  root = change(root, { "note.txt": { file: file("---\nid: note\n---\nSecond\n") } });
   base = (await submit(snapshot(root))).id;
   await submit(snapshot(change(root, { "asset.bin": { file: file("left\0") } })));
   const conflicted = await submit(snapshot(change(root, { "asset.bin": { file: file("right\0") } })));
@@ -102,7 +102,7 @@ test("collection deletes only old unreferenced objects and leaves an intact, rep
   const oldBody = bytesOf("---\nid: note\n---\nSquashed\n");
   await store.store([junk, junkDirectory, oldBody]);
   const db = new Database(join(dir, "overstoryd.sqlite3"));
-  db.run("INSERT INTO document_versions (tree_id, stable_key, update_id, entry_path, content_hash, accepted_at) VALUES (?, 'id:note', 'squashed', '/note.md', ?, 0)", [tree, oldBody.hash]);
+  db.run("INSERT INTO document_versions (tree_id, stable_key, update_id, entry_path, content_hash, accepted_at) VALUES (?, 'id:note', 'squashed', '/note.txt', ?, 0)", [tree, oldBody.hash]);
   db.close();
   await age();
   const young = bytesOf("uploaded a moment ago");
@@ -197,7 +197,7 @@ test("packed history reads, verifies, accepts and collects like loose history", 
   await restart();
   await running.overstoryd.verifyIntegrity();
   // An update on top of packed history is accepted and read back.
-  root = change(root, { "note.md": { file: file("---\nid: note\n---\nThird\n") } });
+  root = change(root, { "note.txt": { file: file("---\nid: note\n---\nThird\n") } });
   base = (await submit(snapshot(root))).id;
   await running.overstoryd.verifyIntegrity();
   // Collection drops the packed dead object only, and history stays intact.

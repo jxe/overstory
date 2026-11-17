@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { HOST_PROTOCOL, hostProtocolOf, decodeProtocolDirectory, encodeProtocolDirectory, hashObject, sha256, type ProtocolClient } from "@ovst/protocol";
+import { HOST_PROTOCOL, hostProtocolOf, decodeProtocolDirectory, encodeProtocolDirectory, hashObject, sha256, type ProtocolClient, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import { RESERVED_PAGE_SCRIPT } from "../../../packages/overstoryd/src/public-page.ts";
 import { testProfileIdentity } from "../../helpers/profile-identity.ts";
 import { serveHost } from "@ovst/overstoryd";
@@ -56,21 +56,22 @@ beforeAll(async () => {
     "page.unknown": HTML_BYTES,
     "drawing.svg": new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     "notes.txt": new TextEncoder().encode("plain notes\n"),
-    "guide.md": new TextEncoder().encode("# Guide\n\nSome *text* and ![a logo](logo.png).\n"),
+    "guide.md": encodeProtocolPage(parsePage(new TextEncoder().encode("# Guide\n\nSome *text* and ![a logo](logo.png).\n"))!),
   };
   const objects = new Map(snapshot.objects);
   for (const bytes of Object.values(files)) objects.set(hashObject(bytes), bytes);
   // A folder with no page of its own.
-  const paris = new TextEncoder().encode("# Paris\n");
+  const paris = encodeProtocolPage(parsePage(new TextEncoder().encode("# Paris\n"))!);
   objects.set(hashObject(paris), paris);
   const trips = encodeProtocolDirectory({ type: "directory", entries: [
-    { name: "Paris.md", file: hashObject(paris), created: 0, modified: 0 },
-    { name: "Rome [old].md", file: hashObject(paris), created: 0, modified: 0 },
+    { name: "Paris.md", page: hashObject(paris), created: 0, modified: 0 },
+    { name: "Rome [old].md", page: hashObject(paris), created: 0, modified: 0 },
   ] });
   objects.set(hashObject(trips), trips);
   const directory = encodeProtocolDirectory({
     ...root,
-    entries: [...root.entries, { name: "Trips", directory: hashObject(trips) }, ...Object.entries(files).map(([name, bytes]) => ({ name, file: hashObject(bytes), created: 0, modified: 0 }))]
+    entries: [...root.entries, { name: "Trips", directory: hashObject(trips) }, ...Object.entries(files).map(([name, bytes]) => name.endsWith(".md")
+      ? { name, page: hashObject(bytes), created: 0, modified: 0 } : { name, file: hashObject(bytes), created: 0, modified: 0 })]
       .sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name))),
   });
   objects.set(hashObject(directory), directory);
@@ -227,8 +228,8 @@ describe("the reserved-address page", () => {
     const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
     const source = entryText(root.entries.find((entry) => entry.name === "_index.md"), snapshot.objects)!;
     const digest = `sha256:${sha256("abcdefghijklmnopqrstuv")}`;
-    const bytes = new TextEncoder().encode(source.replace("members:\n", `members:\n  - handle: "guest"\n    inviteDigest: "${digest}"\n`));
-    const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(bytes), created: 0, modified: 0 } : entry) });
+    const bytes = encodeProtocolPage(parsePage(new TextEncoder().encode(source.replace("members:\n", `members:\n  - handle: "guest"\n    inviteDigest: "${digest}"\n`)))!);
+    const directory = encodeProtocolDirectory({ ...root, entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, page: hashObject(bytes), created: 0, modified: 0 } : entry) });
     await owner.submitUpdate(tree, head.tree.update, { root: hashObject(directory), objects: new Map([...snapshot.objects, [hashObject(bytes), bytes], [hashObject(directory), directory]]) });
     const origin = new URL(host.url).origin;
     expect(host.overstoryd.accountReservation(`${origin}/~founder`)?.profileTree).toBeDefined();

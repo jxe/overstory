@@ -19,7 +19,7 @@ import { Recent } from "./recent.ts";
 import { LOG_ENTRY_FORMAT, MergeRefusal, type Asked, type Candidate, type LogDecision, type MergeAnswer, type MergeQuestion } from "@ovst/merge-protocol";
 import { MergeTool, type MergeToolOptions } from "./merge-tool.ts";
 import { retainedObjects } from "./retention.ts";
-import { pathReadComponents, pathReadObjects, checkPlainTrace, deriveTrace, encodeProtocolPage, isRowOperation, loadProtocolContent, parsePage, protocolContentObject, isStatedUpdate, TreeReader, UnsupportedDerivation, type DecisionPage, type PathReadRow, type ProtocolDirectory, type DerivableUpdateRequest } from "@ovst/protocol";
+import { pathReadComponents, pathReadObjects, checkPlainTrace, deriveTrace, encodeProtocolPage, isPageName, isRowOperation, loadProtocolContent, parsePage, protocolContentObject, isStatedUpdate, TreeReader, UnsupportedDerivation, type DecisionPage, type PathReadRow, type ProtocolDirectory, type DerivableUpdateRequest } from "@ovst/protocol";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
@@ -2431,7 +2431,7 @@ export class HostDaemon implements AsyncDisposable {
       for (const operation of frame.operations)
         if (isRowOperation(operation) && operation.at !== undefined && Date.parse(operation.at) > latest)
           throw new Error(`Row operation ${operation.key} is dated in the future`);
-    await this.validateGraph(request.candidate, proposed, tree.ref, treeID);
+    await this.validateGraph(request.candidate, proposed, tree.ref, treeID, true);
     markPhase("validate-graph");
     await policy.validateCandidate(request.candidate, proposed);
     markPhase("validate-candidate");
@@ -3430,7 +3430,7 @@ export class HostDaemon implements AsyncDisposable {
       (await this.collections.replay(tree, directory, operations, read, at)) ?? replayCollectionRows(directory, operations, read, at);
   }
 
-  private async validateGraph(root: ObjectHash, proposed: ReadonlyMap<ObjectHash, Uint8Array>, acceptedBasis?: ObjectHash, tree?: string): Promise<void> {
+  private async validateGraph(root: ObjectHash, proposed: ReadonlyMap<ObjectHash, Uint8Array>, acceptedBasis?: ObjectHash, tree?: string, fromClient = false): Promise<void> {
     // acceptedBasis comes from the server's current tree, never from worker or
     // client assertions. A staged proof is only inherited once that root has
     // actually become accepted (and therefore durable).
@@ -3454,7 +3454,15 @@ export class HostDaemon implements AsyncDisposable {
       await this.objects.freshen([hash]);
       return bytes;
     };
-    const result = await validateGraphChange(root, load, proposed, collection, basis, (hash) => this.objects.freshen([hash as ObjectHash]));
+    // A client writes Markdown as a page whenever its front matter parses
+    // (data model §9); a new or changed Markdown file entry that reads as one is refused.
+    const markdownFile = fromClient
+      ? async (name: string, hash: string, read: (hash: string) => Promise<Uint8Array>) => {
+        if (isPageName(name) && parsePage(await read(hash)))
+          throw new Error(`${name} is Markdown whose front matter parses: write it as a page, not a file (data model §9)`);
+      }
+      : undefined;
+    const result = await validateGraphChange(root, load, proposed, collection, basis, (hash) => this.objects.freshen([hash as ObjectHash]), markdownFile);
     this.validatedGraphs.set(root, result);
   }
 

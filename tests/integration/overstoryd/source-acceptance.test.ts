@@ -6,7 +6,7 @@ import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { serveHost } from "@ovst/overstoryd";
-import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, encodeProtocolDirectory, hashObject, encodeTreeSnapshotJSON, decodeTreeSnapshotJSON, encodeWireBody, type CandidateUpdate, type ObjectHash } from "@ovst/protocol";
+import { ProtocolClient, ProtocolUpdateConflict, decodeProtocolDirectory, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, encodeTreeSnapshotJSON, decodeTreeSnapshotJSON, encodeWireBody, type CandidateUpdate, type ObjectHash } from "@ovst/protocol";
 import { executeExactSourceEdits } from "../../support/source-edits.ts";
 import { appendSource, editorView, MemoryWorkingTree, readSource } from "../../support/memory-working-tree.ts";
 import { acceptedEntries } from "../../support/log-entries.ts";
@@ -34,24 +34,45 @@ beforeEach(async () => {
   objects = new Map(snapshot.objects);
   const bytes = new TextEncoder().encode("abc\r\n"), file = hashObject(bytes);
   const directory = decodeProtocolDirectory(objects.get(snapshot.root)!);
-  directory.entries.push({ name: "note.md", file, created: 0, modified: 0 });
+  directory.entries.push({ name: "note.txt", file, created: 0, modified: 0 });
   directory.entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
   const encoded = encodeProtocolDirectory(directory); root = hashObject(encoded);
   objects.set(file, bytes); objects.set(root, encoded);
   base = (await client.submitUpdate(tree, descriptor.tree.update, { root, objects })).update.id;
 });
+/** The note the helpers edit: a plain file, or a page for the tests that need Markdown's rules. */
+let noteName = "note.txt";
+/** Replace the plain note with a page holding the same text, `note.md`: Markdown is written as a page (data model §9). */
+async function useMarkdownNote() {
+  const text = new TextDecoder().decode(objects.get(decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.txt")!.file!)!);
+  const page = encodeProtocolPage(parsePage(new TextEncoder().encode(text))!), pageHash = hashObject(page);
+  const directory = decodeProtocolDirectory(objects.get(root)!);
+  directory.entries = directory.entries.filter(e => e.name !== "note.txt");
+  directory.entries.push({ name: "note.md", page: pageHash, created: 0, modified: 0 });
+  directory.entries.sort((a, b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
+  const encoded = encodeProtocolDirectory(directory); root = hashObject(encoded);
+  objects.set(pageHash, page); objects.set(root, encoded);
+  base = (await client.submitUpdate(tree, base, { root, objects })).update.id;
+  noteName = "note.md";
+}
+/** The note's text in `at`, from a file or a page's body. */
+function noteText(at: ObjectHash, from: ReadonlyMap<string, Uint8Array> = objects) {
+  const entry = decodeProtocolDirectory(from.get(at)!).entries.find(e => e.name === noteName)!;
+  return entry.file ? Buffer.from(from.get(entry.file)!).toString() : Buffer.from(decodeProtocolPage(from.get(entry.page!)!).body).toString();
+}
 afterEach(async () => {
+  noteName = "note.txt";
   try { await expectReplayableHistory(dir, tree); }
   finally { await stop(); await rm(dir, { recursive: true, force: true }); }
 });
 async function edit(text: string, basis = root, range: [number, number] = [0, 3]): Promise<CandidateUpdate> {
-  return editAt("/note.md", text, basis, range);
+  return editAt(`/${noteName}`, text, basis, range);
 }
 async function editAt(path: string, text: string, basis = root, range: [number, number] = [0, 3]): Promise<CandidateUpdate> {
   let directory = decodeProtocolDirectory(objects.get(basis)!);
   const parts = path.slice(1).split("/"), name = parts.pop()!;
   for (const part of parts) directory = decodeProtocolDirectory(objects.get(directory.entries.find(e => e.name === part)!.directory!)!);
-  const file = directory.entries.find(e => e.name === name)!.file!;
+  const entry = directory.entries.find(e => e.name === name)!, file = (entry.file ?? entry.page)!;
   const operations = [{ key: "edit", kind: "editSource" as const, source: { material: { kind: "basis" as const, path, object: file }, range }, text }];
   const executed = await executeExactSourceEdits(basis, operations, async hash => objects.get(hash)!, TEST_AT);
   for (const [hash, bytes] of executed.generated) objects.set(hash, bytes);
@@ -113,9 +134,9 @@ test("a move on the head fast-forwards without the sidecar and replays; a diverg
   await stop();
   let workers = 0;
   await start({onTiming: (phase) => { if (phase === "worker-process") workers++; }});
-  const file = decodeProtocolDirectory(objects.get(prose.candidate)!).entries.find(e => e.name === "note.md")!.file!;
+  const file = decodeProtocolDirectory(objects.get(prose.candidate)!).entries.find(e => e.name === "note.txt")!.file!;
   const span = (needle: string): [number, number] => { const start = text.indexOf(needle); return [start, start + needle.length]; };
-  const ref = (range: [number, number]) => ({ material: { kind: "basis" as const, path: "/note.md", object: file }, range });
+  const ref = (range: [number, number]) => ({ material: { kind: "basis" as const, path: "/note.txt", object: file }, range });
   const operations = [{ key: "move", kind: "moveSource" as const, source: ref(span("A para\r\n\r\n")), at: ref(span("B para\r\n\r\n")), side: "after" as const }];
   const executed = await executeExactSourceEdits(prose.candidate, operations, async hash => objects.get(hash)!, TEST_AT);
   for (const [hash, bytes] of executed.generated) objects.set(hash, bytes);
@@ -126,7 +147,7 @@ test("a move on the head fast-forwards without the sidecar and replays; a diverg
   expect(workers).toBe(0);
   const merged = (await client.submitUpdates(tree, {base: accepted.id, updates: [peer]})).results[0]!.update;
   expect(merged.conflicted).toBe(false);
-  const note = decodeProtocolDirectory((await client.snapshot(tree, merged.root)).objects.get(merged.root)!).entries.find(e => e.name === "note.md")!.file!;
+  const note = decodeProtocolDirectory((await client.snapshot(tree, merged.root)).objects.get(merged.root)!).entries.find(e => e.name === "note.txt")!.file!;
   expect(new TextDecoder().decode((await client.snapshot(tree, merged.root)).objects.get(note))).toBe("B para\r\n\r\nA PEER\r\n\r\n");
   await running.overstoryd.verifyIntegrity();
 });
@@ -192,9 +213,9 @@ test("a stale equal-root basis cannot erase newer intent", async () => {
 
 type RangeEdit = { range: [number, number]; text: string };
 async function rangeCandidate(edits: RangeEdit[]): Promise<CandidateUpdate> {
-  const file = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.md")!.file!;
+  const entry = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === noteName)!, file = (entry.file ?? entry.page)!;
   const operations = edits.map((edit, i) => ({ key: `range-${i}`, kind: "editSource" as const,
-    source: { material: { kind: "basis" as const, path: "/note.md", object: file }, range: edit.range }, text: edit.text }));
+    source: { material: { kind: "basis" as const, path: `/${noteName}`, object: file }, range: edit.range }, text: edit.text }));
   const result = await executeExactSourceEdits(root, operations, async hash => objects.get(hash)!, TEST_AT);
   for (const object of result.generated) objects.set(...object);
   return { at: TEST_TIME, change: crypto.randomUUID(), candidate: result.root, trace: [{ before: root, after: result.root, operations }], resolves: [],
@@ -208,6 +229,7 @@ const rangeCases: Array<{ name: string; left: RangeEdit[]; right: RangeEdit[] }>
 ];
 for (const scenario of rangeCases) for (const reverse of [false, true]) {
   test(`root range choices preserve complete provenance through restart: ${scenario.name}, reverse=${reverse}`, async () => {
+    if (scenario.name.includes("Markdown")) await useMarkdownNote();
     const pair = [await rangeCandidate(scenario.left), await rangeCandidate(scenario.right)];
     if (reverse) pair.reverse();
     const first = pair[0]!, second = pair[1]!;
@@ -220,8 +242,8 @@ for (const scenario of rangeCases) for (const reverse of [false, true]) {
     expect(page.decisions[0]!.alternatives).toHaveLength(2);
     for (const request of pair) {
       const alternative = page.decisions[0]!.alternatives.find(a => a.contributions.some(c => c.change === request.change))!;
-      const file = decodeProtocolDirectory(objects.get(request.candidate)!).entries.find(e => e.name === "note.md")!.file!;
-      expect(alternative.value).toEqual({ file });
+      const entry = decodeProtocolDirectory(objects.get(request.candidate)!).entries.find(e => e.name === noteName)!;
+      expect(alternative.value).toEqual(entry.file ? { file: entry.file } : { page: entry.page! });
       expect(alternative.contributions).toEqual(authored(request).map(op => ({ change: request.change, operation: op.key })));
     }
     await stop(); await start();
@@ -243,7 +265,7 @@ for (const reverse of [false, true])
   });
 test("nested range collisions create a decision at the physical file", async () => {
   const directory = decodeProtocolDirectory(objects.get(root)!);
-  const original = directory.entries.find(e => e.name === "note.md")!;
+  const original = directory.entries.find(e => e.name === "note.txt")!;
   const child = encodeProtocolDirectory({ type: "directory", entries: [original] }), childHash = hashObject(child);
   directory.entries.push({ name: "nested", directory: childHash });
   directory.entries.sort((a,b) => Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)));
@@ -253,7 +275,7 @@ test("nested range collisions create a decision at the physical file", async () 
   const candidates: CandidateUpdate[] = [];
   for (const text of ["A", "B"]) {
     const operations = [{ key: "nested-edit", kind: "editSource" as const,
-      source: { material: { kind: "basis" as const, path: "/nested/note.md", object: original.file! }, range: [0,1] as [number, number] }, text }];
+      source: { material: { kind: "basis" as const, path: "/nested/note.txt", object: original.file! }, range: [0,1] as [number, number] }, text }];
     const executed = await executeExactSourceEdits(root, operations, async hash => objects.get(hash)!, TEST_AT);
     for (const object of executed.generated) objects.set(...object);
     candidates.push({ at: TEST_TIME, change: crypto.randomUUID(), candidate: executed.root, trace: [{ before: root, after: executed.root, operations }], resolves: [],
@@ -265,7 +287,7 @@ test("nested range collisions create a decision at the physical file", async () 
   expect(accepted.conflicted).toBe(true);
   const decision = (await client.conflicts(tree, accepted.id, accepted.root)).decisions[0]!;
   expect(decision.affected).toEqual([{ material: { kind: "basis", path: "/", object: accepted.root }, within: ["nested"] }]);
-  expect(decision.alternatives.map(a => a.placement?.name)).toEqual(["note.md", "note.md"]);
+  expect(decision.alternatives.map(a => a.placement?.name)).toEqual(["note.txt", "note.txt"]);
   expect(records()).toHaveLength(2);
   await running.overstoryd.verifyIntegrity();
 });
@@ -335,6 +357,7 @@ test("unauthorized clients and foreign accepted bases cannot submit authored edi
 });
 
 test("same-basis independent source edits merge across restart and retain replay receipts", async () => {
+  await useMarkdownNote();
   const a = await edit("A", root, [0,1]), b = await edit("B", root, [1,2]), c = await edit("C", root, [2,3]);
   await client.submitUpdates(tree, { base, updates: [a] });
   await stop(); await start();
@@ -414,7 +437,7 @@ test("deleting the selected file retains hidden material and stale resolution do
   const { update } = await wholeConflict();
   const page = await client.conflicts(tree, update.id, update.root), decision = page.decisions[0]!;
   const directory = decodeProtocolDirectory(objects.get(update.root)!);
-  directory.entries = directory.entries.filter(e => e.name !== "note.md");
+  directory.entries = directory.entries.filter(e => e.name !== "note.txt");
   const bytes = encodeProtocolDirectory(directory), candidate = hashObject(bytes);
   const request = { base: update.id, updates: [{ at: TEST_TIME, change: crypto.randomUUID(), candidate, trace: null, resolves: [], objects: [{ hash: candidate, bytes }], deltas: [] }] };
   const deleted = (await client.submitUpdates(tree, request)).results[0]!.update;
@@ -467,8 +490,8 @@ test("a stale save adds an alternative instead of overwriting a newer revision",
   expect(next.conflicted).toBe(true);
   const page=await client.conflicts(tree,next.id,next.root);
   expect(page.decisions).toHaveLength(2);
-  expect(page.decisions.flatMap(d=>d.alternatives.map(a=>a.value))).toContainEqual({directory:b.candidate});
   expect(page.decisions[0]!.alternatives.map(a=>a.value)).toContainEqual({file:hashObject(Buffer.from("second\r\n"))});
+  expect(page.decisions.flatMap(d=>d.alternatives.map(a=>a.value))).toContainEqual({file:hashObject(Buffer.from("offline\r\n"))});
 });
 test("a failed conflict-state insert cannot acknowledge or partially publish a conflict", async () => {
   const a = await edit("first", root, [0,5]), b = await edit("second", root, [0,5]);
@@ -491,7 +514,7 @@ test("reviewed replacement chooses a hidden file and incomplete alternative guar
   const resolved = (await client.submitUpdates(tree, { base: update.id, updates: [{ ...replacement, resolves: [guard] }] })).results[0]!.update;
   expect(resolved.conflicted).toBe(false);
   const snapshot = await client.snapshot(tree, resolved.root);
-  const file = decodeProtocolDirectory(snapshot.objects.get(resolved.root)!).entries.find(e => e.name === "note.md")!.file!;
+  const file = decodeProtocolDirectory(snapshot.objects.get(resolved.root)!).entries.find(e => e.name === "note.txt")!.file!;
   expect(new TextDecoder().decode(snapshot.objects.get(file))).toBe("second\r\n");
   expect((await client.conflicts(tree, update.id, update.root)).decisions).toEqual(page.decisions);
 });
@@ -525,13 +548,13 @@ test("entry kind changes retain hidden files and nested batch edits keep their a
   const child = new TextEncoder().encode("abc"), file = hashObject(child);
   const folder = encodeProtocolDirectory({ type: "directory", entries: [{ name: "child.txt", file, created: 0, modified: 0 }] }), folderHash = hashObject(folder);
   const directory = decodeProtocolDirectory(objects.get(update.root)!);
-  directory.entries = directory.entries.map(e => e.name === "note.md" ? { name: e.name, directory: folderHash } : e);
+  directory.entries = directory.entries.map(e => e.name === "note.txt" ? { name: e.name, directory: folderHash } : e);
   const encoded = encodeProtocolDirectory(directory), candidate = hashObject(encoded);
   for (const [hash, bytes] of [[file, child], [folderHash, folder], [candidate, encoded]] as Array<[ObjectHash, Uint8Array]>) objects.set(hash, bytes);
   const replacement:CandidateUpdate={ at: TEST_TIME, change: crypto.randomUUID(), candidate, trace: null, resolves: [], objects: [...objects].map(([hash,bytes]) => ({ hash,bytes })), deltas: [] };
   const placed = (await client.submitUpdates(tree, { base: update.id, updates: [replacement] })).results[0]!.update;
   async function nested(basis: ObjectHash, object: ObjectHash, range: [number,number], text: string): Promise<CandidateUpdate> {
-    const operations = [{ key: "edit", kind: "editSource" as const, source: { material: { kind: "basis" as const, path: "/note.md/child.txt", object }, range }, text }];
+    const operations = [{ key: "edit", kind: "editSource" as const, source: { material: { kind: "basis" as const, path: "/note.txt/child.txt", object }, range }, text }];
     const result = await executeExactSourceEdits(basis, operations, async hash => objects.get(hash)!, TEST_AT);
     for (const value of result.generated) objects.set(...value);
     return { at: TEST_TIME, change: crypto.randomUUID(), candidate: result.root, trace: [{ before: basis, after: result.root, operations }], resolves: [], objects: [...result.generated].map(([hash,bytes]) => ({ hash,bytes })), deltas: [] };
@@ -552,7 +575,7 @@ test("entry kind changes retain hidden files and nested batch edits keep their a
 
 async function installNestedPeers() {
   const file = hashObject(new TextEncoder().encode("abc\r\n"));
-  const leaf = encodeProtocolDirectory({ type: "directory", entries: [{ name: "note.md", file, created: 0, modified: 0 }] });
+  const leaf = encodeProtocolDirectory({ type: "directory", entries: [{ name: "note.txt", file, created: 0, modified: 0 }] });
   const leafHash = hashObject(leaf); objects.set(leafHash, leaf);
   const folder = encodeProtocolDirectory({ type: "directory", entries: [{ name: "left", directory: leafHash }, { name: "right", directory: leafHash }] });
   const folderHash = hashObject(folder); objects.set(folderHash, folder);
@@ -565,12 +588,12 @@ async function installNestedPeers() {
 
 test("nested decisions stay independent across histories, hidden successors, resolution and restart", async () => {
   await installNestedPeers();
-  const a = await editAt("/nested/left/note.md", "peer-left");
+  const a = await editAt("/nested/left/note.txt", "peer-left");
   await client.submitUpdates(tree, { base, updates: [a] });
   const first = (await client.descriptor(tree)).tree;
-  const b = await editAt("/nested/right/note.md", "peer-right", first.root);
+  const b = await editAt("/nested/right/note.txt", "peer-right", first.root);
   const second = (await client.submitUpdates(tree, { base: first.update, updates: [b] })).results[0]!.update;
-  const left = await editAt("/nested/left/note.md", "my-left"), right = await editAt("/nested/right/note.md", "my-right");
+  const left = await editAt("/nested/left/note.txt", "my-left"), right = await editAt("/nested/right/note.txt", "my-right");
   const leftAccepted = (await client.submitUpdates(tree, { base, updates: [left] })).results[0]!.update;
   const leftHistory = await client.conflicts(tree, leftAccepted.id, leftAccepted.root);
   const current = (await client.submitUpdates(tree, { base, updates: [right] })).results[0]!.update;
@@ -582,7 +605,7 @@ test("nested decisions stay independent across histories, hidden successors, res
   expect(l.id).not.toBe(r.id);
   expect(l.alternatives.find(v => v.id === l.selected)!.contributions).toEqual([{ change: a.change, operation: "edit" }]);
   expect(r.alternatives.find(v => v.id === r.selected)!.contributions).toEqual([{ change: b.change, operation: "edit" }]);
-  const suffix = await editAt("/nested/left/note.md", "continued", left.candidate, [0,7]);
+  const suffix = await editAt("/nested/left/note.txt", "continued", left.candidate, [0,7]);
   const continued = (await client.submitUpdates(tree, { base, updates: [left, suffix] })).results[1]!.update;
   const continuedPage = await client.conflicts(tree, continued.id, continued.root);
   const hidden = continuedPage.decisions.find(d => d.id === l.id)!.alternatives.find(v => v.id !== l.selected)!;
@@ -594,7 +617,7 @@ test("nested decisions stay independent across histories, hidden successors, res
     trace: [], resolves: [{ state: continued.id, conflict: l.id, alternatives: l.alternatives.map(v => v.id) }], objects: [], deltas: [] }] })).results[0]!.update;
   expect(resolved.conflicted).toBe(true);
   expect((await client.conflicts(tree, resolved.id, resolved.root)).decisions.map(d => d.id)).toEqual([r.id]);
-  const snapshotEdit = await editAt("/nested/right/note.md", "snapshot-right", resolved.root, [0,10]);
+  const snapshotEdit = await editAt("/nested/right/note.txt", "snapshot-right", resolved.root, [0,10]);
   const snapshotAccepted = (await client.submitUpdates(tree, { base: resolved.id, updates: [{ ...snapshotEdit, trace: null }] })).results[0]!.update;
   const snapshotDecision = (await client.conflicts(tree, snapshotAccepted.id, snapshotAccepted.root)).decisions[0]!;
   expect(snapshotDecision.id).toBe(r.id);
@@ -616,12 +639,12 @@ test("a stale nested source edit survives eighty intervening source and snapshot
   const peers: Array<{ change: string; operation: string | null }> = [];
   let current = { id: base, root };
   for (let i = 0; i < 80; i++) {
-    const authored = await editAt("/nested/left/note.md", String(i).padStart(3, "0"), current.root);
+    const authored = await editAt("/nested/left/note.txt", String(i).padStart(3, "0"), current.root);
     const request = i % 7 === 0 ? { ...authored, trace: null } : authored;
     peers.push({ change: request.change, operation: request.trace === null ? null : "edit" });
     current = (await client.submitUpdates(tree, { base: current.id, updates: [request] })).results[0]!.update;
   }
-  const stale = await editAt("/nested/left/note.md", "old-basis", initialRoot);
+  const stale = await editAt("/nested/left/note.txt", "old-basis", initialRoot);
   const request = { base: initial, updates: [stale] };
   const accepted = (await client.submitUpdates(tree, request)).results[0]!.update;
   expect(accepted.conflicted).toBe(true); expect(accepted.root).toBe(current.root);
@@ -645,11 +668,11 @@ test("the TS runner publishes a stale local change after restart, continues it, 
   const log = new ChangeLog(tree, stateRoot);
   const open = () => new UpdateCoordinator(tree, log, new FileControlStore(stateRoot), client, working,
     { publicationDelayMs: 3_600_000, publicationMaxDelayMs: 3_600_000 });
-  const view = async (coordinator: InstanceType<typeof UpdateCoordinator>) => readSource((await editorView(coordinator, working)).graph, "/note.md");
+  const view = async (coordinator: InstanceType<typeof UpdateCoordinator>) => readSource((await editorView(coordinator, working)).graph, "/note.txt");
   let coordinator = open();
   // A peer lands first; the editor's change is authored against the state it saw.
   await client.submitUpdates(tree, { base, updates: [await edit("PEER")] });
-  const local = await appendSource(coordinator, log, working, "/note.md", () => ({ offset: 0, length: 3, replacement: "MINE" }));
+  const local = await appendSource(coordinator, log, working, "/note.txt", () => ({ offset: 0, length: 3, replacement: "MINE" }));
   coordinator.close(); coordinator = open();
   expect(await view(coordinator)).toBe("MINE\r\n");
   await coordinator.syncOnce();
@@ -657,7 +680,7 @@ test("the TS runner publishes a stale local change after restart, continues it, 
   expect(working.base!.conflicted).toBe(true);
   expect(await view(coordinator)).toBe("PEER\r\n");
   // An editor that captured its own change continues from it.
-  await appendSource(coordinator, log, working, "/note.md", () => ({ offset: 0, length: 4, replacement: "LATER" }), local);
+  await appendSource(coordinator, log, working, "/note.txt", () => ({ offset: 0, length: 4, replacement: "LATER" }), local);
   await coordinator.syncOnce();
   expect(await coordinator.pendingChanges()).toEqual([]);
   const current = await client.descriptor(tree);
@@ -689,8 +712,8 @@ test("queued edits made at different times publish as one update under the last 
     { publicationDelayMs: 3_600_000, publicationMaxDelayMs: 3_600_000 });
   const [early, late] = ["2026-11-11T10:00:00.000Z", "2026-11-11T10:05:00.000Z"];
   // Two files, so the edits stay two frames rather than composing into one.
-  const first = await appendSource(coordinator, log, working, "/nested/left/note.md", () => ({ offset: 0, length: 3, replacement: "One" }), undefined, early);
-  await appendSource(coordinator, log, working, "/nested/right/note.md", () => ({ offset: 0, length: 3, replacement: "Two" }), first, late);
+  const first = await appendSource(coordinator, log, working, "/nested/left/note.txt", () => ({ offset: 0, length: 3, replacement: "One" }), undefined, early);
+  await appendSource(coordinator, log, working, "/nested/right/note.txt", () => ({ offset: 0, length: 3, replacement: "Two" }), first, late);
   const entryAt = async (root: string, side: string) => {
     const snapshot = await client.snapshot(tree, root), read = (hash: string) => decodeProtocolDirectory(snapshot.objects.get(hash as ObjectHash)!);
     const nested = read(read(root).entries.find(e => e.name === "nested")!.directory!);
@@ -706,16 +729,16 @@ test("queued edits made at different times publish as one update under the last 
   for (const side of ["left", "right"]) expect(await entryAt(head.tree.root, side)).toMatchObject({ created: 0, modified: Date.parse(late) });
   // The tree installs the restamped root in place of its own candidate.
   expect(working.base!.root).toBe(head.tree.root);
-  expect(await readSource((await editorView(coordinator, working)).graph, "/nested/left/note.md")).toBe("One\r\n");
+  expect(await readSource((await editorView(coordinator, working)).graph, "/nested/left/note.txt")).toBe("One\r\n");
   coordinator.close();
   await running.overstoryd.verifyIntegrity();
 });
 
 async function nestedConflict() {
   await installNestedPeers();
-  const peer = await editAt("/nested/left/note.md", "PEER");
+  const peer = await editAt("/nested/left/note.txt", "PEER");
   await client.submitUpdates(tree, { base, updates: [peer] });
-  const mine = await editAt("/nested/left/note.md", "MINE");
+  const mine = await editAt("/nested/left/note.txt", "MINE");
   const accepted = (await client.submitUpdates(tree, { base, updates: [mine] })).results[0]!.update;
   return { accepted, page: await client.conflicts(tree, accepted.id, accepted.root) };
 }
@@ -766,7 +789,7 @@ test("selected child edits update the ancestor projection; partial keep resoluti
   const deletion = rootSnapshot(accepted.root, d => { d.entries = d.entries.filter(e => e.name !== "nested"); });
   const ancestorState = (await client.submitUpdates(tree, { base: accepted.id, updates: [deletion] })).results[0]!.update;
   const firstPage = await client.conflicts(tree, ancestorState.id, ancestorState.root);
-  const changed = await editAt("/nested/left/note.md", "EDITED", ancestorState.root, [0,4]);
+  const changed = await editAt("/nested/left/note.txt", "EDITED", ancestorState.root, [0,4]);
   const continued = (await client.submitUpdates(tree, { base: ancestorState.id, updates: [changed] })).results[0]!.update;
   for (const [hash, bytes] of (await client.snapshot(tree, continued.root)).objects) objects.set(hash, bytes);
   const page = await client.conflicts(tree, continued.id, continued.root);
@@ -874,7 +897,7 @@ test("an ancestor choice can remain open while one child is explicitly resolved"
 
 test.each([false, true])("a source successor preserves an independently created entry through merged-prefix replay and restart (snapshot predecessor: %s)", async (snapshotPredecessor) => {
   const bytes = Buffer.from("Created A\n"), file = hashObject(bytes); objects.set(file, bytes);
-  const create = rootSnapshot(root, d => { d.entries.push({ name: "a.md", file, created: 0, modified: 0 }); });
+  const create = rootSnapshot(root, d => { d.entries.push({ name: "a.txt", file, created: 0, modified: 0 }); });
   create.objects.push({ hash: file, bytes });
   await client.submitUpdates(tree, { base, updates: [create] });
   const first = await edit("B1"), second = await edit("B2", first.candidate, [0,2]);
@@ -900,7 +923,7 @@ test.each([false, true])("a source successor preserves an independently created 
   expect(accepted.conflicted).toBe(false);
   const snapshot = await client.snapshot(tree, accepted.root);
   expect(decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries).toEqual(expect.arrayContaining([
-    { name: "a.md", file, created: 0, modified: 0 }, { name: "note.md", file: hashObject(Buffer.from("B2\r\n")), created: 0, modified: 0 },
+    { name: "a.txt", file, created: 0, modified: 0 }, { name: "note.txt", file: hashObject(Buffer.from("B2\r\n")), created: 0, modified: 0 },
   ]));
   await stop(); await start();
   expect((await client.submitUpdates(tree, request)).results.map(r => r.update.id)).toEqual(response.results.map(r => r.update.id));
@@ -911,7 +934,7 @@ test.each([false, true])("a source successor preserves an independently created 
 
 test("a continuation after a merged prefix retains an intervening same-file snapshot and hidden successors", async () => {
   const bytes = Buffer.from("A"), file = hashObject(bytes); objects.set(file, bytes);
-  const create = rootSnapshot(root, d => { d.entries.push({ name: "a.md", file, created: 0, modified: 0 }); });
+  const create = rootSnapshot(root, d => { d.entries.push({ name: "a.txt", file, created: 0, modified: 0 }); });
   create.objects.push({ hash: file, bytes });
   await client.submitUpdates(tree, { base, updates: [create] });
   const first = await edit("B1"), second = await edit("B2", first.candidate, [0,2]);
@@ -930,7 +953,7 @@ test("a continuation after a merged prefix retains an intervening same-file snap
   ]));
   expect(decision.alternatives.find(a => a.id !== decision.selected)!.contributions.map(c => c.change)).toEqual([second.change, third.change]);
   const projection = await client.snapshot(tree, current.root);
-  expect(decodeProtocolDirectory(projection.objects.get(current.root)!).entries).toContainEqual({ name: "a.md", file, created: 0, modified: 0 });
+  expect(decodeProtocolDirectory(projection.objects.get(current.root)!).entries).toContainEqual({ name: "a.txt", file, created: 0, modified: 0 });
   await stop(); await start();
   expect((await client.submitUpdates(tree, request)).results.map(r => r.update.id)).toEqual(response.results.map(r => r.update.id));
   await running.overstoryd.verifyIntegrity();
@@ -951,17 +974,17 @@ test("all eight operation kinds execute through accepted authority and survive r
   expect(result.update.root).toBe(candidate);expect(result.update.conflicted).toBe(false);head=result.update;
  };
  const file=(name:string,text:string)=>{directory.entries=directory.entries.map(e=>e.name===name?{name,file:body(text), created: 0, modified: 0}:e);};
- await apply({key:"op",kind:"editSource",source:{...ref("note.md"),range:[0,1]},text:"A"},()=>file("note.md","Abc\r\n"));
- await apply({key:"op",kind:"copySource",source:{...ref("note.md"),range:[0,1]},at:{...ref("note.md"),range:[3,3]},side:"before"},()=>file("note.md","AbcA\r\n"));
- await apply({key:"op",kind:"moveSource",source:{...ref("note.md"),range:[0,1]},at:{...ref("note.md"),range:[4,4]},side:"before"},()=>file("note.md","bcAA\r\n"));
+ await apply({key:"op",kind:"editSource",source:{...ref("note.txt"),range:[0,1]},text:"A"},()=>file("note.txt","Abc\r\n"));
+ await apply({key:"op",kind:"copySource",source:{...ref("note.txt"),range:[0,1]},at:{...ref("note.txt"),range:[3,3]},side:"before"},()=>file("note.txt","AbcA\r\n"));
+ await apply({key:"op",kind:"moveSource",source:{...ref("note.txt"),range:[0,1]},at:{...ref("note.txt"),range:[4,4]},side:"before"},()=>file("note.txt","bcAA\r\n"));
  const parent=()=>({material:{kind:"basis" as const,path:"/",object:head.root}});
- await apply({key:"op",kind:"moveEntry",source:ref("note.md"),destination:{parent:parent(),name:"moved.md"}},()=>{directory.entries=directory.entries.map(e=>e.name==="note.md"?{...e,name:"moved.md"}:e);});
- await apply({key:"op",kind:"copyEntry",source:ref("moved.md"),destination:{parent:parent(),name:"copy.md"}},()=>{directory.entries.push({...directory.entries.find(e=>e.name==="moved.md")!,name:"copy.md"});});
- await apply({key:"op",kind:"replaceEntry",source:ref("copy.md"),value:{file:body("replacement")}},()=>file("copy.md","replacement"));
- const removed=directory.entries.find(e=>e.name==="copy.md")!;
- await apply({key:"op",kind:"removeEntry",source:ref("copy.md")},()=>{directory.entries=directory.entries.filter(e=>e.name!=="copy.md");});
- await apply({key:"op",kind:"addEntry",destination:{parent:parent(),name:"added.md"},value:{file:body("added")}},()=>{directory.entries.push({name:"added.md",file:body("added"), created: 0, modified: 0});});
- await apply({key:"op",kind:"editSource",source:{...ref("added.md"),range:[5,5]},text:"!"},()=>file("added.md","added!"));
+ await apply({key:"op",kind:"moveEntry",source:ref("note.txt"),destination:{parent:parent(),name:"moved.txt"}},()=>{directory.entries=directory.entries.map(e=>e.name==="note.txt"?{...e,name:"moved.txt"}:e);});
+ await apply({key:"op",kind:"copyEntry",source:ref("moved.txt"),destination:{parent:parent(),name:"copy.txt"}},()=>{directory.entries.push({...directory.entries.find(e=>e.name==="moved.txt")!,name:"copy.txt"});});
+ await apply({key:"op",kind:"replaceEntry",source:ref("copy.txt"),value:{file:body("replacement")}},()=>file("copy.txt","replacement"));
+ const removed=directory.entries.find(e=>e.name==="copy.txt")!;
+ await apply({key:"op",kind:"removeEntry",source:ref("copy.txt")},()=>{directory.entries=directory.entries.filter(e=>e.name!=="copy.txt");});
+ await apply({key:"op",kind:"addEntry",destination:{parent:parent(),name:"added.txt"},value:{file:body("added")}},()=>{directory.entries.push({name:"added.txt",file:body("added"), created: 0, modified: 0});});
+ await apply({key:"op",kind:"editSource",source:{...ref("added.txt"),range:[5,5]},text:"!"},()=>file("added.txt","added!"));
  await stop();await start();
  // Undo is no longer an operation: restoring the removed entry is an ordinary
  // authored replacement of its content at its old name.
@@ -995,18 +1018,18 @@ test("an exact accepted retry does not need an available worker",async()=>{
 });
 
 test("competing Markdown prose insertions are accepted without review",async()=>{
+ await useMarkdownNote();
  const a=await edit(" first",root,[3,3]),b=await edit(" second",root,[3,3]);
  await client.submitUpdates(tree,{base,updates:[a]});
  const accepted=(await client.submitUpdates(tree,{base,updates:[b]})).results[0]!.update;
  expect(accepted.conflicted).toBe(false);
  const snapshot=await client.snapshot(tree,accepted.root);
- const file=decodeProtocolDirectory(snapshot.objects.get(accepted.root)!).entries.find(e=>e.name==="note.md")!.file!;
- const text=Buffer.from(snapshot.objects.get(file)!).toString();
+ const text=noteText(accepted.root,snapshot.objects);
  expect(text).toContain(" first");expect(text).toContain(" second");expect(text.endsWith("\r\n")).toBe(true);
 });
 
 test("source admission preserves an existing snapshot conflict's public identities",async()=>{
- const rename=rootSnapshot(root,d=>{d.entries=d.entries.map(e=>e.name==="note.md"?{...e,name:"note.txt"}:e);});
+ const rename=rootSnapshot(root,d=>{d.entries=d.entries.map(e=>e.name==="note.txt"?{...e,name:"note.txt"}:e);});
  const seeded=(await client.submitUpdates(tree,{base,updates:[rename]})).results[0]!.update;base=seeded.id;root=seeded.root;
  const a=await editAt("/note.txt","LEFT"),b=await editAt("/note.txt","RIGHT");
  await client.submitUpdates(tree,{base,updates:[{...a,trace:null}]});
@@ -1025,11 +1048,11 @@ test("source admission preserves an existing snapshot conflict's public identiti
 
 test("independent source conflicts expose ranges and resolve separately across restart", async () => {
   await stop(); await start({contentChoices:"source"});
-  const file = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.md")!.file!;
+  const file = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.txt")!.file!;
   async function changes(first: string, last: string): Promise<CandidateUpdate> {
     const operations = [[0, first], [2, last]].map(([offset, text], index) => ({
       key: `part-${index}`, kind: "editSource" as const,
-      source: {material: {kind: "basis" as const, path: "/note.md", object: file}, range: [Number(offset), Number(offset)+1] as [number,number]}, text: String(text),
+      source: {material: {kind: "basis" as const, path: "/note.txt", object: file}, range: [Number(offset), Number(offset)+1] as [number,number]}, text: String(text),
     }));
     const executed = await executeExactSourceEdits(root, operations, async hash => objects.get(hash)!, TEST_AT);
     return {at: TEST_TIME, change: crypto.randomUUID(), candidate: executed.root, trace: [{before: root, after: executed.root, operations}], resolves: [], objects: [...executed.generated].map(([hash,bytes])=>({hash,bytes})), deltas: []};
@@ -1062,14 +1085,14 @@ test("source choice alternatives replace only their range and preserve an indepe
   const page=await client.conflicts(tree,accepted.id,accepted.root);
   expect(page.decisions.map(d=>d.affected[0]!.range)).toEqual([[0,3],[4,7]]);
   const snap=await client.snapshot(tree,accepted.root);
-  const file=decodeProtocolDirectory(snap.objects.get(snap.root)!).entries.find(e=>e.name==="note.md")!.file!;
+  const file=decodeProtocolDirectory(snap.objects.get(snap.root)!).entries.find(e=>e.name==="note.txt")!.file!;
   expect(page.decisions.every(d=>d.affected[0]!.material.kind==="basis" && d.affected[0]!.material.object===file)).toBe(true);
   const decision=page.decisions[0]!, hidden=decision.alternatives.find(a=>a.id!==decision.selected)!;
   if (!("file" in hidden.value)) throw Error("Expected retained source bytes");
   expect(new TextDecoder().decode(await client.object(tree,hidden.value.file))).toBe("X");
   const bytes=new TextEncoder().encode("XbCCC\r\n"),hash=hashObject(bytes);
   const directory=decodeProtocolDirectory(snap.objects.get(snap.root)!);
-  directory.entries.find(e=>e.name==="note.md")!.file=hash;
+  directory.entries.find(e=>e.name==="note.txt")!.file=hash;
   const encoded=encodeProtocolDirectory(directory),candidate=hashObject(encoded);
   const result=(await client.submitUpdates(tree,{base:accepted.id,updates:[{
     at: TEST_TIME, change:crypto.randomUUID(),candidate,
@@ -1103,26 +1126,27 @@ test("equal-byte round trips authored as ordinary edits stay unconflicted", asyn
   expect((await client.submitUpdates(tree,{base:current.tree.update,updates:[next]})).results[0]!.update.root).toBe(next.candidate);
 });
 
-/** A traced `moveSource` of `/note.md`'s `[start, end)` to `offset` on `basis`. */
+/** A traced `moveSource` of `/note.txt`'s `[start, end)` to `offset` on `basis`. */
 function moveNote(basis: ObjectHash, text: string, [start, end]: [number, number], offset: number): CandidateUpdate {
   const directory = decodeProtocolDirectory(objects.get(basis)!);
-  const file = directory.entries.find(e => e.name === "note.md")!.file!;
+  const entry = directory.entries.find(e => e.name === noteName)!, file = (entry.file ?? entry.page)!;
   const bytes = Buffer.from(text), material = bytes.subarray(start, end);
   const moved = offset <= start
     ? Buffer.concat([bytes.subarray(0, offset), material, bytes.subarray(offset, start), bytes.subarray(end)])
     : Buffer.concat([bytes.subarray(0, start), bytes.subarray(end, offset), material, bytes.subarray(offset)]);
-  const next = hashObject(moved); objects.set(next, moved);
-  directory.entries = directory.entries.map(e => e.name === "note.md" ? { name: e.name, file: next, created: 0, modified: 0 } : e);
+  const object = entry.page ? encodeProtocolPage(parsePage(moved)!) : moved, next = hashObject(object); objects.set(next, object);
+  directory.entries = directory.entries.map(e => e.name === noteName ? (entry.page ? { name: e.name, page: next, created: 0, modified: 0 } : { name: e.name, file: next, created: 0, modified: 0 }) : e);
   const encoded = encodeProtocolDirectory(directory), candidate = hashObject(encoded); objects.set(candidate, encoded);
-  const ref = (range: [number, number]) => ({ material: { kind: "basis" as const, path: "/note.md", object: file }, range });
+  const ref = (range: [number, number]) => ({ material: { kind: "basis" as const, path: `/${noteName}`, object: file }, range });
   return { at: TEST_TIME, change: crypto.randomUUID(), candidate, resolves: [], deltas: [],
     trace: [{ before: basis, after: candidate, operations: [{ key: "move", kind: "moveSource", source: ref([start, end]), at: ref([offset, offset]), side: "before" }] }],
-    objects: [{ hash: next, bytes: moved }, { hash: candidate, bytes: encoded }] };
+    objects: [{ hash: next, bytes: object }, { hash: candidate, bytes: encoded }] };
 }
 test.each([
   ["a list item move and an item edit", "- a\n- b\n- c\n", [4, 8], 12, (r: ObjectHash) => edit("A", r, [2, 3]), "- A\n- c\n- b\n"],
   ["a paragraph move and an insertion at its destination", "Alpha\n\nBeta\n\n", [0, 7], 13, (r: ObjectHash) => edit("Gamma\n\n", r, [13, 13]), "Beta\n\nAlpha\n\nGamma\n\n"],
 ] as const)("%s merge in either order and replay (move first)", async (_name, text, range, offset, peerOf, expected) => {
+  await useMarkdownNote();
   const results: string[] = [];
   let head = { id: base, root }, size = 5;
   for (const moveFirst of [true, false]) {
@@ -1136,8 +1160,7 @@ test.each([
     const accepted = (await client.submitUpdates(tree, { base: start.id, updates: [moveFirst ? peer : move] })).results[0]!.update;
     expect(accepted.conflicted).toBe(false);
     const snapshot = await client.snapshot(tree, accepted.root);
-    const file = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e => e.name === "note.md")!.file!;
-    results.push(Buffer.from(snapshot.objects.get(file)!).toString());
+    results.push(noteText(snapshot.root, snapshot.objects));
     for (const [hash, bytes] of snapshot.objects) objects.set(hash, bytes);
     head = { id: accepted.id, root: accepted.root };
     size = Buffer.byteLength(results.at(-1)!);
@@ -1151,7 +1174,7 @@ test.each([
 test.each([false,true])("Markdown source copy accepts an independent edit and survives restart (copy first: %s)", async (copyFirst) => {
   const {prepareSourceChange}=await import("@ovst/working-tree");
   const graph=await client.snapshot(tree,root);
-  const record=prepareSourceChange({tree,change:"markdown-copy",basis:{kind:"accepted",root,update:base},graph,sourcePath:"/note.md",
+  const record=prepareSourceChange({tree,change:"markdown-copy",basis:{kind:"accepted",root,update:base},graph,sourcePath:"/note.txt",
     intent:{basis:{tree,path:"/note",revision:base,source:"abc\r\n"},source:"abc\r\nabc\r\n",edits:[{offset:5,length:0,replacement:"abc\r\n",copies:[{source:[0,5],replacement:[0,5]}]}]}});
   const copied=decodeLocalUpdate(record.update), peer=await edit("ABC");
   await client.submitUpdates(tree,{base,updates:[copyFirst?copied:peer]});
@@ -1162,7 +1185,7 @@ test.each([false,true])("Markdown source copy accepts an independent edit and su
   await stop();await start();
   expect((await client.submitUpdates(tree,request)).results[0]!.update.id).toBe(result.id);
   const snapshot=await client.snapshot(tree,result.root);
-  const file=decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e=>e.name==="note.md")!.file!;
+  const file=decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e=>e.name==="note.txt")!.file!;
   expect(Buffer.from(snapshot.objects.get(file)!).toString()).toBe("ABC\r\nabc\r\n");
   await running.overstoryd.verifyIntegrity();
 });
@@ -1180,13 +1203,13 @@ test("plain edits fast-forward past open decisions they do not touch, and fall t
   // A new file beside the choice: accepted as authored, the choice carried unchanged.
   const bytes = new TextEncoder().encode("added\n"), file = hashObject(bytes);
   const directory = decodeProtocolDirectory(objects.get(conflicted.root)!);
-  directory.entries = [...directory.entries, { name: "added.md", file, created: 0, modified: 0 }].sort((x, y) => Buffer.compare(Buffer.from(x.name), Buffer.from(y.name)));
+  directory.entries = [...directory.entries, { name: "added.txt", file, created: 0, modified: 0 }].sort((x, y) => Buffer.compare(Buffer.from(x.name), Buffer.from(y.name)));
   const encoded = encodeProtocolDirectory(directory), candidate = hashObject(encoded);
   objects.set(file, bytes); objects.set(candidate, encoded);
   const addition: CandidateUpdate = { at: TEST_TIME, change: crypto.randomUUID(), candidate, resolves: [], deltas: [],
     objects: [{ hash: file, bytes }, { hash: candidate, bytes: encoded }],
     trace: [{ before: conflicted.root, after: candidate, operations: [{ key: "add", kind: "addEntry",
-      destination: { parent: { material: { kind: "basis", path: "/", object: conflicted.root } }, name: "added.md" }, value: { file } }] }] };
+      destination: { parent: { material: { kind: "basis", path: "/", object: conflicted.root } }, name: "added.txt" }, value: { file } }] }] };
   const added = (await client.submitUpdates(tree, { base: conflicted.id, updates: [addition] })).results[0]!.update;
   expect(added.root).toBe(candidate);
   expect(workers).toBe(0);
@@ -1245,7 +1268,7 @@ for (const encoding of ["json", "cbor"] as const) for (const peer of [false, tru
     expect(encodeWireBody({base, updates}, encoding).byteLength).toBeLessThan(5000);
     // Even a retained object is not a valid delta base if the preceding
     // candidate no longer reaches it. Reject the whole traced preflight.
-    const originalFile = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.md")!.file!;
+    const originalFile = decodeProtocolDirectory(objects.get(root)!).entries.find(e => e.name === "note.txt")!.file!;
     const before = records().length;
     const invalid = {...updates[1]!, deltas: updates[1]!.deltas.map(delta => ({...delta, base: originalFile}))};
     await expect(client.submitUpdates(tree, {base, updates: [updates[0]!, invalid]})).rejects.toThrow();
@@ -1255,7 +1278,7 @@ for (const encoding of ["json", "cbor"] as const) for (const peer of [false, tru
     const accepted = await client.submitUpdates(tree, request);
     expect(accepted.results).toHaveLength(2);
     const snapshot = await client.snapshot(tree, accepted.results[1]!.update.root);
-    const file = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e => e.name === "note.md")!.file!;
+    const file = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e => e.name === "note.txt")!.file!;
     expect(new TextDecoder().decode(snapshot.objects.get(file)!)).toBe("XY" + (peer ? "Z" : "a") + "a".repeat(69_997) + "\r\n");
     await stop(); await start();
     client = await deviceClient(running.url, token, {encoding});
@@ -1320,7 +1343,7 @@ test.each([false, true])("a batch of edits to one large file sends only the fina
   // Typing "hello" one character at a time, each its own record.
   for (const [index, letter] of [..."hello"].entries()) {
     const next = source.slice(0, 100 + index) + letter + source.slice(100 + index);
-    const record = prepareSourceChange({ tree, change: `type-${index}`, graph, sourcePath: "/note.md",
+    const record = prepareSourceChange({ tree, change: `type-${index}`, graph, sourcePath: "/note.txt",
       basis: index ? { kind: "authored", change: `type-${index - 1}` } : { kind: "accepted", root, update: base },
       intent: { basis: { tree, path: "/note", revision: `r${index}`, source }, edits: [{ offset: 100 + index, length: 0, replacement: letter }], source: next } });
     local.push(record); graph = decodeTreeSnapshotJSON(record.candidate); source = next;
@@ -1340,7 +1363,7 @@ test.each([false, true])("a batch of edits to one large file sends only the fina
   const result = (await client.submitUpdates(tree, { base, updates: [update] })).results[0]!;
   expect(result.outcome).toBe("accepted");
   const snapshot = await client.snapshot(tree, result.update.root);
-  const file = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e => e.name === "note.md")!.file!;
+  const file = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!).entries.find(e => e.name === "note.txt")!.file!;
   const expected = peer ? source.slice(0, 2) + "Z" + source.slice(3) : source;
   expect(new TextDecoder().decode(snapshot.objects.get(file)!)).toBe(expected);
   await stop(); await start();

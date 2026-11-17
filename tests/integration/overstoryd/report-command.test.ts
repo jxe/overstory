@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { serveHost, type HostReport } from "@ovst/overstoryd";
-import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, sha256, type ProtocolClient } from "@ovst/protocol";
+import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, sha256, type ProtocolClient, encodeProtocolPage, parsePage } from "@ovst/protocol";
 import { deviceClient, testAccount } from "../../helpers/devices.ts";
 
 const token = "report-command-owner";
@@ -29,13 +29,13 @@ beforeAll(async () => {
   const head = await owner.descriptor(community.id);
   const snapshot = await owner.snapshot(community.id, head.tree.root);
   const root = decodeProtocolDirectory(snapshot.objects.get(snapshot.root)!);
-  const index = new TextEncoder().encode([
+  const index = encodeProtocolPage(parsePage(new TextEncoder().encode([
     "---", "type: group", "members:",
     `  - profile: ${JSON.stringify(`overstory://${account.profileTree!}/`)}`, "    handle: owner",
     "  - handle: guest", `    inviteDigest: ${JSON.stringify(`sha256:${sha256("report-invite-code-xyz")}`)}`,
     "---", "", "# Garden", "",
-  ].join("\n"));
-  const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, file: hashObject(index), created: 0, modified: 0 } : entry) });
+  ].join("\n")))!);
+  const rootBytes = encodeProtocolDirectory({ type: "directory", entries: root.entries.map((entry) => entry.name === "_index.md" ? { name: entry.name, page: hashObject(index), created: 0, modified: 0 } : entry) });
   await owner.submitUpdate(community.id, head.tree.update,
     { root: hashObject(rootBytes), objects: new Map([...snapshot.objects, [hashObject(index), index], [hashObject(rootBytes), rootBytes]]) },
     { ifCurrent: head.tree.update });

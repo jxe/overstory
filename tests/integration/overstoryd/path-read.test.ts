@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, pathReadObjects, type ObjectHash, type ProtocolClient, type ProtocolDirectoryEntry } from "@ovst/protocol";
+import { decodeProtocolDirectory, decodeProtocolPage, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, pathReadObjects, type ObjectHash, type ProtocolClient, type ProtocolDirectoryEntry } from "@ovst/protocol";
 import { serveHost } from "@ovst/overstoryd";
 import { deviceClient, testAccount } from "../../helpers/devices.ts";
 import { collectionDirectory, idRow } from "../../support/collection-trees.ts";
@@ -12,6 +12,8 @@ import { collectionDirectory, idRow } from "../../support/collection-trees.ts";
 
 const token = "path-read-owner";
 const text = (value: string) => new TextEncoder().encode(value);
+/** Markdown as the page it reads as (data model §9). */
+const page = (value: string) => encodeProtocolPage(parsePage(text(value))!);
 
 let sandbox: string;
 let running: Awaited<ReturnType<typeof serveHost>>;
@@ -43,16 +45,16 @@ beforeAll(async () => {
   const objects = new Map(snapshot.objects);
   const add = (name: string, bytes: Uint8Array) => { const hash = hashObject(bytes); objects.set(hash, bytes); hashes[name] = hash; return hash; };
   // /Trips/Paris.md, /Trips/_index.md, /Trips/Rome/_index.md, /Trips/photo.bin, /Notes.md
-  const paris = add("paris", text("# Paris\n"));
-  const tripsIndex = add("tripsIndex", text("# Trips\n"));
-  const romeIndex = add("romeIndex", text("# Rome\n"));
+  const paris = add("paris", page("# Paris\n"));
+  const tripsIndex = add("tripsIndex", page("# Trips\n"));
+  const romeIndex = add("romeIndex", page("# Rome\n"));
   const photo = add("photo", new Uint8Array([1, 2, 3]));
-  const notes = add("notes", text("Notes\n"));
-  const rome = add("rome", encodeProtocolDirectory({ type: "directory", entries: [{ name: "_index.md", file: romeIndex, created: 0, modified: 0 }] }));
+  const notes = add("notes", page("Notes\n"));
+  const rome = add("rome", encodeProtocolDirectory({ type: "directory", entries: [{ name: "_index.md", page: romeIndex, created: 0, modified: 0 }] }));
   const trips = add("trips", encodeProtocolDirectory({ type: "directory", entries: sorted([
-    { name: "Paris.md", file: paris, created: 0, modified: 0 },
+    { name: "Paris.md", page: paris, created: 0, modified: 0 },
     { name: "Rome", directory: rome },
-    { name: "_index.md", file: tripsIndex, created: 0, modified: 0 },
+    { name: "_index.md", page: tripsIndex, created: 0, modified: 0 },
     { name: "photo.bin", file: photo, created: 0, modified: 0 },
   ]) }));
   // /Games: a collection whose rows are its children.
@@ -61,7 +63,7 @@ beforeAll(async () => {
   hashes.gamesLog = decodeProtocolDirectory(objects.get(games)!).collection!.log;
   const directory = encodeProtocolDirectory({
     ...top,
-    entries: sorted([...top.entries, { name: "Games", directory: games }, { name: "Trips", directory: trips }, { name: "Notes.md", file: notes, created: 0, modified: 0 }]),
+    entries: sorted([...top.entries, { name: "Games", directory: games }, { name: "Trips", directory: trips }, { name: "Notes.md", page: notes, created: 0, modified: 0 }]),
   });
   root = add("root", directory);
   await client.submitUpdate(community, head.tree.update, { root, objects });
@@ -164,8 +166,8 @@ describe("a Browse session", () => {
     const session = await TreeSession.open(community, counting, browseSettings(), { tree: { ...(await client.descriptor(community)).tree, root: root as never } });
     const objects = await session.openPage("/Trips/Paris");
     expect(new Set(objects.keys())).toEqual(new Set([root, hashes.trips!, hashes.paris!]));
-    expect((await session.index.entry("/Trips/Paris.md"))?.file).toBe(hashes.paris!);
-    expect(new TextDecoder().decode((await session.objects.object(hashes.paris!))!)).toBe("# Paris\n");
+    expect((await session.index.entry("/Trips/Paris.md"))?.page).toBe(hashes.paris!);
+    expect(new TextDecoder().decode(decodeProtocolPage((await session.objects.object(hashes.paris!))!).body)).toBe("# Paris\n");
     expect(objectReads).toBe(0);
     expect(session.index.heldDirectories).toBe(2);
   });
@@ -176,11 +178,11 @@ describe("payload-free watch", () => {
     const abort = new AbortController();
     const frames = client.watch(community, observedThrough, { signal: abort.signal, objects: "none" });
     const next = frames.next();
-    const changed = text("Notes, again\n");
+    const changed = page("Notes, again\n");
     const top = decodeProtocolDirectory(await client.object(community, root));
     const directory = encodeProtocolDirectory({
       ...top,
-      entries: top.entries.map((entry) => entry.name === "Notes.md" ? { name: "Notes.md", file: hashObject(changed), created: 0, modified: 0 } : entry),
+      entries: top.entries.map((entry) => entry.name === "Notes.md" ? { name: "Notes.md", page: hashObject(changed), created: 0, modified: 0 } : entry),
     });
     await client.submitUpdate(community, update, {
       root: hashObject(directory),
