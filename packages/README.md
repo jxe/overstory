@@ -11,9 +11,8 @@ here. The Swift twins are under [`swift/`](../swift/README.md).
 | Host | [`overstoryd`](overstoryd/README.md) | The reference host and the `overstoryd` command |
 | | [`overstoryd-merge`](overstoryd-merge/README.md) | The merge sidecar and the `overstoryd-merge` command |
 | | [`tree-merge`](tree-merge/README.md) | The three-way snapshot tree merge, shared by the merge sidecar and Story Sync tree recovery |
-| | [`collection-schema`](collection-schema/README.md) | Collection schemas (`schema.usl`) and the collection-file codec |
-| | [`usl`](usl/README.md) | Ultimate Schema Language (`.usl`): checker, layout, relationships, setup SQL, and store checks |
-| | [`beetle`](beetle/README.md) | Beetle (`.beetle` files, view blocks): parser, formatter, checker, plans, the evaluator that runs views and mutations, and (`@ovst/beetle/sqlite`) reading a collection's rows from SQLite |
+| | [`collection-schema`](collection-schema/README.md) | Collection schemas (`schema.beetle`) and the collection-file codec |
+| | [`beetle`](beetle/README.md) | Beetle (`.beetle` files, view blocks): parser, formatter, checker, plans, the evaluator that runs views and mutations, (`@ovst/beetle/tables`) a schema's checked tables: layout, relationships, setup SQL and store checks, and (`@ovst/beetle/sqlite`) reading a collection's rows from SQLite |
 | Client stack | [`client`](client/README.md) | Synchronizing a working tree against a host |
 | | [`fs`](fs/README.md) | Materializing trees on a filesystem |
 | Story Sync and CLI | [`story-sync`](story-sync/README.md) | The Story Sync daemon and the `story-sync` command |
@@ -22,8 +21,8 @@ here. The Swift twins are under [`swift/`](../swift/README.md).
 
 Layering rules, checked by reading each `package.json`:
 
-- `protocol` and `usl` depend on nothing in the workspace; `uvl` only on `usl`.
-- `collection-schema` depends only on `protocol`, `usl` and `beetle`;
+- `protocol` depends on nothing in the workspace; `beetle` only on `protocol`.
+- `collection-schema` depends only on `protocol` and `beetle`;
   `tree-merge` only on `protocol` and `collection-schema`.
 - `object-store`, `fs`, `client`, `overstoryd`, and `overstoryd-merge` never depend
   on `story-sync` or `cli`.

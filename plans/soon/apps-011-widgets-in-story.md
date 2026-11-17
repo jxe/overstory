@@ -61,7 +61,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
   every cell is one it knows. Proposed starter set: `Bullet`, `Text`, `People`, `Count`,
   `Date`. A `Rows` with any other cell falls back to ordinary view drawing.
 - **Views run locally on a placed tree when they can,** and on the host otherwise.
-- **The UI language becomes its own package, like USL:**
+- **The UI language becomes its own package, like Beetle:**
   - The component model and vocabulary.
   - The wire form.
   - The host interface.
@@ -136,8 +136,13 @@ discussion. Where it says *query* or *endpoint*, read *view*
   Story asks for a collection's view the same way whether the tree is placed or not.
 - Story draws a collection's list from its `schema.beetle` views over a `Rows` element instead
   of its own `~views` presentation (`PresentedView.swift`, `StoryPresentedCollection.swift`),
-  and `~views` goes from Beetle and the spec. Row actions come from the app's row-action
-  mutations (`mutation … for Table.op`,
+  and `~views` goes from Beetle and the spec.
+- The last of USL goes with it: StoryKit's `OverstoryWorkspace/USL` folder
+  (the USL parser and checker that `BeetleSchema.swift` rewrites `schema.beetle` into, layout,
+  logical rows, `PresentedView`, `PresentedViewEdits`), `USLTests` and `PresentedViewTests`,
+  and `conformance/presented-views.json`. Story reads a schema's tables with the Swift port of
+  the Beetle checker from step 5, held to `beetle.json`.
+- Row actions come from the app's row-action mutations (`mutation … for Table.op`,
   [Beetle §4.1](../../docs/overstory-spec/1.5-beetle.md#41-facts)) when it has them, and
   otherwise from plain row edits
   ([Schema language 007](../features/schema-language-007-editing-in-the-collection-view.md)).

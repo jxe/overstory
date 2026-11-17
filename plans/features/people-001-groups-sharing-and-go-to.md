@@ -32,7 +32,7 @@ Formerly "a directory you own, Go to…, and links by tree ID".
   spec extension. How the directory is shown is done (Schema language 002, closed 2026-10-28). The Go to… slice
   and phase 1's loose ends on nothing.
 - **Built on collection views** (Joe, 2026-10-24): People is the directory's collection shown
-  with USL views (Schema language 006 and 002), not hand-built screens. Only Go to… and the person picker
+  with collection views (Schema language 006 and 002; Beetle views after Apps 011), not hand-built screens. Only Go to… and the person picker
   are hand-built.
 - **Includes Links 001** (following a link that names a tree by its ID), folded in on
   2026-10-24 (the Go to… slice and phase 4). Its earlier text is in git history at `7b29f1b`
@@ -76,7 +76,7 @@ collapsed sections and are not copied.
 
 ## Phase 2: People as a database view (after 007's editor)
 
-People is the directory's People collection presented with USL views and edited with 007's
+People is the directory's People collection presented with collection views and edited with 007's
 structured editor, not hand-built screens (Joe, 2026-10-24). What the directory asks
 of those plans is listed in each of them.
 

@@ -1,6 +1,6 @@
 import { compileLogicalSchema, encodeCollection, loadDirectoryCollection } from "@ovst/collection-schema";
 import { decodeProtocolDirectory, encodeProtocolDirectory, encodeProtocolPage, hashObject, parsePage, type LogicalRow, type ObjectHash, type ProtocolDirectoryEntry } from "@ovst/protocol";
-import type { LogicalTables } from "@ovst/usl";
+import type { LogicalTables } from "@ovst/beetle/tables";
 
 export interface CollectionTree {
   root: ObjectHash;

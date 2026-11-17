@@ -1,7 +1,7 @@
 import Foundation
 
 // The inverse of a presented view: intents to row operations (spec 10 §4.1).
-// A port of `viewEdits` in `packages/usl/src/present.ts`. Delete in a
+// A port of `viewEdits` in the retired `packages/usl/src/present.ts` (git history). Delete in a
 // connection group disconnects; in a flat or choice-grouped view it deletes.
 // A connection group's heading edits that row's name.
 

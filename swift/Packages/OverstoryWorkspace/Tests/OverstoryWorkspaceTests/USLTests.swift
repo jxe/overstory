@@ -25,7 +25,7 @@ private func examples(_ directory: String) throws -> [(name: String, source: Str
 struct USLTests {
     @Test("The examples check clean")
     func examplesCheckClean() throws {
-        let files = try examples("packages/usl/examples")
+        let files = try examples("swift/Packages/OverstoryWorkspace/Tests/USLFixtures")
         #expect(files.count >= 5)
         for file in files {
             #expect(compileUSL(file.source).diagnostics == [], "\(file.name)")
@@ -34,7 +34,7 @@ struct USLTests {
 
     @Test("Broken examples report exactly the codes they expect")
     func brokenExamples() throws {
-        let files = try examples("packages/usl/examples/invalid")
+        let files = try examples("swift/Packages/OverstoryWorkspace/Tests/USLFixtures/invalid")
         #expect(!files.isEmpty)
         let regex = try NSRegularExpression(pattern: "^// expect: ([a-z-]+)$", options: [.anchorsMatchLines])
         for file in files {
@@ -49,8 +49,8 @@ struct USLTests {
     @Test("A schema.beetle lays out the tables its schema.usl did")
     func beetleSchemasMatchUSL() throws {
         let pairs = [
-            ("packages/beetle/examples/supplies/data/schema.beetle", "packages/usl/examples/supplies.usl"),
-            ("tests/fixtures/games.beetle", "packages/usl/examples/games.usl"),
+            ("packages/beetle/examples/supplies/data/schema.beetle", "swift/Packages/OverstoryWorkspace/Tests/USLFixtures/supplies.usl"),
+            ("tests/fixtures/games.beetle", "swift/Packages/OverstoryWorkspace/Tests/USLFixtures/games.usl"),
         ]
         for (beetle, usl) in pairs {
             let beetleSource = try String(contentsOf: repositoryRoot.appending(path: beetle), encoding: .utf8)

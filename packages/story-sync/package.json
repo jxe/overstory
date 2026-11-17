@@ -15,7 +15,6 @@
     "@ovst/working-tree": "workspace:*",
     "@ovst/fs": "workspace:*",
     "@ovst/collection-schema": "workspace:*",
-    "@ovst/usl": "workspace:*",
     "@ovst/object-store": "workspace:*"
   }
 }

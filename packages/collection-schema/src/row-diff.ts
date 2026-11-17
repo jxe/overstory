@@ -19,7 +19,7 @@ import {
   type RowMember,
   type RowOperation,
 } from "@ovst/protocol";
-import type { LogicalModel, LogicalTables } from "@ovst/usl";
+import type { LogicalModel, LogicalTables } from "@ovst/beetle/tables";
 import { directoryCollectionSchema } from "./directory-collection.ts";
 import { changedCollectionRows } from "./logical.ts";
 import { replayCollectionRows } from "./row-replay.ts";

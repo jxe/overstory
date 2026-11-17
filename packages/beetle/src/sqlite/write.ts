@@ -7,7 +7,7 @@
 // as the in-memory overlay does, so the connection runs with SQLite's own checks off.
 
 import type { Database } from "bun:sqlite";
-import { PERSON_RELATION, type Column, type RowsByTable, type Table } from "@ovst/usl";
+import { PERSON_RELATION, type Column, type RowsByTable, type Table } from "../tables/index.ts";
 import { canonical, compareRows, Row, Store, StoreRefusal, type Cell } from "../store.ts";
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;

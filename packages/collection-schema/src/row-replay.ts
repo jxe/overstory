@@ -15,7 +15,7 @@ import {
   type ObjectHash,
   type RowOperation,
 } from "@ovst/protocol";
-import type { LogicalField, LogicalModel, LogicalTables } from "@ovst/usl";
+import type { LogicalField, LogicalModel, LogicalTables } from "@ovst/beetle/tables";
 import { directoryCollectionSchema, ProtocolCollectionError } from "./directory-collection.ts";
 import { plainRows, treeTables, type ChangedRow, type LogicalSchema } from "./logical.ts";
 import { appendRowChanges, loadCollectionState, type CollectionState } from "./collection-log.ts";

@@ -1,12 +1,12 @@
 // Beetle, the views-and-data language (.beetle, spec 1.5): parser, formatter and checker for
-// tables, views, rules, state tables and mutations. A collection's schema.beetle checks
-// through @ovst/usl, so its layout, fingerprint and setup SQL are USL's.
+// tables, views, rules, state tables and mutations. A collection's tables are checked by
+// ./tables, which also gives their layout, fingerprint and setup SQL (`@ovst/beetle/tables`).
 
 export * from "./ast.ts";
-export { parseView, ViewSyntaxError, COMPREHENSION_FUNCTIONS, type ParseResult } from "./parse.ts";
+export { parseView, ViewSyntaxError, COMPREHENSION_FUNCTIONS, BEETLE_LIMITS, type ParseResult } from "./parse.ts";
 export { formatView, FormatError } from "./fmt.ts";
 export { viewBlocks, pageSource, formatPage, codeVersion, type ViewBlock, type PageSource } from "./blocks.ts";
-export { compileSchema, uslFileOf, type SchemaResult } from "./schema.ts";
+export { compileSchema, tablesFileOf, type SchemaResult } from "./schema.ts";
 export {
   checkView,
   resolvePath,

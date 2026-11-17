@@ -1,7 +1,7 @@
 import Foundation
 
 // The relational layout of a checked schema, and the checks a row's values
-// get against it. A port of `packages/usl/src/layout.ts` and `rows.ts`; the
+// get against it. A port of `packages/beetle/src/tables/layout.ts` and `rows.ts`; the
 // rules are at the top of layout.ts and in spec 11 §7.
 
 public enum USLColumnType: String, Sendable, Equatable {

@@ -21,7 +21,7 @@ customer. Settled with Joe on 2026-10-15 in the project thread "Cranberries in S
   of the node being changed, judged on its current accepted state. One
   predicate, `unless`/`when: {property: x}` (non-empty), covers "anyone may
   edit unowned rows" and Supplies' `openToEdits`; try it and revisit.
-  `@@editableBy` left USL (0.3.0). No special rule for editing `schema.usl`.
+  `@@editableBy` left USL (0.3.0). No special rule for editing `schema.beetle`.
 - "Anyone signed in" is the host's community group; no new subject.
 
 ## Today and the work

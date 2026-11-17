@@ -24,13 +24,13 @@ package lives under `swift/Packages/<Name>`.
 | Component | TypeScript | Swift | Owns |
 |---|---|---|---|
 | Overstory protocol | `protocol`, `object-store` | `Overstory`, `OverstoryObjectStore` | The specification in code: identifiers, node model, canonical CBOR, hashing, objects and snapshots, update contracts, resource policy, the document format, configuration formats, HTTP and SSE transport; the content-addressed object store |
-| Host | `overstoryd`, `overstoryd-merge`, `merge-protocol`, `tree-merge`, `collection-schema`, `usl`, `beetle` | | Communities, accounts, hosted trees, acceptance, public pages; the merge sidecar, its JSON contract and the snapshot tree merge; declarative collection schemas; Beetle views and mutations |
+| Host | `overstoryd`, `overstoryd-merge`, `merge-protocol`, `tree-merge`, `collection-schema`, `beetle` | | Communities, accounts, hosted trees, acceptance, public pages; the merge sidecar, its JSON contract and the snapshot tree merge; declarative collection schemas; Beetle views and mutations |
 | Client stack | `client`, `fs` | `OverstoryClient`, `OverstoryWorkingTree` | Synchronizing a working tree against a host: update machine, admission queue, account bootstrap, filesystem materialization |
 | Story Sync and CLI | `story-sync`, `cli` | the `Story` app target's `StorySync/` (macOS) | The per-user daemon, its loopback REST API and clients, the `story` command |
 | Story apps | `story-web` | `StoryKit`, `StoryEditor`, the `Story` app target | The human interface |
 
-Layering: `protocol` and `usl` depend on nothing in the workspace;
-`collection-schema` depends only on `protocol`, `usl` and `beetle`,
+Layering: `protocol` depends on nothing in the workspace;
+`collection-schema` depends only on `protocol` and `beetle`,
 and `tree-merge` only on `protocol` and `collection-schema`; `overstoryd`
 and `overstoryd-merge` share only `object-store` and `merge-protocol`, and
 neither imports the other (only the sidecar and Story Sync recovery use
@@ -61,7 +61,7 @@ and the CLI share them ([local state](story-browser/local-state.md)).
 | `overstoryd-merge` | The merge sidecar: the question loop and its in-memory cache of entry states (started from provenance indexes), snapshot choices, intent engine and model, format rules, Markdown and web formats, retained states in memory, log decisions, the `overstoryd-merge` CLI ([merge sidecar](overstoryd/merge-tool.md)) | protocol, object-store, merge-protocol, tree-merge, tree-sitter, saxes |
 | `merge-protocol` | The contract between overstoryd and a merge sidecar: log entries, the merge question and answer, refusal codes; no merge logic ([writing a sidecar](overstoryd/writing-a-sidecar.md)) ([README](../../packages/merge-protocol/README.md)) | protocol, zod |
 | `tree-merge` | The three-way snapshot tree merge with its Markdown and collection-file rules and model hashes ([README](../../packages/tree-merge/README.md)) | protocol, collection-schema |
-| `collection-schema` | Collection schemas from `schema.beetle`: compilation through `beetle` and `usl`, validator, CSV cell conversion, generated declarations, logical names, the bounded schema cache, and the collection-file codec; pure, with no code execution, filesystem, or network ([README](collection-schema/README.md)) | protocol, usl, `csv-parse` |
+| `collection-schema` | Collection schemas from `schema.beetle`: compilation through `beetle`, validator, CSV cell conversion, generated declarations, logical names, the bounded schema cache, and the collection-file codec; pure, with no code execution, filesystem, or network ([README](collection-schema/README.md)) | protocol, usl, `csv-parse` |
 | `story-sync` | The daemon: workspace and editor, tree manager, sync and account HTTP, browser routes, filesystem object source and node surfaces, events, and `state/` (tree registry and placement sync metadata, connections, local accounts, providers, object index) | protocol, client, fs, beetle, collection-schema |
 | `cli` | `story`: daemon supervision, identity, placement, moves, cloud sessions; `daemon-client.ts` is its `StorySyncRESTClient` for the daemon's loopback surface | story-sync, protocol, fs |
 | `story-web` | The browser editor (React, BlockNote, Vite); out of the build and typecheck until [Web 025](../../plans/later/story-web-025-story-web.md) rebuilds it as a working-tree client; its stale imports of the deleted `@ovst/story-sync-client` are Web 025's to replace | protocol |

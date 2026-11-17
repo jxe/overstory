@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Database } from "bun:sqlite";
 import { compileSchema, formatDiagnostic } from "@ovst/beetle";
-import { layoutOf, setupSql } from "@ovst/usl";
+import { layoutOf, setupSql } from "@ovst/beetle/tables";
 
 const dataDirectory = join(import.meta.dir, "..", "data");
 const destination = join(dataDirectory, "_store.sqlite3");

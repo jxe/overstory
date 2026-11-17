@@ -11,9 +11,9 @@ import { deriveRowOperations, loadDirectoryCollection, snapshotEntry, useSnapsho
 import { sqliteSnapshots } from "@ovst/beetle/sqlite";
 import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, type ObjectHash } from "@ovst/protocol";
 import { CollectionProjections, type CollectionProjectionForm } from "@ovst/story-sync/state";
-import { layoutOf } from "@ovst/usl";
+import { layoutOf } from "@ovst/beetle/tables";
 import { compileSchema } from "@ovst/beetle";
-import { verifyStore } from "@ovst/usl/verify";
+import { verifyStore } from "@ovst/beetle/tables/verify";
 import { collectionBasis, collectionTree, idRow, T0 } from "../support/collection-trees.ts";
 const TEST_AT = Date.UTC(2026, 10, 11);
 
@@ -100,7 +100,7 @@ describe("a SQLite placement's base", () => {
     (await resolveSnapshot(await snapshotDirectory(root, new Map(), [], (directory, names) =>
       new CollectionProjections({ basis: () => collectionBasis(tree.root, tree.objects), now: () => "2026-10-24T12:00:00.000Z", baseDirectory: join(sandbox, "no-bases") }).read(directory, names)))).root;
 
-  test("Story Sync adds nothing to the database, and usl verify accepts it", async () => {
+  test("Story Sync adds nothing to the database, and the store check accepts it", async () => {
     const placed = await place("sqlite-base", tree, { kind: "sqlite" });
     const path = join(placed.items, "_store.sqlite3");
     expect(ownTables(path)).toEqual([]);
@@ -221,9 +221,9 @@ describe("a CSV placement", () => {
 
 // Schema language 005 milestone 4, done when: a games collection projected
 // as files holds one <Table>.jsonl per table of its file layout and passes
-// `usl verify`.
+// the store check (`verifyFiles`).
 describe("the games example placed as files", () => {
-  test("holds one <Table>.jsonl per table of its file layout, which usl verify accepts", async () => {
+  test("holds one <Table>.jsonl per table of its file layout, which the store check accepts", async () => {
     const source = await readFile(join(import.meta.dir, "../fixtures/games.beetle"), "utf8");
     const tree = collectionTree(source, {
       Game: [

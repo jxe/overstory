@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compileUsl, layoutOf, modelLayer } from "@ovst/usl";
+import { modelLayer } from "@ovst/beetle/tables";
 import { checkView, compileSchema, formatPage, formatView, parseView, viewBlocks, type ElementPlan } from "@ovst/beetle";
 import { exampleFiles, beetleVectors } from "../support/beetle-vectors.ts";
 
@@ -41,12 +41,9 @@ describe("beetle broken examples", () => {
 });
 
 describe("beetle schemas", () => {
-  test("Supplies' schema.beetle has the same data layer and layout as its schema.usl", () => {
+  test("Supplies' schema.beetle checks clean and keeps its defaults out of the tables", () => {
     const beetle = compileSchema(files["/supplies/data/schema.beetle"]!);
-    const usl = compileUsl(readFileSync(join(import.meta.dir, "../../packages/usl/examples/supplies.usl"), "utf8"));
     expect(beetle.diagnostics).toEqual([]);
-    expect(modelLayer(beetle)).toEqual(modelLayer(usl));
-    expect(layoutOf(beetle)).toEqual(layoutOf(usl));
     expect(beetle.defaults).toEqual({ Contribution: { first: expect.objectContaining({ kind: "name", name: "today" }) } });
   });
 
@@ -293,18 +290,7 @@ describe("beetle conformance vectors", () => {
   });
 });
 
-describe("converting schema.usl to schema.beetle", () => {
-  const root = join(import.meta.dir, "../..");
-  const schemas = [
-    ...["books", "excellences", "games", "stress", "supplies"].map((name) => `packages/usl/examples/${name}.usl`),
-  ];
-  for (const path of schemas) {
-    test(`${path} converts to the same tables, layout and presentation, formatted`, async () => {
-      const { convertVerified } = await import("../../tools/convert-usl-to-beetle.ts");
-      const beetle = convertVerified(readFileSync(join(root, path), "utf8"));
-      expect(formatView(beetle)).toBe(beetle);
-    });
-  }
+describe("beetle schema limits and presentation", () => {
 
   test("a file over the token limit is rejected", () => {
     const source = "table Wide:\n" + Array.from({ length: 33_000 }, (_, i) => `  f${i} Text\n`).join("");
@@ -336,15 +322,6 @@ describe("converting schema.usl to schema.beetle", () => {
     // A value's color is data, which the list views read as its color.
     const status = schema.models.find((m) => m.name === "Status")!;
     expect(status.schemaRows.map((r) => [r.name, r.color ?? null])).toEqual([["Draft", null], ["In review", "#bd861a"]]);
-  });
-
-  test("converting moves enum colors into data, which only then changes the fingerprint", async () => {
-    const { convertVerified, movesColors } = await import("../../tools/convert-usl-to-beetle.ts");
-    const colored = 'model Game {\n  status Status\n}\nGame.status <-> Status.games[]\nenum Status {\n  Draft ~color("#9aa0aa")\n  Done\n}\n';
-    expect(convertVerified(colored)).toContain('enum Status:\n  color Text?\n  Draft { color: "#9aa0aa" }\n  Done\n');
-    expect(movesColors(colored)).toBe(true);
-    expect(movesColors(colored.replace(' ~color("#9aa0aa")', ""))).toBe(false);
-    expect(() => convertVerified('model Tag {\n  hue Text ~color\n}\n')).toThrow("rename it first");
   });
 
   test("a color is a field, not an attribute; only ~views is left of ~", () => {

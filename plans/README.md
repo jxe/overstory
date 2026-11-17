@@ -86,7 +86,7 @@ hosts (a side slice for any time). Its share sheet phase was dropped on 2026-11-
 
 **[Schema language 009: change a collection's schema and keep its rows](features/schema-language-009-schema-changes-keep-the-data.md).**
 Nothing carries rows across a schema change yet, so a seed bump empties the People
-directory. USL meant migrations between relation forms to be small edits to one declaration.
+directory. Beetle tables (from USL) mean migrations between relation forms to be small edits to one declaration.
 From the ideas' open questions, 2026-10-28.
 
 **[Filesystem 024: open plain folders on the Mac](features/filesystem-024-open-plain-folders-on-the-mac.md).**

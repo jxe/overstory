@@ -40,16 +40,15 @@ constraints worth keeping are below.
 - **A Postgres provider stub.** Story Sync's `PostgresProjectionDriver`
   (`packages/story-sync/src/state/providers/postgres-provider.ts`) lists a schema's tables
   through a stored connection, read-only, with no rows.
-- **USL speaks Postgres.** `setupSql(tables, "postgres")` and
-  `usl verify … --backend postgres` (`packages/usl`), tested when `USL_TEST_POSTGRES` names a
-  server.
+- **Beetle tables speak Postgres.** `setupSql(tables, "postgres")` and `verifyStore` with a
+  Postgres URL (`@ovst/beetle/tables`), tested when `TABLES_TEST_POSTGRES` names a server.
 - **Observation is specified** for any backing (spec 06 §1.3): coherent read boundaries,
   changes only after commit, precision that may widen but never miss a change.
 
 ## Stage 1: Postgres as a collection's backing
 
 A `_store.yaml` collection reads and runs through the same collection contract as a logical
-collection: the schema from USL (or introspected and checked against it), rows paged by
+collection: the schema from Beetle (or introspected and checked against it), rows paged by
 primary key under one transaction snapshot, named queries and mutations in one Postgres
 transaction each, and observation per spec 06 §1.3 (`NOTIFY` and similar are wakeups only).
 Postgres is then the data authority, and the tree synchronizes only the descriptor.
@@ -96,12 +95,12 @@ authorities unless the implementation really makes it so.
 
 - **Row child names.** `rowPathSegment` (`packages/protocol/src/model/node-key.ts`) uses a
   single string key raw when it is a valid path component, else `~row-<base64url>`. It does
-  not exclude reserved child names (`schema.usl`, `_store.*`) or non-NFC keys the way
+  not exclude reserved child names (`schema.beetle`, `_store.*`) or non-NFC keys the way
   `childName` does. Either prove the raw rule collision-free or make the segment uniform
   (probably with the readable key token of spec 03 §2). Settle before stage 4.
 - **Scalar values.** One language-neutral projection of booleans, nulls, bytes, wide
   integers, decimals and timestamps across rows, queries, mutations and observation, in
-  TypeScript and Swift. Partly done by USL's types; check Postgres's wider types against it.
+  TypeScript and Swift. Partly done by Beetle's value types; check Postgres's wider types against it.
 
 ## Read-only placement projections (moved from spec 06 §4, 2026-11-11)
 

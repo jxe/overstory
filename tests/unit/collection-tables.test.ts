@@ -13,9 +13,9 @@ import {
 import { decodeProtocolDirectory, executeRowOperations, type ObjectHash, type RowOperation } from "@ovst/protocol";
 import { mergeProtocolTrees } from "@ovst/tree-merge";
 import { CollectionProjections } from "@ovst/story-sync/state";
-import { type LogicalTables } from "@ovst/usl";
+import { type LogicalTables } from "@ovst/beetle/tables";
 import { compileSchema } from "@ovst/beetle";
-import { verifyStore } from "@ovst/usl/verify";
+import { verifyStore } from "@ovst/beetle/tables/verify";
 const TEST_AT = Date.UTC(2026, 10, 11);
 
 const SCHEMA = `table Game:
@@ -86,13 +86,13 @@ describe("a schema with several tables", () => {
     expect(games(invalid.objects, invalid.root).entries.map((e) => e.name)).toContain("List.jsonl");
   });
 
-  test("passes usl verify", async () => {
+  test("passes the store check", async () => {
     const snapshot = await folder("verified", FILES);
     const diagnostics = await verifyStore(compileSchema(SCHEMA), snapshot.directory);
     expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
   });
 
-  test("the plan's games schema with Game.jsonl, List.jsonl and List_games.jsonl passes usl verify", async () => {
+  test("the plan's games schema with Game.jsonl, List.jsonl and List_games.jsonl passes the store check", async () => {
     const games = (await readFile(join(import.meta.dir, "../fixtures/games.beetle"), "utf8"))
       .replace("ordered List.games[] @fold", "ordered List.games[]");
     const directory = join(sandbox, "games");

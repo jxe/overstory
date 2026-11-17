@@ -1,0 +1,8 @@
+// expect: duplicate-end
+// Book.authors is declared by two connections.
+table Book:
+  title Text
+
+Book.authors[] <-> Person.books[]
+
+Book.authors[] <-> Person.written[]

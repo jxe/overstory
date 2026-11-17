@@ -1,6 +1,6 @@
 import { COLLECTION_SCHEMA_LIMITS, pointer, type CollectionSchemaLimit, type ValueDiagnostic } from "./diagnostics.ts";
 import type { Check, CollectionSchema } from "./compile.ts";
-import { isPersonValue } from "@ovst/usl";
+import { isPersonValue } from "@ovst/beetle/tables";
 
 const MAX_DIAGNOSTICS = 32;
 

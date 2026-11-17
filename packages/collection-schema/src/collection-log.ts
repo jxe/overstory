@@ -19,7 +19,7 @@ import {
   type ProtocolLog,
   type RowChange,
 } from "@ovst/protocol";
-import { layoutOf, logicalFromRows, rowsFromLogical, type LogicalTables, type RowsByTable, type Table } from "@ovst/usl";
+import { layoutOf, logicalFromRows, rowsFromLogical, type LogicalTables, type RowsByTable, type Table } from "@ovst/beetle/tables";
 import { plainTables, treeTables, type LogicalSchema } from "./logical.ts";
 
 type Load = (hash: Hash) => Promise<Uint8Array>;

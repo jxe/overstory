@@ -14,7 +14,7 @@ import { translateWhere, type LeafValue } from "./sql.ts";
 import { bindingShape, comprehensionShape, ReadShape, viewShapes, type ViewShapes } from "./shape.ts";
 import { compileProgram, type Checker, type Program } from "./check.ts";
 import { canonical, compareRows, EnumValue, Row, Store, StoreSchema, type PersonFields, type PrefetchRead, type RowQuery } from "./store.ts";
-import type { RowsByTable } from "@ovst/usl";
+import type { RowsByTable } from "./tables/index.ts";
 
 /** A mutation call or a `set` an attribute or event holds, which a client runs. */
 export class Action {

@@ -5,7 +5,7 @@
 // The in-memory Store is the reference: both answer every view the same.
 
 import type { Database } from "bun:sqlite";
-import { PERSON_RELATION, type Column, type Table } from "@ovst/usl";
+import { PERSON_RELATION, type Column, type Table } from "../tables/index.ts";
 import { canonical, compareRows, Row, Store, type Cell, type PersonFields, type PrefetchRead, type RowQuery, type StoreSchema } from "../store.ts";
 import type { CorrelatedRead, ReadShape } from "../shape.ts";
 import type { Expr } from "../ast.ts";

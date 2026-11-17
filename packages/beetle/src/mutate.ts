@@ -7,7 +7,7 @@
 import type { Line, MutationDecl } from "./ast.ts";
 import { Action, BeetleError, equal, Evaluator, identity, truthy, type Value } from "./eval.ts";
 import { canonical, derivedID, EnumValue, OverlayStore, Row, Store, StoreRefusal, type RowData } from "./store.ts";
-import type { RowsByTable } from "@ovst/usl";
+import type { RowsByTable } from "./tables/index.ts";
 
 type Env = Map<string, Value>;
 

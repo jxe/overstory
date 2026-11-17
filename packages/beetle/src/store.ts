@@ -1,5 +1,5 @@
 // The rows a view reads and a mutation writes (spec 1.5 §3.2, §4): one collection's rows in
-// its schema's database layout (USL `layoutOf(…, { store: "database" })`), read along the
+// its schema's database layout (`layoutOf(…, { store: "database" })`), read along the
 // layout's relationships. The same rows are what the host materializes as SQLite, so a plan
 // run here and one run as SQL mean the same thing (reading and watching §4.2).
 //
@@ -24,7 +24,7 @@ import {
   type Relationship,
   type RowsByTable,
   type Table,
-} from "@ovst/usl";
+} from "./tables/index.ts";
 
 export type Cell = unknown;
 export type RowData = Record<string, Cell>;

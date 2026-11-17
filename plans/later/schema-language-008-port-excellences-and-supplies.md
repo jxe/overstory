@@ -17,20 +17,20 @@ editor and [Schema language 010](schema-language-010-row-ownership.md)'s ownersh
 
 - An importer reads cranberries' snapshot (`GET /api/cranberries`, or the
   `remake` tables) into a tree:
-  - `games.usl` with JSONL or SQLite;
-  - `excellences.usl` likewise;
+  - the games tables with JSONL or SQLite;
+  - the excellences tables likewise;
   - `created`/`modified` carried over from cranberries' stamps;
   - `@ordered` positions from `List_games.games_position`.
 - Cranberries has no export command. `readDocument` returns the whole
   snapshot, so a small `cranberries export` that writes it through
-  `@ovst/usl`'s `rowsFromRecords` would serve both sites. The games sandbox
+  `@ovst/beetle/tables`' `rowsFromRecords` would serve both sites. The games sandbox
   (2026-10-24) was filled this way by a one-off script from the public
   `GET /api/cranberries?document=games`: ids and `modified` kept, `created`
   not carried, people's names, avatars and bios dropped (no Person rows).
-- Use excellences' own `lib/schema.usl`, which has the `@fold`s;
-  `packages/usl/examples/excellences.usl` has drifted from it, so
-  replace the example.
-- Check with `usl verify`, then present the result next to the live site and
+- Convert excellences' own `lib/schema.usl`, which has the `@fold`s, to Beetle;
+  `tests/fixtures/tables/excellences.beetle` has drifted from it, so
+  replace the fixture.
+- Check with the store check (`@ovst/beetle/tables/verify`), then present the result next to the live site and
   compare.
 - **People without accounts** become `contact:<key>` placeholders (spec 11
   §3), keyed by their source id, as the games sandbox does; they show by name

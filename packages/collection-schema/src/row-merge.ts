@@ -1,5 +1,5 @@
 import { stableJSONString, type JSONValue, type LogicalRow } from "@ovst/protocol";
-import type { LogicalModel } from "@ovst/usl";
+import type { LogicalModel } from "@ovst/beetle/tables";
 import { canonicalMany } from "./row-replay.ts";
 
 type Row = Record<string, JSONValue>;

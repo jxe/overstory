@@ -3,7 +3,7 @@
 // reports source spans. For each view it produces the plan (plan.ts), and for each
 // mutation the rows it can write.
 
-import { checkUsl, IMPLICIT_FIELDS, VALUE_TYPES, type CheckResult as UslResult, type ResolvedModel } from "@ovst/usl";
+import { checkTables, IMPLICIT_FIELDS, VALUE_TYPES, type CheckResult as TablesResult, type ResolvedModel } from "./tables/index.ts";
 import type {
   Arg, Attribute, Binding, DataRecord, Declaration, Diagnostic, Element, ErrorCode, Expr, Line, MutationDecl, Param,
   RuleDecl, Span, TextPart, TypeRef, ViewDecl, ViewFile,
@@ -11,7 +11,7 @@ import type {
 import { parseView } from "./parse.ts";
 import { pageSource, type PageSource } from "./blocks.ts";
 import { ElementPlanner, type DataPlan, type ElementPlan, type PlanExpr } from "./plan.ts";
-import { uslFileOf } from "./schema.ts";
+import { tablesFileOf } from "./schema.ts";
 
 // ---------------------------------------------------------------- types
 
@@ -83,7 +83,7 @@ export interface ModelInfo {
 const implicitFields = (): Map<string, FieldInfo> =>
   new Map(IMPLICIT_FIELDS.map((name) => [name, { name, type: name === "id" ? "Text" : "Date", arity: "one", ordered: false, implicit: true }]));
 
-function modelsOf(path: string, result: UslResult, defaults: Record<string, Record<string, Expr>>): ModelInfo[] {
+function modelsOf(path: string, result: TablesResult, defaults: Record<string, Record<string, Expr>>): ModelInfo[] {
   const models: ModelInfo[] = [];
   const person: ModelInfo = { name: "Person", kind: "person", key: ["id"], fields: new Map(), defaults: new Set(), ends: [], values: [], schema: path };
   for (const m of result.models as ResolvedModel[]) {
@@ -332,7 +332,7 @@ export class Checker {
   readonly planner: ElementPlanner;
   readonly isSchema: boolean;
   /** Each bound schema's checked tables and field defaults, by logical path, for the evaluator. */
-  readonly schemas = new Map<string, { result: UslResult; defaults: Record<string, Record<string, Expr>> }>();
+  readonly schemas = new Map<string, { result: TablesResult; defaults: Record<string, Record<string, Expr>> }>();
 
   constructor(readonly source: Loaded, readonly options: CheckOptions) {
     this.planner = new ElementPlanner(this);
@@ -372,8 +372,8 @@ export class Checker {
     if (this.bound.has(path)) return;
     this.bound.add(path);
     if (path === this.source.path) {
-      const { usl, diagnostics, defaults } = uslFileOf(this.source.file, true);
-      const result = checkUsl(usl);
+      const { tables, diagnostics, defaults } = tablesFileOf(this.source.file, true);
+      const result = checkTables(tables);
       this.diagnostics.push(...diagnostics, ...result.diagnostics);
       this.schemas.set(path, { result, defaults });
       for (const model of modelsOf(path, result, defaults)) this.addModel(model);
@@ -385,8 +385,8 @@ export class Checker {
       return;
     }
     if (!this.uses.includes(path)) this.uses.push(path);
-    const { usl, diagnostics, defaults } = uslFileOf(parseView(text).file, true);
-    const result = checkUsl(usl);
+    const { tables, diagnostics, defaults } = tablesFileOf(parseView(text).file, true);
+    const result = checkTables(tables);
     this.schemas.set(path, { result, defaults });
     const problems = [...diagnostics, ...result.diagnostics];
     if (problems.length) {
@@ -433,7 +433,7 @@ export class Checker {
         continue;
       }
       if (!path.endsWith(".beetle") && !path.endsWith(".md")) {
-        const hint = path.endsWith(".view") || path.endsWith(".usl") ? `; .view and .usl files are now .beetle` : "";
+        const hint = path.endsWith(".view") ? `; .view files are now .beetle` : "";
         this.error("use-not-found", `${decl.path} is neither a .beetle file nor a page${hint}`, decl.span);
         continue;
       }
@@ -522,7 +522,7 @@ export class Checker {
       if (decl.kind !== "table" && decl.kind !== "enum") continue;
       const isState = decl.kind === "table" && (decl.tableKind === "my" || decl.tableKind === "session");
       if (!isState && this.isSchema) {
-        // The schema's data tables and enums are checked by the USL checker; only defaults here.
+        // The schema's data tables and enums are checked by the table checker (./tables); only defaults here.
         for (const m of decl.members) if (m.kind === "field" && m.default) this.defaultValue(m.default, m.type);
         continue;
       }
@@ -1531,7 +1531,7 @@ export class Checker {
     const isPage = this.source.path.endsWith(".md");
     this.bindAncestorSchema();
     if (!this.isSchema) {
-      this.diagnostics.push(...uslFileOf(file, false).diagnostics);
+      this.diagnostics.push(...tablesFileOf(file, false).diagnostics);
     }
     this.bindUses();
     for (const model of localModels(file, this.source.path)) {

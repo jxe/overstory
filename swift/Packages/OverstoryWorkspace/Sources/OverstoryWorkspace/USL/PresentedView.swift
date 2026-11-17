@@ -2,9 +2,9 @@ import Foundation
 
 // Presented views: a collection's rows arranged by one of its views, and the
 // inverse that turns what a person does to that arrangement into row
-// operations (spec 10 §4.1). A port of `packages/usl/src/present.ts`, whose
-// header states the rules; both run
-// `docs/overstory-spec/conformance/presented-views.json`.
+// operations (spec 10 §4.1). A port of the retired `packages/usl/src/present.ts`
+// (git history), whose header states the rules; it runs
+// `docs/overstory-spec/conformance/presented-views.json`. Removed in plan Apps 011 §6.
 //
 // Rows are the data-file rows `uslLayout(…, store: .files)` lays out, by table
 // name, in creation order. A row is named by its canonical stable key, the

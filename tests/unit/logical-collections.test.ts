@@ -29,10 +29,11 @@ import {
 import { sqliteSnapshots } from "@ovst/beetle/sqlite";
 
 useSnapshotDatabase(sqliteSnapshots);
-import { compileUsl, layoutOf, logicalFromRows, logicalModels, rowsFromLogical, type LogicalTables } from "@ovst/usl";
+import { compileSchema } from "@ovst/beetle";
+import { layoutOf, logicalFromRows, logicalModels, rowsFromLogical, type LogicalTables } from "@ovst/beetle/tables";
 
-const examples = join(import.meta.dir, "../../packages/usl/examples");
-const schema = (name: string) => compileUsl(readFileSync(join(examples, `${name}.usl`), "utf8"));
+const fixtures = join(import.meta.dir, "../fixtures/tables");
+const schema = (name: string) => compileSchema(readFileSync(join(fixtures, `${name}.beetle`), "utf8"));
 const T = Date.parse("2026-10-24T09:00:00.000Z");
 const row = (key: LogicalRow["key"], fields: LogicalRow["fields"] = {}): LogicalRow => ({ key, fields, created: T, modified: T });
 
@@ -189,7 +190,6 @@ describe("log objects", () => {
 });
 
 describe("collections", () => {
-  // packages/usl/examples/games.usl, as schema.beetle.
   const source = readFileSync(join(import.meta.dir, "../fixtures/games.beetle"), "utf8");
   const logical = compileLogicalSchema(source);
   const tables: LogicalTables = {

@@ -10,7 +10,9 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./sqlite": "./src/sqlite/index.ts"
+    "./sqlite": "./src/sqlite/index.ts",
+    "./tables": "./src/tables/index.ts",
+    "./tables/verify": "./src/tables/verify/index.ts"
   },
   "bin": {
     "beetle": "./src/cli.ts"
@@ -21,7 +23,7 @@
   ],
   "dependencies": {
     "@noble/hashes": "^2.2.0",
-    "@ovst/usl": "workspace:*",
+    "csv-parse": "6.1.0",
     "@ovst/protocol": "workspace:*"
   }
 }

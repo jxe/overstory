@@ -18,7 +18,6 @@
         "@ovst/story-sync": "workspace:*",
         "@ovst/story-web": "workspace:*",
         "@ovst/tree-merge": "workspace:*",
-        "@ovst/usl": "workspace:*",
         "@ovst/working-tree": "workspace:*",
       },
       "devDependencies": {
@@ -40,12 +39,12 @@
       "dependencies": {
         "@noble/hashes": "^2.2.0",
         "@ovst/protocol": "workspace:*",
-        "@ovst/usl": "workspace:*",
+        "csv-parse": "6.1.0",
       },
     },
     "packages/cli": {
       "name": "@ovst/cli",
-      "version": "0.1.8",
+      "version": "0.2.0",
       "bin": {
         "story": "./src/index.ts",
       },
@@ -73,7 +72,6 @@
       "dependencies": {
         "@ovst/beetle": "workspace:*",
         "@ovst/protocol": "workspace:*",
-        "@ovst/usl": "workspace:*",
         "csv-parse": "6.1.0",
       },
     },
@@ -109,7 +107,6 @@
         "@ovst/merge-protocol": "workspace:*",
         "@ovst/object-store": "workspace:*",
         "@ovst/protocol": "workspace:*",
-        "@ovst/usl": "workspace:*",
         "yaml": "2.9.1",
       },
     },
@@ -148,7 +145,6 @@
         "@ovst/fs": "workspace:*",
         "@ovst/object-store": "workspace:*",
         "@ovst/protocol": "workspace:*",
-        "@ovst/usl": "workspace:*",
         "@ovst/working-tree": "workspace:*",
       },
     },
@@ -178,16 +174,6 @@
       "dependencies": {
         "@ovst/collection-schema": "workspace:*",
         "@ovst/protocol": "workspace:*",
-      },
-    },
-    "packages/usl": {
-      "name": "@ovst/usl",
-      "version": "0.3.0",
-      "bin": {
-        "usl": "./src/cli.ts",
-      },
-      "dependencies": {
-        "csv-parse": "6.1.0",
       },
     },
     "packages/working-tree": {
@@ -353,8 +339,6 @@
     "@ovst/story-web": ["@ovst/story-web@workspace:packages/story-web"],
 
     "@ovst/tree-merge": ["@ovst/tree-merge@workspace:packages/tree-merge"],
-
-    "@ovst/usl": ["@ovst/usl@workspace:packages/usl"],
 
     "@ovst/working-tree": ["@ovst/working-tree@workspace:packages/working-tree"],
 

@@ -81,8 +81,8 @@ Settled with Joe on 2026-10-15 (the editor):
    rest of cranberries' `src/model.ts` intents: create in a group (preset the forward field, or
    connect the reverse owner), move within an `ordered` group, move to another group, and
    `checkValue`/`validate` before publishing. Vectors beside `presented-views.json`. Done when
-   every intent over `games.usl` and `excellences.usl` round-trips to row operations that
-   `usl verify` accepts, in both stacks.
+   every intent over the games and excellences tables (`tests/fixtures/tables`) round-trips to
+   row operations that the store check (`@ovst/beetle/tables/verify`) accepts, in both stacks.
 7. **Simple edits in the collection view, Mac and iPhone.** A bullet choice's dot opens a menu
    of values; the line's first text field renames inline; chips add and remove through a
    menu (people from the directory Story has, keeping any `contact:` placeholders a row
@@ -95,7 +95,7 @@ Settled with Joe on 2026-10-15 (the editor):
 **Product.**
 - A new library target and product in the quagmire repo (`QuagmireRecords`,
   say), added to `scripts/verify.sh` and to the public-API test targets.
-- It's host-neutral by Quagmire's own rule: no USL, no storage, no paths.
+- It's host-neutral by Quagmire's own rule: no schema language, no storage, no paths.
 - Input: a presented view (`presentView`'s shape, in the editor's own types),
   per-row and per-cell capabilities, and per-cell conflicts.
 - Output: intents.
@@ -174,7 +174,7 @@ text field.
   field on its cached `PagePresentation`, and a branch in
   `StoryRootView.pageFrameContent` before the `WorkspaceSurfaceView`
   fallback. `WorkingTree.collection(for:)` and `WorkingTreeProvider` detect
-  `schema.usl`. `InMemoryWorkspaceProvider` already fakes a collection for
+  `schema.beetle`. `InMemoryWorkspaceProvider` already fakes a collection for
   previews.
 - View tabs and the search box sit in Story's chrome. The selected tab and
   collapsed groups are the client's own state.

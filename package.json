@@ -49,7 +49,6 @@
     "@ovst/merge-protocol": "workspace:*",
     "@ovst/tree-merge": "workspace:*",
     "@ovst/collection-schema": "workspace:*",
-    "@ovst/usl": "workspace:*",
     "@ovst/beetle": "workspace:*",
     "@ovst/story-sync": "workspace:*",
     "@ovst/cli": "workspace:*",

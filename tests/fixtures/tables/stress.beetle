@@ -1,0 +1,90 @@
+// Cases the real examples don't reach, as Beetle tables.
+
+// A self-relation: pages nest, and a page's children keep their order.
+table Page:
+  title    Text
+  body     Markdown?
+  parent   Page?  // cross-references
+  children Page[]
+
+Page.parent? <-> ordered Page.children[]
+
+// 1:1: each team has at most one lead, and a person leads at most one team.
+table Team:
+  name    Text
+  lead    Person?  // cross-references
+  members Person[]
+
+Team.lead? <-> Person.ledTeam?
+
+Team.members[] <-> Person.teams[]
+
+// Keyed by its ends: one rating per person per game.
+table Rating:
+  Person.ratings[]
+  Game.ratings[]
+  stars Number
+
+// A header key of (id) gives each row its own id, so one person can review
+// the same game twice.
+table Review (id):
+  Person.reviews[]
+  Game.reviews[]
+  body Markdown
+
+// Two ends on the same model: `as` names the field each end gets here, since
+// both would otherwise be called `person`.
+table Friendship:
+  Person.friends[] as from
+  Person.friendOf[] as to
+  since Date?
+
+table Game:
+  name   Text
+  scores ordered Number[]  // a value array that keeps its order
+
+// 1:n: every episode belongs to exactly one series. Stored as a column on
+// Episode, because that is the single side.
+table Episode:
+  title Text
+
+// @table and @column name what is stored, for a database the schema didn't
+// create. Storage defaults; a placement's own mapping may override them.
+table Series:
+  title Text @column("series_title")
+
+  @table("series")
+
+Episode.series @column("series_id") <-> ordered Series.episodes[]
+
+// An enum at the three stages of its life. A field that uses it, such as a
+// game's genre, is the same at every stage.
+
+// 1. Fixed values: no table; a reference is stored as the name ("Puzzle").
+enum Genre1:
+  color Text
+  Puzzle   { color: "#4278c0" }
+  Strategy { color: "#27815a" }
+
+// 2. Values that carry data: still no table; the values live in the schema.
+// Fields come first, then the values.
+enum Genre2:
+  color Text
+  blurb Text
+
+  Puzzle   { blurb: "Think it through", color: "#4278c0" }
+  Strategy { blurb: "Plan ahead", color: "#27815a" }
+
+// 3. A model: an actual table people can add to. Each value keeps its name
+// as its row's id, so stored references stay valid, and gains an editable
+// `name`. Colors become data, because a new row needs one. `seed` inserts
+// rows whose id is missing and never overwrites.
+table Genre3:
+  name  Text
+  color Text
+
+  seed:
+    Puzzle   { name: "Puzzle", color: "#4278c0" }
+    Strategy { name: "Strategy", color: "#27815a" }
+
+// Presentation: enum values' colors, and the field that holds each row's color.

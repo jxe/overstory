@@ -49,7 +49,7 @@ import {
   type CollectionSchemaCache,
   type LogicalSchema,
 } from "@ovst/collection-schema";
-import { logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable, type Table } from "@ovst/usl";
+import { logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable, type Table } from "@ovst/beetle/tables";
 import { changedCollectionFolders } from "./collection-snapshots.ts";
 
 type Load = (hash: ObjectHash) => Promise<Uint8Array>;

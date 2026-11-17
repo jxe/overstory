@@ -6,19 +6,19 @@
 [collections](../../overstory-spec/1.4-collections.md):
 a collection's `schema.beetle`, in the
 [Beetle](../../overstory-spec/1.5-beetle.md), compiled by
-[`@ovst/usl`](../../../packages/usl/README.md) and interpreted over JSON values.
+[`@ovst/beetle`](../../../packages/beetle/README.md) and interpreted over JSON values.
 Interpreting a collection is parsing and checking data. Nothing in overstoryd,
 the merge worker or Story Sync evaluates JavaScript to read, accept, project or
 merge a collection, and QuickJS is no longer a dependency of any package.
 
 ## Pieces
 
-- `compile.ts`: `compileUsl`, then the schema's data-file layout
+- `compile.ts`: `compileSchema`, then the schema's data-file layout
   (`layoutOf(result, { store: "files" })`), which must be exactly one table:
   the collection's rows. Its columns become the runtime check graph (fixed
   references compile to one set lookup; folded connections to arrays of keys),
   its primary key the stable key, and its `path` field the child name. The
-  row map is always open. USL diagnostics pass through with their codes and
+  row map is always open. Beetle diagnostics pass through with their codes and
   locations.
 - `validate.ts`: a decision, never a normalization. Row and collection-file
   step budgets are counted per value visited and object member examined; an

@@ -2,7 +2,7 @@ import Foundation
 
 // A collection's rows in their logical form (spec 06 §2.2), as the tree holds
 // them, and the rows of a layout's tables, each turned into the other. A port
-// of `logicalFromRows` and `rowsFromLogical` in `packages/usl/src/logical.ts`
+// of `logicalFromRows` and `rowsFromLogical` in `packages/beetle/src/tables/logical.ts`
 // and of `recordsFromRows` and `rowsFromRecords` in `records.ts`; the rules
 // are at the top of logical.ts.
 

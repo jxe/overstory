@@ -1,8 +1,9 @@
 import Foundation
 
 // The syntax tree of an Ultimate Schema Language (.usl) file, and its
-// hand-written lexer and recursive-descent parser. A port of
-// `packages/usl/src/ast.ts` and `parse.ts` (spec 11): items in any block are
+// hand-written lexer and recursive-descent parser. A port of the retired
+// TypeScript USL parser (git history, `packages/usl/src/parse.ts`); removed in
+// plan Apps 011 §6: items in any block are
 // separated by newlines or commas, and newlines inside parentheses, lists and
 // object literals are ignored. The model layer is keywords (`main`, `enum`,
 // `re`, `seed`, `ordered`, `unique`, `path`, `as`), which are keywords only

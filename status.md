@@ -12,6 +12,26 @@ States used below: **implemented** (built and tested), **installed** (running
 in Joe's Mac and iPhone builds), **deployed** (running on the public host),
 **verified** (exercised by hand against live data).
 
+## USL removed from arbor — 2026-11-17
+
+**Implemented.** Joe asked for USL and its files to go, now that every tree holds
+`schema.beetle`.
+
+- The table checker, layout, model layer, logical rows, records, setup SQL and store checks
+  moved from `packages/usl` into `packages/beetle/src/tables` (`@ovst/beetle/tables`,
+  `@ovst/beetle/tables/verify`); `checkUsl` is `checkTables`. Fingerprints, layouts and
+  setup SQL of every `.beetle` in the repo are unchanged.
+- Gone: `packages/usl` (parser, formatter, `usl` command, editor grammars, `.usl` examples,
+  `present.ts`), `tools/convert-usl-to-beetle.ts` (migration 034 is excluded from the type
+  check), the USL tests, `tests/support/regenerate-presented-views.ts`, and publishing
+  `@ovst/usl` from `tools/release.sh`. Version 0.3.0 stays on npm for cranberries,
+  excellences and supplies-remake.
+- The checker's tests now run on Beetle fixtures in `tests/fixtures/tables`.
+- Left until [Apps 011 §6](plans/soon/apps-011-widgets-in-story.md): Story's Swift USL code
+  (`OverstoryWorkspace/USL`, with its fixtures in `Tests/USLFixtures`), `~views`, and
+  `conformance/presented-views.json`, whose expectations are now frozen. Story Sync still drops
+  a leftover `schema.usl` beside `schema.beetle`.
+
 ## Performance 010: a change feed, group commit and tree mailboxes — 2026-11-16
 
 **Deployed** (steps 1 to 4 on 2026-11-16; the cold first edit with the next deploy). Joe asked
@@ -1068,7 +1088,7 @@ benchmarks were compared with main: a one-row edit in a 10,000-row
 collection is about 35% slower, because a changed collection is re-encoded
 whole ([Performance 008](plans/when-needed/performance-008-merge-cost-by-edit.md)). Leftovers: publishing USL 0.3.0 and moving the sites ([done](#plans-and-small-work-trimmed--2026-10-28))
 and the gaps each milestone left ([closed 2026-10-28](#rows-on-the-host-eviction-and-a-collection-scoped-guard--2026-10-28)).
-The USL examples moved to [`packages/usl/examples`](packages/usl/examples).
+The USL examples moved to `packages/usl/examples` (removed 2026-11-17; now `tests/fixtures/tables`).
 
 ## Schema language layers — 2026-10-24
 
@@ -1926,7 +1946,7 @@ measurements before broadening the implementation.
 | Native sidebar Trees mode, People footer, and single-pane profile/sync/devices management with focused account and identity actions on Mac and iOS | implemented, not installed; macOS and iOS builds passed, manual UI verification pending | [client design](docs/implementing-editors/design.md#profile-control-and-claim) |
 | Plural local accounts and devices: one data home holds several host accounts, including several at one origin, in `account.yaml`, `trees.yaml`, and `devices.yaml`; Mac-to-iPhone pairing | installed, verified | [local system](docs/architecture/story-sync/data-home.md#data-home) |
 | Short-lived cloud workspaces: reusable one-account bundles, exact placements under an isolated root, detached Story Sync, explicit finish, bundle revocation, `story status`; Mac Share panel "Use with an agent" creates, shares, and revokes one-tree bundles (not yet exercised against a live host) | implemented | [CLI](docs/getting-started/cli.md#short-lived-cloud-sessions) |
-| Declarative collection schemas: `schema.usl` in Ultimate Schema Language (CDDL, `schema.sql` and `relationships.json` removed 2026-10-14, see [Schema language](#schema-language-replaces-cddl--2026-10-14)), one collection descriptor version (1, naming `schema.usl`) in TypeScript and Swift, open rows that accept and preserve undeclared members while declared members validate strictly, schema-directed CSV cells, validation that never normalizes, generated collection types without Zod; overstoryd acceptance and projection, the merge rules and Story Sync providers use the pure `@ovst/collection-schema` package, and QuickJS is no longer a dependency. No collections existed before, so there is nothing to migrate; a `schema.ts` is an ordinary file | deployed, not installed; the Swift model edits build and pass their suites on a Mac ([2026-10-11](#cli-package-people-and-joining-by-invitation--2026-10-11)) | [collection schemas](docs/architecture/collection-schema/README.md), [collections](docs/overstory-spec/1.4-collections.md) |
+| Declarative collection schemas: `schema.beetle` tables in Beetle (USL until the Protocol 003 flag day, 2026-11-16, and removed 2026-11-17; CDDL, `schema.sql` and `relationships.json` removed 2026-10-14, see [Schema language](#schema-language-replaces-cddl--2026-10-14)), one collection descriptor version (1, naming `schema.beetle`) in TypeScript and Swift, open rows that accept and preserve undeclared members while declared members validate strictly, schema-directed CSV cells, validation that never normalizes, generated collection types without Zod; overstoryd acceptance and projection, the merge rules and Story Sync providers use the pure `@ovst/collection-schema` package, and QuickJS is no longer a dependency. No collections existed before, so there is nothing to migrate; a `schema.ts` is an ordinary file | deployed, not installed; the Swift model edits build and pass their suites on a Mac ([2026-10-11](#cli-package-people-and-joining-by-invitation--2026-10-11)) | [collection schemas](docs/architecture/collection-schema/README.md), [collections](docs/overstory-spec/1.4-collections.md) |
 | Ignored filesystem content (Filesystem 005): one membership policy in `@ovst/fs` for discovery, listing, resolution, watching, snapshots, object reads and materialization; `.overstoryignore` and `.gitignore` in Git's grammar, mandatory exclusions that rules cannot negate, and tracked paths (the folder's last-held root) that stay synchronized until deleted; the Swift preview uses a port of the same matcher | implemented, not installed; `LocalFolderPreviewTests` pass on a Mac (2026-10-11); the restart check was retired 2026-10-26, overtaken by daily use | [placements on disk §3](docs/overstory-spec/2.2-placements-on-disk.md#3-tree-membership-and-ignore-files), [ignored content](docs/architecture/story-sync/data-home.md#ignored-content) |
 | Headless executable-data core (TypeScript views, SQLite query lowering, live streams, transactional mutations) | removed 2026-11-11 | replaced by Beetle run in process ([the Beetle host](docs/architecture/overstoryd/beetle-host.md)); Supplies is [packages/beetle/examples/supplies](packages/beetle/examples/supplies) |
 | One merge-state model and squashed history: every acceptance records a merge state (tree creation, pairing, account configuration and boundary rewrites checkpoint their root; no whole-entry conflict rows); schema 18 keeps one accepted update per tree, and migration 016 squashes history to each head, keeping roots, head ids, entry dates and document versions | deployed 2026-09-24 at schema 18; history cut 2026-09-24 by migration 016 | migration 016 (deleted; its runbook is `packages/overstoryd/migrations/016-squash-history/README.md` at `d15ddce`) |

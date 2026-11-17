@@ -2,7 +2,7 @@
 
 Syntax highlighting for Beetle files: tables, views, rules and mutations. Zed
 reads a tree-sitter grammar and VS Code a TextMate grammar, so there is one of
-each, as for USL (`packages/usl/editors`).
+each.
 
 - `tree-sitter-beetle/`: the grammar (`grammar.js`) and its queries. After
   changing `grammar.js`, run `npx tree-sitter-cli@0.25.10 generate --abi 14`

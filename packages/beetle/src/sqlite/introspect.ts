@@ -1,8 +1,8 @@
 import { readFile, realpath } from "node:fs/promises";
 import { canonicalCBORHash } from "@ovst/protocol";
-import { columnType, formatDiagnostic, layoutOf, PERSON_RELATION, relationshipsOf } from "@ovst/usl";
+import { columnType, formatDiagnostic, layoutOf, PERSON_RELATION, relationshipsOf } from "../tables/index.ts";
 import { compileSchema } from "../schema.ts";
-import { compareShapes, inspectSqlite, sqliteAffinity } from "@ovst/usl/verify";
+import { compareShapes, inspectSqlite, sqliteAffinity } from "../tables/verify/index.ts";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Database } from "bun:sqlite";
 

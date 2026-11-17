@@ -4,8 +4,7 @@ set -eu
 # One release of everything people install: the Mac app (a GitHub release
 # with the notarized DMG and the Sparkle appcast), the iPhone app (an upload
 # to App Store Connect, for TestFlight) and the story command (@ovst/cli on
-# npm), all at one version. With npm it also publishes @ovst/usl, the schema
-# language that cranberries uses, when its own version isn't on npm yet.
+# npm), all at one version.
 #
 #   tools/release.sh <version>            e.g. tools/release.sh 0.1.1
 #   tools/release.sh <version> --only mac,ios,npm    any subset, comma-separated
@@ -200,7 +199,7 @@ echo "Ready to publish $version (build $build): $parts"
 { wants mac || wants ios; } && echo "  - built with Quagmire $target"
 wants mac && echo "  - push main and $tag (deploys the host); GitHub release with Story-$version.dmg, Story.dmg, appcast.xml; the tag publishes the host image ghcr.io/jxe/overstoryd:$version (and :latest) from GitHub Actions"
 wants ios && echo "  - upload the iPhone app to App Store Connect, then add it to its TestFlight group"
-wants npm && echo "  - from GitHub Actions, npm publish @ovst/cli@$version, its four platform builds and any new @ovst/usl"
+wants npm && echo "  - from GitHub Actions, npm publish @ovst/cli@$version, and its four platform builds"
 printf 'Publish? Type yes: '
 read answer
 [ "$answer" = "yes" ] || { echo "Nothing published. The builds are in dist/."; exit 1; }

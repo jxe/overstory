@@ -8,11 +8,16 @@ mutations in `.beetle` files and in pages' fenced `view` blocks.
   first column, so a broken one is reported and the rest still parse. `model`, `r(a): …`
   rules and other older forms say what to write instead.
 - `compileSchema(source)`: a `schema.beetle`'s tables, enums, connections and `re` blocks,
-  checked by [`@ovst/usl`](../usl/README.md)'s checker, so its result (models,
-  connections, plus `defaults`) feeds `modelLayer`, `layoutOf`, `setupSql` and the rest of
-  USL unchanged. Supplies' `schema.beetle` gives the same fingerprint and layout as its
-  old `schema.usl`. `uslFileOf(file)` is the translation alone. Overstory reads only
-  `schema.beetle`; `tools/convert-usl-to-beetle.ts` converts a `schema.usl`.
+  checked by the table checker in `src/tables`, so its result (models, connections, plus
+  `defaults`) feeds `modelLayer`, `layoutOf`, `setupSql` and the rest of
+  `@ovst/beetle/tables`. `tablesFileOf(file)` is the translation to that checker's
+  syntax tree alone.
+- `@ovst/beetle/tables`: what a checked schema's tables give: `modelLayer` (the
+  fingerprint's input, §5.3), `layoutOf` (storage tables for a database or data files),
+  `logicalFromRows`/`rowsFromLogical`, `rowsFromRecords`/`recordsFromRows`, `setupSql`
+  for SQLite and Postgres, `relationshipsOf` and `validateRow`.
+  `@ovst/beetle/tables/verify` checks that a SQLite or Postgres database, or a folder of
+  data files, implements them.
 - `formatView(source)`: the conventional form (`beetle fmt`): two-space indentation, field
   names and connections lined up, long facts wrapped under their first argument, an
   element's own attributes before `for`, `where`, `if`, `group`, `orderBy`, `limit`,
@@ -58,8 +63,8 @@ Paths in `use` resolve within the tree at `--root` (default: the current directo
 - `compileProgram(source, { path, read })`: `checkView`'s result plus what the file binds
   (its views, rules, mutations and the schemas' checked tables), for the evaluator.
 - `Store` / `StoreSchema`: one collection's rows in its database layout (`layoutOf(…, {
-  store: "database" })`, the form the host materializes), read along USL's
-  relationships. People are rows of `Person` keyed by profile id, their other fields
+  store: "database" })`, the form the host materializes), read along the
+  layout's relationships. People are rows of `Person` keyed by profile id, their other fields
   (name, handle…) given by the caller; enum values are `EnumValue`s with their records.
   A to-many read is in position order for an `ordered` end, otherwise in key order.
 - `new Evaluator(program, rows, { me, now, page, person })`: `view(name, input)` draws a

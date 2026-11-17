@@ -1,5 +1,5 @@
 // The syntax tree of a Beetle file: a `.beetle` file, a page's view blocks, or a collection's
-// schema.beetle. Positions are 1-based lines and columns, as in @ovst/usl.
+// schema.beetle. Positions are 1-based lines and columns.
 
 export interface Span {
   line: number;

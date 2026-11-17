@@ -20,7 +20,7 @@ import { resolveSnapshot, snapshotDirectory } from "@ovst/fs";
 import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, HostAccountStore, type HandleRef, type MutationCallRequest, type ObjectHash, type ViewsRequest } from "@ovst/protocol";
 import { loadDirectoryCollection } from "@ovst/collection-schema";
 import { StoreSchema } from "@ovst/beetle";
-import { rowsFromLogical } from "@ovst/usl";
+import { rowsFromLogical } from "@ovst/beetle/tables";
 import { CollectionDatabase } from "../../packages/overstoryd/src/collection-databases.ts";
 import { installAccountHome } from "../helpers/account-home.ts";
 import { hostTree, readTreeConfig } from "../helpers/tree-config.ts";

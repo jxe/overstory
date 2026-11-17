@@ -1,0 +1,11 @@
+// The smallest case, as Beetle tables.
+
+main table Book:
+  title  Text
+  status Status
+
+Book.status <-> Status.books[]
+
+enum Status:
+  Reading
+  Done

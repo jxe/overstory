@@ -29,7 +29,7 @@ tree conflict state, or publication eligibility.
 
 A folder holding a logical collection is shown as its rows, not as a document: the schema's
 main model arranged by its `~views` (tabs, groups, lines), read-only for now. The presentation
-is the shared `presentView` (`@ovst/usl` and StoryKit, held to `presented-views.json`); a client
+is StoryKit's `presentView` (held to `presented-views.json`), until Apps 011 draws it from Beetle views; a client
 chooses only styling and keeps collapsed groups and the open tab as its own view state. A
 schema that does not check, or rows not on the device, show a diagnostic in place of the rows.
 

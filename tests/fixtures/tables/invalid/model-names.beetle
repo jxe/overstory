@@ -1,0 +1,14 @@
+// expect: reserved-model
+// expect: reserved-model
+// expect: duplicate-model
+table Person:
+  name Text
+
+table Text:
+  body Text
+
+table Book:
+  title Text
+
+table Book:
+  name Text

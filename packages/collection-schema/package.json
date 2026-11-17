@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@ovst/protocol": "workspace:*",
-    "@ovst/usl": "workspace:*",
     "@ovst/beetle": "workspace:*",
     "csv-parse": "6.1.0"
   }

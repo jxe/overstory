@@ -55,7 +55,7 @@ import {
 import { rowOperationsBetween, type LogicalSchema } from "@ovst/collection-schema";
 import { SQLiteStore, SQLiteWriteStore } from "@ovst/beetle/sqlite";
 import { CollectionDatabases, type CollectionDatabase } from "./collection-databases.ts";
-import type { LogicalTables } from "@ovst/usl";
+import type { LogicalTables } from "@ovst/beetle/tables";
 import type { HostDaemon, UpdateCaller } from "./overstoryd.ts";
 
 type Read = (hash: ObjectHash) => Promise<Uint8Array>;

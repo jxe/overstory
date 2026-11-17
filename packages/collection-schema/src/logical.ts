@@ -16,7 +16,7 @@ import {
   type LogicalRow,
 } from "@ovst/protocol";
 import { appendRowChanges, changesBetween, EMPTY_COLLECTION_STATE, loadCollectionState, rowChangesTo, stateTables, type CollectionState } from "./collection-log.ts";
-import { isPersonValue, logicalModels, modelLayer, type CheckResult, type LogicalField, type LogicalModel, type LogicalTables } from "@ovst/usl";
+import { isPersonValue, logicalModels, modelLayer, type CheckResult, type LogicalField, type LogicalModel, type LogicalTables } from "@ovst/beetle/tables";
 import { compileSchema } from "@ovst/beetle";
 import { COLLECTION_SCHEMA_LIMITS, CollectionSchemaError, pointer, type ValueDiagnostic } from "./diagnostics.ts";
 import { decodeSchemaSource } from "./compile.ts";

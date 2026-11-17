@@ -1133,7 +1133,7 @@ function schemaArgument(c: Cursor): Expr {
     }
     return { kind: "record", entries, span: c.span(start) };
   }
-  // A path, `visits.at`, is one name here, as in USL.
+  // A path, `visits.at`, is one name here, as in the table checker.
   let value: Expr;
   const first = c.identAt();
   if (first && c.text[c.pos + first.length] === "." && IDENT_START.test(c.text[c.pos + first.length + 1] ?? "")) {

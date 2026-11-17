@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { layoutOf, logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable } from "@ovst/usl";
+import { layoutOf, logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable } from "@ovst/beetle/tables";
 import { BeetleError, compileProgram, editedLogical, Evaluator, runMutation, StoreSchema, type ViewNode } from "@ovst/beetle";
 import { SQLiteStore, SQLiteWriteStore } from "@ovst/beetle/sqlite";
 import { changedCollectionRows, compileLogicalSchema, encodeCollection } from "@ovst/collection-schema";

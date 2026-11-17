@@ -13,7 +13,7 @@ import {
   type ObjectHash,
   type ProtocolDirectory,
 } from "@ovst/protocol";
-import type { LogicalModel, LogicalTables } from "@ovst/usl";
+import type { LogicalModel, LogicalTables } from "@ovst/beetle/tables";
 import { sharedCollectionSchemaCache, type CollectionSchemaCache } from "./cache.ts";
 import { CollectionSchemaError } from "./diagnostics.ts";
 import { encodeCollection, loadCollection, LogicalCollectionError, type LogicalSchema } from "./logical.ts";

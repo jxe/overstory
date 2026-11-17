@@ -1,10 +1,10 @@
 // A collection's tables (spec 1.5 §2): the table, enum, connection and `re` declarations
-// of a schema.beetle, checked by @ovst/usl's checker. They are translated to its syntax tree,
-// so the layout, relationships, records, setup SQL and fingerprints built on its result
-// are Beetle's too. Defaults and state tables stay here: neither is part of the data layer.
+// of a schema.beetle, translated to the table checker's syntax tree (./tables) and checked
+// there; the layout, relationships, records, setup SQL and fingerprints are built on its
+// result. Defaults and state tables stay here: neither is part of the data layer.
 
-import { checkUsl, type CheckResult } from "@ovst/usl";
-import type * as Usl from "@ovst/usl";
+import { checkTables, type CheckResult } from "./tables/index.ts";
+import type * as Tables from "./tables/index.ts";
 import type { Diagnostic, EnumDecl, Expr, ReDecl, SchemaAttribute, Span, TableDecl, TableMember, ViewFile } from "./ast.ts";
 import { parseView } from "./parse.ts";
 
@@ -13,9 +13,9 @@ export interface SchemaResult extends CheckResult {
   defaults: Record<string, Record<string, Expr>>;
 }
 
-const at = (span: Span): Usl.Position => ({ line: span.line, column: span.column });
+const at = (span: Span): Tables.Position => ({ line: span.line, column: span.column });
 
-function arg(e: Expr): Usl.Expr {
+function arg(e: Expr): Tables.Expr {
   const position = at(e.span);
   switch (e.kind) {
     case "name": return { kind: "ident", name: e.name, attrs: [], at: position };
@@ -35,13 +35,13 @@ function arg(e: Expr): Usl.Expr {
 
 /**
  * A row's color is data (spec 1.5 §2): a Text field named `color`, on a table's rows or in
- * an enum value's record. The list views built on @ovst/usl read it as that checker's
+ * an enum value's record. Story's list views read it as the table checker's
  * `~color`, so the translation adds that attribute; Beetle itself has no `~` attributes
  * except `~views`, which stays until lists are drawn from Beetle views.
  */
 const COLOR = "color";
 
-function colorAttribute(at: Usl.Position, value?: string): Usl.Attribute {
+function colorAttribute(at: Tables.Position, value?: string): Tables.Attribute {
   return { sigil: "~", name: COLOR, args: value === undefined ? [] : [{ kind: "string", value, at }], at };
 }
 
@@ -79,11 +79,11 @@ function presentationAttributes(file: ViewFile): Diagnostic[] {
   return found;
 }
 
-function attributes(attrs: SchemaAttribute[]): Usl.Attribute[] {
+function attributes(attrs: SchemaAttribute[]): Tables.Attribute[] {
   return attrs.map((a) => ({ sigil: a.sigil, name: a.name, args: (a.args ?? []).map(arg), at: at(a.span) }));
 }
 
-function row(member: Extract<TableMember, { kind: "value" }>): Usl.Row {
+function row(member: Extract<TableMember, { kind: "value" }>): Tables.Row {
   return {
     name: member.name,
     values: (member.values?.entries ?? []).map((x) => ({ key: x.name, value: arg(x.value), at: at(x.nameSpan) })),
@@ -92,10 +92,10 @@ function row(member: Extract<TableMember, { kind: "value" }>): Usl.Row {
   };
 }
 
-function members(list: TableMember[], context: "table" | "enum" | "re"): Usl.Member[] {
-  const result: Usl.Member[] = [];
-  const values: Usl.Row[] = [];
-  let valuesAt: Usl.Position | null = null;
+function members(list: TableMember[], context: "table" | "enum" | "re"): Tables.Member[] {
+  const result: Tables.Member[] = [];
+  const values: Tables.Row[] = [];
+  let valuesAt: Tables.Position | null = null;
   for (const m of list) {
     switch (m.kind) {
       case "field":
@@ -136,9 +136,9 @@ function members(list: TableMember[], context: "table" | "enum" | "re"): Usl.Mem
   return result;
 }
 
-/** The data tables a file declares, as @ovst/usl's syntax tree, and where they may not be. */
-export function uslFileOf(file: ViewFile, isSchema: boolean): { usl: Usl.SchemaFile; diagnostics: Diagnostic[]; defaults: SchemaResult["defaults"] } {
-  const declarations: Usl.Declaration[] = [];
+/** The data tables a file declares, as the table checker's syntax tree, and where they may not be. */
+export function tablesFileOf(file: ViewFile, isSchema: boolean): { tables: Tables.SchemaFile; diagnostics: Diagnostic[]; defaults: SchemaResult["defaults"] } {
+  const declarations: Tables.Declaration[] = [];
   const diagnostics: Diagnostic[] = [];
   const defaults: SchemaResult["defaults"] = {};
   for (const { decl } of file.declarations) {
@@ -178,7 +178,7 @@ export function uslFileOf(file: ViewFile, isSchema: boolean): { usl: Usl.SchemaF
         break;
       }
       case "connection": {
-        const end = (m: typeof decl.a): Usl.EndDecl => ({
+        const end = (m: typeof decl.a): Tables.EndDecl => ({
           kind: "end", model: m.table, field: m.field, arity: m.arity, ordered: m.ordered ? at(m.span) : null,
           as: m.as ? { name: m.as, at: at(m.span) } : null, attrs: attributes(m.attrs), at: at(m.span),
         });
@@ -189,13 +189,13 @@ export function uslFileOf(file: ViewFile, isSchema: boolean): { usl: Usl.SchemaF
         break;
     }
   }
-  return { usl: { declarations }, diagnostics, defaults };
+  return { tables: { declarations }, diagnostics, defaults };
 }
 
 /** Checks a schema.beetle's tables. Its views, rules and mutations are checked by checkView. */
 export function compileSchema(text: string): SchemaResult {
   const parsed = parseView(text);
-  const { usl, diagnostics, defaults } = uslFileOf(parsed.file, true);
-  const result = checkUsl(usl);
+  const { tables, diagnostics, defaults } = tablesFileOf(parsed.file, true);
+  const result = checkTables(tables);
   return { ...result, diagnostics: [...parsed.diagnostics, ...presentationAttributes(parsed.file), ...diagnostics, ...result.diagnostics], defaults };
 }

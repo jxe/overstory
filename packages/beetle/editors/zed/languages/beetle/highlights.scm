@@ -1,5 +1,5 @@
-; Captures are picked from the ones Zed's themes color, as in the USL grammar, so that
-; names of different kinds look different even where a theme draws @property and
+; Captures are picked from the ones Zed's themes color, so that names
+; of different kinds look different even where a theme draws @property and
 ; @variable as plain text.
 
 (comment) @comment

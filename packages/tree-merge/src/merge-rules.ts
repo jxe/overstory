@@ -15,7 +15,7 @@ import {
   ProtocolCollectionError,
   type RowFieldConflict,
 } from "@ovst/collection-schema";
-import type { LogicalTables } from "@ovst/usl";
+import type { LogicalTables } from "@ovst/beetle/tables";
 
 /**
  * Merge rules: the representation-specific way to combine two changes to one

@@ -28,9 +28,9 @@ When one is decided, write a plan (or add it to the plan it belongs to) and dele
 - **Ignored paths in the Mac app's publish view.** Mark which paths the ignore rules keep
   out and which ignored paths are still tracked.
 
-- **Cascading deletes in USL.** Joe, 2026-10-28: add cascade (and maybe set-null) to
-  USL at some point. Today only the SQLite layout cascades, for rows owned through a
-  model's `ends` (`packages/usl/src/layout.ts`); host row replay checks references and
+- **Cascading deletes in Beetle tables.** Joe, 2026-10-28 (said of USL): add cascade (and
+  maybe set-null) to the schema language at some point. Today only the SQLite layout cascades, for rows owned through a
+  model's `ends` (`packages/beetle/src/tables/layout.ts`); host row replay checks references and
   refuses a dangling one, so whoever writes the operations spells out the cascade.
 
 - **Full-text search in Beetle** (Joe, 2026-11-11): not a plugin. Support what SQLite FTS5

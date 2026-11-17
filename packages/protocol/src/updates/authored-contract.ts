@@ -115,7 +115,7 @@ function path(v: unknown) { text(v, 4096); require(v.startsWith("/")); if (v !==
 function range(v: unknown): asserts v is [number, number] {
   require(Array.isArray(v) && v.length === 2 && v.every(n => Number.isSafeInteger(n) && n >= 0) && v[1] >= v[0]);
 }
-/** A USL model or field name. */
+/** A Beetle table or field name. */
 function name(v: unknown) { require(typeof v === "string" && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(v)); }
 /** A JSON value of at most `max` UTF-8 bytes as JSON text. */
 function json(v: unknown, max = 1048576) {

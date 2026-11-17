@@ -1,6 +1,6 @@
 // Supplies' schema, in the one language. A collection's data tables can only be
 // declared here; views, rules and mutations may sit beside them.
-// Was: examples/supplies/data/schema.usl.
+// Its tables are the same as before Supplies moved to Beetle.
 
 main table List:
   name        Text

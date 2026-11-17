@@ -57,9 +57,10 @@ pairings.
 milestone 3): a schema, data-file rows and people's names presented by one
 view, and each view intent with the row operations
 ([updates and merging §2.5](../1.3-updates-and-merging.md#25-property-operations)) and rows it
-leads to. `@ovst/usl` (`presentView`, `viewEdits`) and StoryKit
-(`PresentedView`) run it; `tests/support/regenerate-presented-views.ts`
-recomputes its expectations from the TypeScript reference.
+leads to. Only StoryKit (`PresentedView`) runs it now: its TypeScript
+reference went with USL, so its expectations are frozen, and its schemas are
+still in USL syntax. It is deleted when Story draws collection lists from
+Beetle views (plan Apps 011), which also retires `~views`.
 
 `client-state-machines.json` freezes the transition scenarios of the one
 client synchronization machine, `working-tree-updates` (`UpdateMachine` in

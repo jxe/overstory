@@ -1,0 +1,5 @@
+// expect: duplicate-column
+// Two fields stored under one name.
+table Book:
+  title    Text
+  subtitle Text @column("title")

@@ -15,7 +15,7 @@
 import type { Expr } from "./ast.ts";
 import type { Checker } from "./check.ts";
 import { ruleCondition } from "./plan.ts";
-import { PERSON_RELATION, type Relationship, type Table } from "@ovst/usl";
+import { PERSON_RELATION, type Relationship, type Table } from "./tables/index.ts";
 import type { StoreSchema } from "./store.ts";
 
 /** Marks the row's alias in a condition's template. */

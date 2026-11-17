@@ -3,8 +3,6 @@ FROM oven/bun:1.4.2
 WORKDIR /app
 COPY package.json bun.lock tsconfig.json ./
 COPY packages ./packages
-# Migration 034-protocol-003 converts schema.usl with this tool; drop this line with it.
-COPY tools/convert-usl-to-beetle.ts ./tools/
 RUN bun install --frozen-lockfile --production
 
 ENV OVERSTORYD_DATA=/data

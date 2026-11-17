@@ -2,7 +2,7 @@
 
 Collection schemas: a collection's `schema.beetle`
 ([collections](../../docs/overstory-spec/1.4-collections.md)),
-compiled with [`@ovst/usl`](../usl/README.md), and the collection-file codec
+compiled with [`@ovst/beetle`](../beetle/README.md), and the collection-file codec
 built on it.
 
 - `compileCollectionSchema(bytes)`: compile one `schema.beetle` whose data-file
@@ -20,6 +20,6 @@ built on it.
 - `CollectionSchemaCache`: a bounded cache keyed by the exact source hash.
 
 The package executes no authored code and touches no filesystem or network; it
-depends only on `@ovst/protocol`, `@ovst/usl` and `csv-parse`. The conformance vectors
+depends only on `@ovst/protocol`, `@ovst/beetle` and `csv-parse`. The conformance vectors
 are [`collection-schemas.json`](../../docs/overstory-spec/conformance/collection-schemas.json);
 the design notes are in [the architecture](../../docs/architecture/collection-schema/README.md).

@@ -12,7 +12,7 @@ import { serveHost } from "@ovst/overstoryd";
 import { StoreSchema } from "@ovst/beetle";
 import { compileLogicalSchema, loadDirectoryCollection } from "@ovst/collection-schema";
 import { decodeProtocolDirectory, encodeProtocolDirectory, hashObject, ProtocolClient, type DerivableCandidateUpdate, type ProtocolDirectory, type SourceOperation } from "@ovst/protocol";
-import { rowsFromLogical } from "@ovst/usl";
+import { rowsFromLogical } from "@ovst/beetle/tables";
 import { CollectionDatabase } from "../../../packages/overstoryd/src/collection-databases.ts";
 import { collectionDirectory, idRow } from "../../support/collection-trees.ts";
 import { deviceClient, testAccount } from "../../helpers/devices.ts";

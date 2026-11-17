@@ -3,7 +3,7 @@ import Foundation
 // Checks a parsed .usl file against the language's invariants and resolves
 // each model's full set of fields: its own, those its connections give it,
 // and, for a connection model, the ends that key it. `re` blocks are merged
-// into the models they annotate first. A port of `packages/usl/src/check.ts`;
+// into the models they annotate first. A port of `packages/beetle/src/tables/check.ts`;
 // diagnostics carry the same codes and positions.
 
 public let uslValueTypes = ["Text", "Markdown", "Int", "Number", "Bool", "Date"]

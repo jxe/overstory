@@ -26,6 +26,7 @@
     "packages/overstoryd/migrations/**/*.ts"
   ],
   "exclude": [
-    "packages/story-web/**"
+    "packages/story-web/**",
+    "packages/overstoryd/migrations/034-protocol-003/**"
   ]
 }

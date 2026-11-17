@@ -50,7 +50,7 @@ public struct ProtocolAuthoredRequestIntent: Codable, Sendable, Equatable {
         guard let a = v?.items, a.count == 2, let start = a[0].number, let end = a[1].number else { throw ProtocolValidationError.invalidValue("Expected range") }
         try check(start >= 0 && end >= start && end <= 9_007_199_254_740_991); return (start, end)
     }
-    /// A USL model or field name.
+    /// A Beetle table or field name.
     private static func name(_ v: ProtocolSemanticValue?) throws {
         guard let s = v?.text, let first = s.utf8.first, s.utf8.count <= 128 else { throw ProtocolValidationError.invalidValue("Expected name") }
         func letter(_ c: UInt8) -> Bool { c == 95 || (65...90).contains(c) || (97...122).contains(c) }

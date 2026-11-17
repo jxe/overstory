@@ -1,0 +1,18 @@
+// expect: duplicate-field
+// expect: misplaced-attribute
+// expect: id-field
+// expect: unknown-field
+// Two ends on Person both want the field `person`; name one with `as`.
+table Friendship:
+  Person.friends[]
+  Person.friendOf[]
+// `as` only means something inside a named connection model.
+table Game:
+  name Text
+  tags Text[]
+
+Game.authors[] as author <-> Person.games[]
+// Key fields hold exactly one value and must exist.
+table Edition (tags, isbn):
+  title Text
+  tags  Text[]

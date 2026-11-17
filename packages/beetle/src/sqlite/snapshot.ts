@@ -3,7 +3,7 @@
 // that starts from it reads it back. Only the rows count, never the file's bytes.
 
 import { Database } from "bun:sqlite";
-import { setupSql, type RowsByTable, type Table } from "@ovst/usl";
+import { setupSql, type RowsByTable, type Table } from "../tables/index.ts";
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
 

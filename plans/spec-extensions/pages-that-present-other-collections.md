@@ -13,8 +13,8 @@ edits made there go back to the source collection's tree.
   page that hosts a host-supplied view.
 - Public and web views stay out of scope until Joe wants them.
 
-**Settled.** USL already parses `view "…" of path` (`ViewDecl`, `packages/usl/src/ast.ts`); the
-checker drops it and no spec says what it means. An arrangement lives on a collection (its
+**Settled.** USL parsed `view "…" of path`, but its checker dropped it, Beetle has no such
+form, and no spec says what it means. An arrangement lives on a collection (its
 schema's `~views`) and on pages that present it; views in a schema are defaults a page may
 override (Joe, 2026-10-13). Formerly milestone 2 of Schema language 002, moved here on
 2026-10-28. The view such a page presents is a declared view

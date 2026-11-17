@@ -1,5 +1,5 @@
 import { revisionOf, type Hash } from "@ovst/protocol";
-import { layoutOf, type Column } from "@ovst/usl";
+import { layoutOf, type Column } from "@ovst/beetle/tables";
 import { compileSchema } from "@ovst/beetle";
 import { COLLECTION_SCHEMA_LIMITS, CollectionSchemaError, schemaFailure } from "./diagnostics.ts";
 

@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { Database } from "bun:sqlite";
 import { Workspace } from "@ovst/story-sync";
-import { layoutOf, setupSql } from "@ovst/usl";
+import { layoutOf, setupSql } from "@ovst/beetle/tables";
 import { compileSchema } from "@ovst/beetle";
 import { canonicalStableKey, markdownStableKey } from "@ovst/protocol";
 

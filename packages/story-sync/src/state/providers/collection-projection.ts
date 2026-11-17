@@ -50,7 +50,7 @@ import {
   type CollectionSchemaCache,
   type LogicalSchema,
 } from "@ovst/collection-schema";
-import { layoutOf, logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable, type Table } from "@ovst/usl";
+import { layoutOf, logicalFromRows, rowsFromLogical, setupSql, type LogicalTables, type RowsByTable, type Table } from "@ovst/beetle/tables";
 import type { SnapshotCollection } from "@ovst/fs";
 
 /**
