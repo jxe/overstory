@@ -68,7 +68,7 @@ struct StoryCollectionView: View {
         switch Result(catching: { try CollectionList(collection, people: names) }) {
         case let .failure(error):
             ContentUnavailableView("Can't show this collection", systemImage: "tablecells.badge.ellipsis",
-                                   description: Text((error as? RowEditError)?.message ?? error.localizedDescription))
+                                   description: Text((error as? CollectionListError)?.message ?? error.localizedDescription))
         case let .success(list):
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             let lines = trimmed.isEmpty ? list.lines : list.lines.filter { line in
@@ -107,6 +107,11 @@ struct PresentedPerson: Sendable, Equatable {
     var name: String
 }
 
+/// Why a collection's rows can't be listed.
+private struct CollectionListError: Error {
+    var message: String
+}
+
 /// A collection's main table as plain lines: each row's title (its `name` or
 /// `title`, else its first text field, else its key) and its other single values.
 private struct CollectionList {
@@ -121,14 +126,14 @@ private struct CollectionList {
 
     init(_ collection: WorkspaceCollectionRows, people: [String: String]) throws {
         let schema = collection.schema
-        if let first = schema.diagnostics.first { throw RowEditError(message: first.message) }
+        if let first = schema.diagnostics.first { throw CollectionListError(message: first.message) }
         let data = schema.models.filter { $0.rows != .fixed && $0.ends.isEmpty && $0.name != "Person" }
         guard let model = data.first(where: \.main) ?? (data.count == 1 ? data.first : nil) else {
-            throw RowEditError(message: "This collection has no main table to list")
+            throw CollectionListError(message: "This collection has no main table to list")
         }
         let tables = try schemaLayout(schema, store: .files)
         guard let stored = tables.first(where: { $0.ends == nil && $0.stores == model.name }) else {
-            throw RowEditError(message: "No table stores \(model.name)")
+            throw CollectionListError(message: "No table stores \(model.name)")
         }
         let columns = stored.fields.reduce(into: [String: String]()) { $0[$1.name] = $1.columns.first }
         let shown = model.fields.filter { $0.arity != .many && !["id", "created", "modified"].contains($0.name) }
