@@ -147,6 +147,12 @@ Story reads `.beetle` files and draws views and small apps embedded in pages thr
 SwiftUI (no web view, no React), with state owned by the app, the page or the reader, and draws collections from their views.
 Absorbs Apps 001, 003 and 019; an HTML renderer comes later.
 
+**[Filesystem 030: directories with pages, one entry per node](soon/filesystem-030-directories-with-pages.md).**
+A node is one directory entry, and a directory can have a page: `x.md` beside `x/` by
+convention, `_index.md` read wherever it occurs and kept where it is, the root's page always
+`_index.md`. No link rewriting for layout. Views stop being bodies. History is dropped again on a
+flag day.
+
 ## Later
 
 **[Apps 014: client plugins](later/apps-014-client-plugins.md).** A sketch: mutations
