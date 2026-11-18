@@ -70,7 +70,7 @@ New readers should start with the non-normative [walkthrough](00-walkthrough.md)
 
 | Layer | File | Public contract |
 |---|---|---|
-| 1. Trees | [data model](1.1-data-model.md) | Trees and nodes; the directory, page, file and log objects and their hashes; entry times; which files are pages and bodies; a page with children and its presented headings; reserved names |
+| 1. Trees | [data model](1.1-data-model.md) | Trees and nodes; the directory, page, file and log objects and their hashes; entry times; nodes as a page and children, and how files and folders spell them; a page with children and its presented headings; reserved names |
 | | [reading](1.2-reading.md) | Reading the current tree, a snapshot, an object or a path; accepted unresolved state; references and conflicts; stream framing, errors and encodings |
 | | [updates and merging](1.3-updates-and-merging.md) | The update route, request identity, results and deltas; authored changes: traces, operations, property operations; acceptance, explicit resolution, and merge rules |
 | | [locators](1.4-locators.md) | References by TreeID, path and stable key; links written in Markdown; canonical names and domains; finding trees; reading at the canonical URL |
