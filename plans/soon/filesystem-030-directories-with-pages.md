@@ -26,34 +26,45 @@ so nothing converts old roots.
 
 ## The objects
 
+A node keeps its page in its own entry, however the page is spelled (Joe chose this,
+2026-11-18, over keeping `_index.md` on the directory object or as an `_index` entry):
+
 ```ts
+type ProtocolNode = {                       // a directory entry, and the tree's root
+  page?: Hash; created?: number; modified?: number;   // times iff page
+  directory?: Hash;
+  inside?: true;                            // the page is spelled `x/_index.md`; only with `directory`
+};
+
 type ProtocolDirectoryEntry =
   | { name: Name; file: Hash; created: number; modified: number }   // name keeps its extension
-  | { name: Name; page?: Hash; created?: number; modified?: number;  // `x.md`; times iff page
-      directory?: Hash }                                             // `x/`
+  | ({ name: Name } & ProtocolNode)                                  // name has no `.md`
   | { name: Name; tree: TreeID };
 
 type ProtocolDirectory = {
   type: "directory";
   entries: ProtocolDirectoryEntry[];
-  index?: { page: Hash; created: number; modified: number };        // this directory's `_index.md`
   collection?: CollectionReference;
 };
 ```
 
-- A node entry's `name` has no `.md`. It has at least one of `page` and `directory`.
-- `index` is where `_index.md` goes, so the root's page lives there. A directory's page is then
-  either its parent entry's `page` (spelled `x.md`) or its own `index` (spelled `x/_index.md`).
-  The spelling tells a placement where to write the file and tells a reader the link base. No
-  other flag is needed.
-- When both exist, the node reads `index`, and the placement reports `shadowed-body` as now.
+- A node entry has at least one of `page` and `directory`.
+- The tree's root is a `ProtocolNode`, not a directory, so its page sits beside its children.
+  Its page is spelled `_index.md` on disk, and `inside` is not written for it.
+- Spelling is the one flag. A placement reads it to know where to write the file, and the link
+  resolver reads it to know the base. Editing a page changes the same objects whichever way it
+  is spelled, and a rename or move carries the page and its spelling together.
+- When a folder holds both `x.md` and `x/_index.md`, a placement keeps `_index.md` as the page,
+  reports `shadowed-body` as now, and leaves the other file out of the tree.
 - A file entry may not take a name that a node entry has (`x` beside `x.md`), as with today's
   `duplicate-node-representation`.
 
-Open, to settle while writing the spec. These are not Joe's calls unless he wants them:
+Open:
 
-- Whether `index` should be a page entry in `entries` named `_index` instead. That keeps one
-  entry shape, but brings back a reserved name.
+- **Where the spelling lives** (Joe asked, 2026-11-18). The options are an `inside` flag on the
+  entry, as above; a `pageName` such as `"_index.md"`, which leaves room to recognize
+  `README.md` later; the page object itself, so its hash follows its link base; or the
+  directory object.
 - Whether a node entry with only a `directory` and an empty directory object is allowed. Today
   an empty folder is a directory entry, so probably yes.
 
@@ -61,7 +72,7 @@ Open, to settle while writing the spec. These are not Joe's calls unless he want
 
 1. **Spec.**
    - [data model §5, §5.1, §6, §8, §11 and §12](../../docs/overstory-spec/1.1-data-model.md#5-objects):
-     the objects above, entry times on node entries and `index`, and §8 rewritten around
+     the objects above, entry times on node entries, a root that is a node, and §8 rewritten around
      "a directory can have a page".
    - Remove the body-form change from §8 and from
      [locators §4 and §4](../../docs/overstory-spec/1.4-locators.md#4-resolution-rules).
