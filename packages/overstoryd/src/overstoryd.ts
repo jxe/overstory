@@ -3444,8 +3444,10 @@ export class HostDaemon implements AsyncDisposable {
     // An accepted root was proven whole when it was accepted, and object collection keeps
     // what it reaches, so rebuilding its proof (after a restart) reads only its directories
     // and logs, not its files: the first edit after a deploy read the todos tree's 14.5 MB.
+    // Its collections are not checked again either: a deploy that tightens the schema
+    // language must still accept the update that rewrites an older schema.
     if (acceptedBasis && !basis)
-      basis = await validateGraphChange(acceptedBasis, hash => this.objects.read(hash), new Map(), collection, undefined, async () => {});
+      basis = await validateGraphChange(acceptedBasis, hash => this.objects.read(hash), new Map(), async () => {}, undefined, async () => {});
     // An object the candidate takes from the store outside its accepted basis
     // is one no client sent; freshen it so a concurrent object collection
     // cannot remove it before the accepted row names it.
