@@ -7,8 +7,8 @@ filesystem synchronizer, with a separate loopback API for local clients.
 ## Shared contracts
 
 1. Start with the [specification walkthrough](../overstory-spec/00-walkthrough.md) and [reading](../overstory-spec/1.2-reading.md) for objects, accepted updates, exact retries, and observation.
-2. Implement [accounts and devices](../overstory-spec/5.1-accounts-and-devices.md), [access control](../overstory-spec/5.2-access-control.md), and [locator resolution](../overstory-spec/1.4-locators.md).
-3. For synchronizing clients, follow [working trees](../overstory-spec/7.1-working-trees.md), the [update machine](update-machine.md), and [updates and merging](../overstory-spec/1.3-updates-and-merging.md).
+2. Implement [accounts and devices](../overstory-spec/6.1-accounts-and-devices.md), [access control](../overstory-spec/6.2-access-control.md), and [locator resolution](../overstory-spec/1.4-locators.md).
+3. For synchronizing clients, follow [working trees](../overstory-spec/8.1-working-trees.md), the [update machine](update-machine.md), and [updates and merging](../overstory-spec/1.3-updates-and-merging.md).
 4. Verify against the [portable conformance fixtures](../overstory-spec/conformance/README.md) and [cross-language protocol gate](../../DEVELOPMENT.md#verification).
 
 ## Implementation guides

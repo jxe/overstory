@@ -1044,7 +1044,7 @@ export class CollectionDatabases {
   }
 
   /**
-   * The row a path below a collection folder names at `root` (reading §7),
+   * The row a path below a collection folder names at `root` (reading §5),
    * `rest` being the path's names below the folder: the main model's row by name, or another
    * model's row by its model and name, as the log holds it (Date fields tagged). "table" for
    * a path that names a model's table; an empty list for a name no row has. Undefined when

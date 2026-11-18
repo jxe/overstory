@@ -5,7 +5,7 @@ code run on a caller's behalf. The execution sidecar that first used them is gon
 (Beetle runs in process: [the Beetle host](beetle-host.md)); the tokens stay for
 [Apps 010](../../../plans/later/apps-010-activation-and-lending.md), which applies them to
 the in-process evaluator. Portable contracts are in
-[access control §1.1](../../overstory-spec/5.2-access-control.md#11-execution-authority).
+[access control §1.1](../../overstory-spec/6.2-access-control.md#11-execution-authority).
 
 
 A host issues an opaque execution token to its trusted runtime through an

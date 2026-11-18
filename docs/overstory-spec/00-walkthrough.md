@@ -29,8 +29,8 @@ laptop, with its key, as the first administrator device. The server derives the 
 Profile TreeID from the supplied public key, verifies the target-bound
 signature locally, and in one transaction creates the account and the
 configuration and declares the profile tree. It receives no profile bytes yet
-([accounts and devices §1.1](5.1-accounts-and-devices.md#11-beginning-a-person-identity), [profiles and accounts](5.1-accounts-and-devices.md#1-profiles-and-host-accounts),
-[configuration graph](5.1-accounts-and-devices.md#2-tree-configuration-graph)).
+([accounts and devices §1.1](6.1-accounts-and-devices.md#11-beginning-a-person-identity), [profiles and accounts](6.1-accounts-and-devices.md#1-profiles-and-host-accounts),
+[configuration graph](6.1-accounts-and-devices.md#2-tree-configuration-graph)).
 
 ## 2. Declare a tree
 
@@ -45,9 +45,9 @@ Joe also has an ordinary folder, `~/projects/atlas`. The laptop generates a fres
 `atlas: tr_…` to his profile's `mounts.yaml`, and records the local folder
 as a placement on his laptop, which never reaches the host. The server validates each candidate
 under the `tree-config-v1` policy and reserves the tree; nothing is readable
-yet ([configuration YAML](5.1-accounts-and-devices.md#3-configuration-yaml),
-[accounts and devices §6](5.1-accounts-and-devices.md#6-governed-configuration-trees),
-[accounts and devices §5](5.1-accounts-and-devices.md#5-declaring-activating-and-mounting-a-tree)).
+yet ([configuration YAML](6.1-accounts-and-devices.md#3-configuration-yaml),
+[accounts and devices §6](6.1-accounts-and-devices.md#6-governed-configuration-trees),
+[accounts and devices §5](6.1-accounts-and-devices.md#5-declaring-activating-and-mounting-a-tree)).
 
 ## 3. Activate it
 

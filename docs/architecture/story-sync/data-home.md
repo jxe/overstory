@@ -2,7 +2,7 @@
 
 Replaceable local filesystem, daemon-state, and credential-storage choices of
 Story Sync. The synchronized cross-host configuration contract is normative in
-[accounts and devices](../../overstory-spec/5.1-accounts-and-devices.md); the loopback
+[accounts and devices](../../overstory-spec/6.1-accounts-and-devices.md); the loopback
 API is in [the Story Sync REST API](../../implementing-sync-services/story-sync-api.md); what the Story app
 keeps on disk is in [Story local state](../story-browser/local-state.md).
 
@@ -71,7 +71,7 @@ bounded.
 this data home places for it, keyed by canonical absolute path. A folder's
 value is the placed TreeID when the tree is on the profile's home host, or a
 mapping naming the placement host
-([federation §2](../../overstory-spec/5.3-federation.md#2-placement-accounts))
+([federation §2](../../overstory-spec/6.3-federation.md#2-placement-accounts))
 when it is on one of the profile's placement accounts:
 
 ```yaml
@@ -91,7 +91,7 @@ profile may only read, at any host, and Story Sync never publishes its edits
 (they wait, shown as a conflict) however much the host would allow. Its `host`
 needs no placement connection: Story Sync reads it with the profile's account
 there if it has one, else a visitor session
-([federation §5](../../overstory-spec/5.3-federation.md#5-visitor-sessions))
+([federation §5](../../overstory-spec/6.3-federation.md#5-visitor-sessions))
 opened with this device's key and cached under
 `accounts/<ConfigurationTreeID>/visitors/`, else as anyone; a host that refuses
 a visitor session is read as anyone for five minutes before it is asked again.
@@ -196,7 +196,7 @@ A declared placement may sit beneath the data home as a separate mounted tree. L
 ## Ignored content
 
 A placed folder follows its `.overstoryignore` and `.gitignore` files as
-[placements on disk §3](../../overstory-spec/7.2-placements-on-disk.md#3-tree-membership-and-ignore-files)
+[placements on disk §3](../../overstory-spec/8.2-placements-on-disk.md#3-tree-membership-and-ignore-files)
 specifies: an ignored, untracked `.env`, cache, or build output is never
 scanned into a change, uploaded, overwritten, or deleted by a pull, and stays
 out of discovery, search, and generated types. `.gitignore` is read for
@@ -242,7 +242,7 @@ natively; nothing else reads the file.
 ## Loopback session exposure
 
 Every device is a key device
-([accounts and devices §4.1](../../overstory-spec/5.1-accounts-and-devices.md#41-device-sessions)).
+([accounts and devices §4.1](../../overstory-spec/6.1-accounts-and-devices.md#41-device-sessions)).
 The daemon keeps the account's Ed25519 private key in the platform credential
 store (or the file store when `STORY_CREDENTIAL_STORE=file`), where the
 connection record names it (`file:device-key` or its store slot), and never
@@ -266,7 +266,7 @@ bearer credential was once stored, is ignored.
 A profile has one home account, whose connection record lives in
 `.state/accounts/<ConfigurationTreeID>/` as before, and at most one
 placement account per other host
-([federation §2](../../overstory-spec/5.3-federation.md#2-placement-accounts)).
+([federation §2](../../overstory-spec/6.3-federation.md#2-placement-accounts)).
 Each placement connection is `connection.json` and `session.json` in
 `accounts/<ConfigurationTreeID>/placements/host-<hash>/`, where `<hash>` is
 the first 24 hex digits of the SHA-256 of the placement host's origin, so the

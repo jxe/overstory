@@ -20,7 +20,7 @@ widgets don't.
 Joe decided on 2026-11-11 that code with no lender gets only `everyone` access and the tree's
 own `app` rules. Anything more of the caller's needs the caller's `who: me` entry in
 `apps.yaml`, which is what a placement host already gives
-([access control §1.1](../../docs/overstory-spec/5.2-access-control.md#11-execution-authority)).
+([access control §1.1](../../docs/overstory-spec/6.2-access-control.md#11-execution-authority)).
 An app reads and writes its own `my` tables
 ([views §6](../../docs/overstory-spec/4.1-views.md#6-state)) without asking.
 

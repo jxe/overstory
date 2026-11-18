@@ -1,6 +1,6 @@
 /**
  * Working-tree updates: the state machine a working tree runs against the Overstory
- * protocol to turn its local changes into accepted updates (docs/overstory-spec/7.1-working-trees.md).
+ * protocol to turn its local changes into accepted updates (docs/overstory-spec/8.1-working-trees.md).
  *
  * The reducer is pure and language-neutral: roots, updates, cursors, change
  * identities and request digests are opaque tokens. A runner appends local

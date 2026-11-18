@@ -814,7 +814,7 @@ export class HostDaemon implements AsyncDisposable {
     };
     const objects = await pathReadObjects(root, path, read);
     // A path through a collection's folder that names no entry names a table or a row: a
-    // row is answered as the root holds it, without proof (reading §7).
+    // row is answered as the root holds it, without proof (reading §5).
     const components = pathReadComponents(path);
     let directory = decodeProtocolDirectory(await read(root));
     for (const [index, component] of components.entries()) {
