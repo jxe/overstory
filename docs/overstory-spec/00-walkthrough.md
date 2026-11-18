@@ -158,14 +158,14 @@ mutation addPractice(title Text):
   Practice(title: title, published: false)
 ```
 
-A form on the page names it as its action, `<Form action={addPractice}>`.
-The browser sends `POST /.overstory/trees/tr_…/mutate` with the handle, the input, and a
+A button on the page runs it, `<Button action={addPractice(title: t)}>`, with `t` bound
+to a `TextField`. The client sends `POST /.overstory/trees/tr_…/mutate` with the handle, the input, and a
 caller-chosen `mutationID`. The runtime checks the error conditions, then submits the
 new row as one guarded update of row operations. The receipt's `affected` names
 that accepted update, and Alice's watch sees an ordinary `tree.update` frame;
 Joe's Mac rewrites the CSV. A retry with the same `mutationID` returns the
 original receipt and does nothing twice ([mutations](1.5-beetle.md#4-mutations),
-[updates and merging §4](1.3-updates-and-merging.md#4-mutations), [actions](1.5-beetle.md#310-actions-forms-and-events)).
+[updates and merging §4](1.3-updates-and-merging.md#4-mutations), [actions](1.5-beetle.md#310-actions-and-events)).
 
 ## 9. Rename the canonical URL
 

@@ -26,7 +26,7 @@ Games call it entity-component-system, and Beetle already has most of it:
   `<Circle for={b in Ball} x={b.x} y={b.y} r={4} />`.
 - **A client plugin is a mutation written in code.** It reads what it is given and writes
   only session tables. It is called as an action, so the event lines views already have
-  drive it ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-forms-and-events)):
+  drive it ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-and-events)):
 
   ```
   use "plugins/physics.ts" (step, launch)
