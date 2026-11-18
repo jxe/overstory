@@ -51,7 +51,8 @@ type ProtocolDirectory = {
 - A node entry has at least one of `page` and `directory`.
 - The tree's root is a `ProtocolNode`, not a directory, so its page sits beside its children.
   Its page is spelled `_index.md` on disk, and `inside` is not written for it.
-- Spelling is the one flag. A placement reads it to know where to write the file, and the link
+- Spelling is the one flag, `inside`, on the entry (Joe, 2026-11-18, over a `pageName`, an
+  `index` key in place of `page`, the page object, frontmatter, or converting `_index.md` on scan). A placement reads it to know where to write the file, and the link
   resolver reads it to know the base. Editing a page changes the same objects whichever way it
   is spelled, and a rename or move carries the page and its spelling together.
 - When a folder holds both `x.md` and `x/_index.md`, a placement keeps `_index.md` as the page,
@@ -61,10 +62,6 @@ type ProtocolDirectory = {
 
 Open:
 
-- **Where the spelling lives** (Joe asked, 2026-11-18). The options are an `inside` flag on the
-  entry, as above; a `pageName` such as `"_index.md"`, which leaves room to recognize
-  `README.md` later; the page object itself, so its hash follows its link base; or the
-  directory object.
 - Whether a node entry with only a `directory` and an empty directory object is allowed. Today
   an empty folder is a directory entry, so probably yes.
 
