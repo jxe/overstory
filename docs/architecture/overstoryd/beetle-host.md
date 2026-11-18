@@ -1,6 +1,6 @@
 # The Beetle host
 
-overstoryd runs Beetle views and mutations ([spec 1.5](../../overstory-spec/1.5-beetle.md))
+overstoryd runs Beetle views and mutations ([views](../../overstory-spec/4.1-views.md), [mutations](../../overstory-spec/4.2-mutations.md))
 in process, in `src/beetle-host.ts`, for every tree
 ([deployment](../../../packages/overstoryd/deploy/README.md#views-and-mutations)). It
 interprets Beetle with [`@ovst/beetle`](../../../packages/beetle/README.md)'s checker and
@@ -12,7 +12,7 @@ evaluator; it loads no authored JavaScript, compiler or query engine
 A handle names a tree, a path, a declaration and a code version. The host reads the
 handle's file at the tree's accepted head, and every file it uses, from retained objects:
 a `.beetle` file's bytes, or a page's view blocks. The code version is SHA-256 over those
-files' paths and texts, in path order (Beetle §6); a handle whose version isn't the
+files' paths and texts, in path order (views §11); a handle whose version isn't the
 head's answers "not active". Checked programs are cached by root and path.
 
 ## Rows

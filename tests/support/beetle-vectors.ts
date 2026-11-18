@@ -33,7 +33,7 @@ export function beetleVectors() {
   });
   return {
     description:
-      "Beetle (spec 1.5): each file's diagnostics (line, column, code), its views' plans, and its mutations' writes, let names and public errors, as packages/beetle checks them. `files` is the tree, by logical path; a case checks one file in it. Regenerate with `bun tests/support/regenerate-beetle.ts`.",
+      "Beetle (spec 3.2): each file's diagnostics (line, column, code), its views' plans, and its mutations' writes, let names and public errors, as packages/beetle checks them. `files` is the tree, by logical path; a case checks one file in it. Regenerate with `bun tests/support/regenerate-beetle.ts`.",
     files,
     cases,
   };

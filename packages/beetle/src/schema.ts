@@ -1,4 +1,4 @@
-// A collection's tables (spec 1.5 §2): the table, enum, connection and `re` declarations
+// A collection's tables (spec 3.3): the table, enum, connection and `re` declarations
 // of a schema.beetle, translated to the table checker's syntax tree (./tables) and checked
 // there; the layout, relationships, records, setup SQL and fingerprints are built on its
 // result. Defaults and state tables stay here: neither is part of the data layer.
@@ -34,7 +34,7 @@ function arg(e: Expr): Tables.Expr {
 }
 
 /**
- * A row's color is data (spec 1.5 §2): a Text field named `color`, on a table's rows or in
+ * A row's color is data (spec 3.3): a Text field named `color`, on a table's rows or in
  * an enum value's record. Story's list views read it as the table checker's
  * `~color`, so the translation adds that attribute; Beetle itself has no `~` attributes
  * except `~views`, which stays until lists are drawn from Beetle views.

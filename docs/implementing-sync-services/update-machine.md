@@ -3,7 +3,7 @@
 This guide describes the reference implementation, not additional portable requirements.
 
 Every working tree runs one machine, specified in
-[working trees](../overstory-spec/2.1-working-trees.md). Its
+[working trees](../overstory-spec/7.1-working-trees.md). Its
 sources append **local changes** to a durable **change log**; the machine
 decides when and how the log is published; the **runner** performs what the
 machine decides. An editor generation, a structural action, a review
@@ -114,7 +114,7 @@ Under a tree's state root:
   its exact request bytes and `contentType` their encoding: new attempts are
   CBOR (`application/cbor`), and an attempt without `contentType` is JSON, so
   one written before bodies could be CBOR replays unchanged, as JSON
-  ([reading and watching §2.2](../overstory-spec/1.2-reading-and-watching.md#22-request-and-response-encodings)).
+  ([reading §8.2](../overstory-spec/1.2-reading.md#82-request-and-response-encodings)).
 - **`sync/conflict-review.json`** (schema 3): review drafts, and the draft
   fingerprint each submitted resolution change carries.
 

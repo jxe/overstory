@@ -1,4 +1,4 @@
-// View blocks in pages (spec 1.5 §3.7): fenced code blocks whose info string is `view`.
+// View blocks in pages (spec 4.1 §5): fenced code blocks whose info string is `view`.
 // All of a page's blocks are one source; positions stay the page's own lines.
 
 import type { Diagnostic, Span, ViewFile } from "./ast.ts";
@@ -78,7 +78,7 @@ export function formatPage(markdown: string, format: (text: string) => string): 
 }
 
 /**
- * A file's code version (Beetle §6): SHA-256 over the paths and texts of the file and
+ * A file's code version (views §11): SHA-256 over the paths and texts of the file and
  * every file it uses, in path order. A `.beetle` file's text is its bytes; a page's is
  * its view blocks' texts in order, each ended by a newline, so prose edits change nothing.
  */

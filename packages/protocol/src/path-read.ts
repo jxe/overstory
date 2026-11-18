@@ -99,7 +99,7 @@ export async function pathReadObjects(
     return objects;
   }
   // A collection's folder, table or row: its head log entry, which gives its row count and
-  // rows hash, and nothing further back (reading and watching §1.2.4).
+  // rows hash, and nothing further back (reading §7).
   const addLog = async (of: ProtocolDirectory) => {
     if (of.collection) await load(of.collection.log);
   };

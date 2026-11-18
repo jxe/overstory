@@ -189,7 +189,7 @@ struct LiveChangeLogTests {
             guard case let .array(affected) = decision["affected"], case let .object(parent) = affected.first else {
                 Issue.record("Missing nested decision location"); return
             }
-            // A basis reference names its path and object (spec 1.2 §1.2.2), here or under `material`.
+            // A basis reference names its path and object (spec 1.2 §5), here or under `material`.
             guard case let .object(material) = parent["material"] ?? .object(parent) else { Issue.record("Missing source material"); return }
             #expect(material["path"] == .string("/sub/child.md"))
             #expect(parent["range"] != nil)

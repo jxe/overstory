@@ -15,5 +15,5 @@ drew (`beetle-host.ts`, `liveViewStream`). Make view streams a consumer of the c
 (`packages/overstoryd/src/change-feed.ts`) with their own cursor, and rerun a view only when a
 record touches what its plan reads: the collection folders a record names
 (`ChangeRecord.collections`), the page a view reads as `page`, and the files its code version
-covers. Missing precision still reruns (reading and watching §4.2); results never change.
+covers. Missing precision still reruns (views §12.2); results never change.
 Measure reruns per edit before and after on a tree with several open views.

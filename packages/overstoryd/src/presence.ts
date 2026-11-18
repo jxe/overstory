@@ -104,7 +104,7 @@ export class PresenceHub {
     return {
       id: entry.id,
       listed,
-      // `self`: the entry's own ID for any caller with an account, listed or not (spec 1.2 §3.3).
+      // `self`: the entry's own ID for any caller with an account, listed or not (spec 6.1 §3).
       ready: encodeSSEFrame({ event: "presence.ready", data: { self: join.caller ? entry.id : null, peers } }),
     };
   }

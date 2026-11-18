@@ -1,4 +1,4 @@
-// A view's plan (spec 1.5 §3): every read in it, found from the source alone. Each
+// A view's plan (spec 4.1): every read in it, found from the source alone. Each
 // element that reads gets an ElementPlan, nested as the elements are, so a child's reads
 // run once per match of its ancestors. Rules are expanded in place. Conditions and
 // orderings that read state are split off for the client, which evaluates them over the

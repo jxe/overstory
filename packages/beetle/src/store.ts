@@ -1,7 +1,7 @@
-// The rows a view reads and a mutation writes (spec 1.5 §3.2, §4): one collection's rows in
+// The rows a view reads and a mutation writes (spec 4.1 §2, spec 4.2): one collection's rows in
 // its schema's database layout (`layoutOf(…, { store: "database" })`), read along the
 // layout's relationships. The same rows are what the host materializes as SQLite, so a plan
-// run here and one run as SQL mean the same thing (reading and watching §4.2).
+// run here and one run as SQL mean the same thing (views §12.2).
 //
 // - A row is a `Row`: its table and its stored columns. People are rows of the virtual
 //   `Person` table, keyed by profile id, whose other fields come from the caller.

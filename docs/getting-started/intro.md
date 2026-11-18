@@ -178,7 +178,7 @@ A folder of similar pages is already almost a database. Think past meeting
 agendas, each with a date and attendees in its front matter. Add a
 `schema.beetle` beside them and it becomes one: a typed collection you can
 query, declared in Beetle, a small language for views and data
-([Beetle](../overstory-spec/1.5-beetle.md)):
+([Beetle](../overstory-spec/3.2-beetle.md)):
 
 ```text
 // essays/schema.beetle

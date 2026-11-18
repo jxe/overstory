@@ -3,7 +3,7 @@
 **Why and when:** later, alongside and after [Apps 011](../soon/apps-011-widgets-in-story.md). Joe, 2026-11-11: the plugins
 that matter most run on clients and make Beetle apps faster and more flexible: games,
 simulations, anything that changes every frame. Beetle has no general-purpose code
-([Beetle](../../docs/overstory-spec/1.5-beetle.md)); real code is never mixed into a
+([Beetle](../../docs/overstory-spec/3.2-beetle.md)); real code is never mixed into a
 `.beetle` file. Code with effects on shared data runs outside the host, as
 [runners](apps-017-data-runners.md).
 
@@ -19,14 +19,14 @@ questions at the end.
 Games call it entity-component-system, and Beetle already has most of it:
 
 - **Session tables are the world.** A plugin's state is rows of `session` tables
-  ([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state)), which never leave the
+  ([views §6](../../docs/overstory-spec/4.1-views.md#6-state)), which never leave the
   device. Every part of the view can read them, like any rows.
 - **Beetle views draw it.** Plugins never draw. A built-in `Canvas` element (and later
   `Canvas3D`) takes shapes as children, drawn from rows like any element:
   `<Circle for={b in Ball} x={b.x} y={b.y} r={4} />`.
 - **A client plugin is a mutation written in code.** It reads what it is given and writes
   only session tables. It is called as an action, so the event lines views already have
-  drive it ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-forms-and-events)):
+  drive it ([views §7](../../docs/overstory-spec/4.1-views.md#7-actions-forms-and-events)):
 
   ```
   use "plugins/physics.ts" (step, launch)
@@ -90,7 +90,7 @@ Two jobs, in two places (proposed to Joe 2026-11-11):
 ## Custom layouts
 
 Beetle's layout is `Column`, `Row` and a few attributes
-([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)). A new
+([views §9](../../docs/overstory-spec/4.1-views.md#9-element-types-and-layout)). A new
 layout, such as a grid, masonry or overlapping layers for a game, is a new element type a
 plugin supplies (Joe, 2026-11-17), used where a `Column` would be: `<Masonry columns={3}>`.
 It has the shape SwiftUI's Layout protocol, Compose's custom layouts and CSS's Houdini layout

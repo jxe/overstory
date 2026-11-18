@@ -9,7 +9,7 @@ browser sees the host's plain HTML.
 **Why and when:** Joe wants to embed small apps in Story pages, drawn natively, not in a web
 view and not with React (Joe, 2026-11-05, in the apps discussion). Since 2026-11-11 they are
 written in Beetle, in `.beetle` files and pages' `view` blocks, not TSX
-([reading and watching §4](../../docs/overstory-spec/1.2-reading-and-watching.md#4-views)). This is the third of the three apps plans Joe split on 2026-11-06. It absorbs
+([views §12](../../docs/overstory-spec/4.1-views.md#12-evaluating-views-on-a-host)). This is the third of the three apps plans Joe split on 2026-11-06. It absorbs
 Apps 001 (the Supplies site) and Apps 003 (compiler and editor tooling). Those deleted plans
 are in git history, and the parts that still apply are below.
 
@@ -35,11 +35,11 @@ discussion. Where it says *query* or *endpoint*, read *view*
   | Owner | Kind of state |
   |---|---|
   | App | The app's data tables, read by views |
-  | Page | Configuration as the page's properties (front matter), read as `page`, edited in a settings sheet ([Beetle §3.7](../../docs/overstory-spec/1.5-beetle.md#37-view-blocks-in-pages)) |
+  | Page | Configuration as the page's properties (front matter), read as `page`, edited in a settings sheet ([views §5](../../docs/overstory-spec/4.1-views.md#5-view-blocks-in-pages)) |
   | Reader | `my table X:` rows, and `keep` per placement |
   | Session | `session table X:` rows, and `state`; never stored, for fast state such as games |
 
-  ([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state).) An app reads and
+  ([views §6](../../docs/overstory-spec/4.1-views.md#6-state).) An app reads and
   writes its own `my` tables with no prompt, written on the device first.
 - **A placement is identified by** the page's TreeID and frontmatter `id`, plus a block
   key made of the view block's element, its attributes and which occurrence it is. An explicit key is needed
@@ -58,18 +58,18 @@ discussion. Where it says *query* or *endpoint*, read *view*
   now; if it matters, it comes back as a page property the view reads.
 - **Native `Rows` cells** (Joe, 2026-11-17): `Bullet`, `Text`, `People`, `Count` and `Date`.
   A `Rows` with any other cell is drawn whole as ordinary columns and rows
-  ([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)).
+  ([views §9](../../docs/overstory-spec/4.1-views.md#9-element-types-and-layout)).
 - **Views run locally on a placed tree when they can,** and on the host otherwise.
 - **The element types are part of Beetle, not a separate package** (Joe, 2026-11-17). The
   set is small, like the cores of SwiftUI, Compose and elm-ui: `Text`, `Markdown`, `Link`,
   `Image`, `Button`, `TextField`, `Form`, `Column`, `Row` and `Rows`
-  ([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)).
+  ([views §9](../../docs/overstory-spec/4.1-views.md#9-element-types-and-layout)).
   Card, Stack, Section, Grid, Badge and Avatar go: a card is a `Column` with a style, and a
   portrait is an `Image` of a person. The design doc's 26 components are dropped.
   - `Form` came back (Joe, 2026-11-18), defined in Beetle's terms rather than HTML's: named
     controls give a mutation's parameters, typed; Return submits; it clears on success and shows
     field errors at their controls
-    ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-forms-and-events)).
+    ([views §7](../../docs/overstory-spec/4.1-views.md#7-actions-forms-and-events)).
   - Layout is a few attributes that say what a layout should do, not how: `spacing`,
     `align`, `grow`, `padding`, `minWidth`/`maxWidth` and `style` roles. Story draws them with
     SwiftUI stacks and the HTML renderer with flexbox. No positions, constraints, colors or
@@ -78,7 +78,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
     ([Apps 014](../later/apps-014-client-plugins.md)).
 - **`my` rows live in a private tree of the reader's own** (Joe, 2026-11-17), one folder per
   app, never in the profile tree, which others read
-  ([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state)).
+  ([views §6](../../docs/overstory-spec/4.1-views.md#6-state)).
 - **Mutations offline** (Joe, 2026-11-17): on a placed tree, a mutation applies to Story
   Sync's local copy at once and is sent when back online, like a row edit, and a refusal then
   shows as its error. On a tree that isn't placed, actions are disabled while offline. Until
@@ -97,7 +97,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
 ## 2. The element types in Beetle
 
 - `@ovst/beetle` checks element types against
-  [Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout) (it
+  [views §9](../../docs/overstory-spec/4.1-views.md#9-element-types-and-layout) (it
   accepts any capitalized type today), and the conformance fixtures and examples move to them
   (Supplies' `Card`, `Avatar`, `Section`, `Grid` and `Badge`).
 - Conformance fixtures, each a view tree with the expected rendering facts, including layout.
@@ -107,7 +107,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
 ## 3. The SwiftUI renderer, drawing the host's answer
 
 - Draw the vocabulary on the Mac and on the iPhone, from the views route's `tree` answer
-  ([reading and watching §4.1](../../docs/overstory-spec/1.2-reading-and-watching.md#41-answer-forms)),
+  ([views §12.1](../../docs/overstory-spec/4.1-views.md#121-answer-forms)),
   kept current by its stream. No evaluator on the device yet, so state can't change.
 - A `view` block on a page draws in place (a block's unnamed view is `#n`, its named views
   without parameters draw too; the host already serves both), with a menu for its settings;
@@ -136,7 +136,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
   - The old tree stays on screen until the new one is ready.
   - Story waits up to about 100 ms so all of an evaluation's streams are at one tree version.
 - `state`, `keep`, `my` and `session` tables per
-  [Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state); session tables in memory,
+  [views §6](../../docs/overstory-spec/4.1-views.md#6-state); session tables in memory,
   `my` rows in the reader's private tree. Decide how a client finds that tree (from the
   account, presumably) and create it on first write.
 - Mutations on a placed tree apply locally first and queue while offline, as decided above.
@@ -153,7 +153,7 @@ discussion. Where it says *query* or *endpoint*, read *view*
   `~views` before), and `~views` goes from Beetle (the TypeScript checker and StoryKit's
   `Schema/` both still accept it) and the spec.
 - Row actions come from the app's row-action mutations (`mutation … for Table.op`,
-  [Beetle §4.1](../../docs/overstory-spec/1.5-beetle.md#41-facts)) when it has them, and
+  [mutations §1](../../docs/overstory-spec/4.2-mutations.md#1-facts)) when it has them, and
   otherwise from plain row edits
   ([Schema language 007](../features/schema-language-007-editing-in-the-collection-view.md)).
 - A page that presents a collection (the

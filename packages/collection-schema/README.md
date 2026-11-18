@@ -1,7 +1,7 @@
 # @ovst/collection-schema
 
 Collection schemas: a collection's `schema.beetle`
-([collections](../../docs/overstory-spec/1.4-collections.md)),
+([collections](../../docs/overstory-spec/3.1-collections.md)),
 compiled with [`@ovst/beetle`](../beetle/README.md), and the collection-file codec
 built on it.
 

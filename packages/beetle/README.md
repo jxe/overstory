@@ -1,6 +1,6 @@
 # beetle
 
-Beetle, the views-and-data language ([spec](../../docs/overstory-spec/1.5-beetle.md), grammar in
+Beetle, the views-and-data language ([spec](../../docs/overstory-spec/3.2-beetle.md), grammar in
 §7): a collection's tables in its `schema.beetle`, and views, rules, state tables and
 mutations in `.beetle` files and in pages' fenced `view` blocks.
 

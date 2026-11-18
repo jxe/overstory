@@ -11,7 +11,7 @@ so nothing converts old roots.
 
 - **The tree model:** a node is one entry, and a directory can have a page (Joe, 2026-11-18).
 - **No link rewriting for layout.** A page's relative links resolve from where its file is,
-  as now ([locators §2.1](../../docs/overstory-spec/1.6-locators.md#21-links-written-in-markdown)),
+  as now ([locators §2.1](../../docs/overstory-spec/1.4-locators.md#21-links-written-in-markdown)),
   and nothing ever moves a page between `x.md` and `x/_index.md` on its own. The earlier idea of
   letting each placement choose its layout and shifting link bases to match was dropped for
   this.
@@ -60,16 +60,16 @@ Open, to settle while writing the spec. These are not Joe's calls unless he want
 ## Steps
 
 1. **Spec.**
-   - [Data model §5, §5.1, §6, §8, §11 and §12](../../docs/overstory-spec/1.1-data-model.md#5-objects):
+   - [data model §5, §5.1, §6, §8, §11 and §12](../../docs/overstory-spec/1.1-data-model.md#5-objects):
      the objects above, entry times on node entries and `index`, and §8 rewritten around
      "a directory can have a page".
    - Remove the body-form change from §8 and from
-     [locators §2.1 and §4](../../docs/overstory-spec/1.6-locators.md#4-resolution-rules).
+     [locators §4 and §4](../../docs/overstory-spec/1.4-locators.md#4-resolution-rules).
      A move still rewrites the moved page's own relative links, as now. A node with no stored
      page resolves its links as if it had `x.md`, and the root as if it had `_index.md`.
-   - Views are no longer bodies: §8 and §11, [Beetle §3.6](../../docs/overstory-spec/1.5-beetle.md#36-beetle-files),
+   - Views are no longer bodies: §8 and §11, [Beetle §2](../../docs/overstory-spec/3.2-beetle.md#2-beetle-files),
      and locators §3.
-   - [Placements on disk](../../docs/overstory-spec/2.2-placements-on-disk.md): how a scan maps
+   - [Placements on disk](../../docs/overstory-spec/7.2-placements-on-disk.md): how a scan maps
      `x.md`, `x/` and `x/_index.md` onto one entry.
    - Conformance vectors: node bodies, directory documents, protocol objects, pages, path reads
      and snapshot bundles, regenerated.

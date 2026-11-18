@@ -19,11 +19,11 @@ export interface PublicMarkdownPageOptions {
   /** The page's own public path. With it the page gets a link preview and an Open in Story bar. */
   publicPath?: string;
   storyDownloads?: StoryDownloads;
-  /** What each `view` block draws, in order, as view trees (Beetle §3.7); a block without one shows its code. */
+  /** What each `view` block draws, in order, as view trees (views §5); a block without one shows its code. */
   views?: Array<ViewTree | undefined>;
 }
 
-/** A view tree as the host evaluates it (reading and watching §4.1): elements and text. */
+/** A view tree as the host evaluates it (views §12.1): elements and text. */
 export type ViewTree = Array<ViewNode | string>;
 interface ViewNode { type: string; props?: Record<string, unknown>; children?: ViewTree }
 
@@ -286,7 +286,7 @@ function renderBlocks(blocks: OverstoryBlock[], context: RenderContext): string 
         break;
       case "codeBlock": {
         const language = String(block.props?.language ?? "");
-        // A view block draws where it sits (Beetle §3.7).
+        // A view block draws where it sits (views §5).
         const drawn = language === "view" && context.views ? context.views[context.viewIndex = (context.viewIndex ?? -1) + 1] : undefined;
         // The raw tree beside it, until Apps 011's renderer replaces this plain one (Joe, 2026-11-16).
         if (drawn) { html += `<div class="view-block">${renderViewTree(drawn, context)}<details class="view-json"><summary>View tree</summary><pre>${escapeHTML(JSON.stringify(drawn, null, 2))}</pre></details></div>`; break; }

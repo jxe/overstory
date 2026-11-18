@@ -1,6 +1,6 @@
 import Foundation
 
-// Row operations on a collection's data-file rows (spec 1.4 §2): the edits
+// Row operations on a collection's data-file rows (spec 3.1 §2): the edits
 // Story queues, checked and applied locally until the host's result arrives.
 // Rows are the data-file rows `schemaLayout(…, store: .files)` lays out, by table
 // name, in creation order. A row is named by its canonical stable key, the

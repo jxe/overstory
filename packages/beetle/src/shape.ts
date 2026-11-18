@@ -1,4 +1,4 @@
-// What a view reads from a row (spec 1.5 §3): the fields it follows from a bound row, as a
+// What a view reads from a row (spec 4.1): the fields it follows from a bound row, as a
 // tree, found from the source alone. A store that can read a row's relationships in the
 // same statement as the row (the SQLite store) uses it to answer a whole `for`, and every
 // relationship the view follows from it, at once. It is only a hint: a store answers the

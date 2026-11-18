@@ -105,7 +105,7 @@ interface Checked {
   file: string;
   /** Whether any file it uses mentions `page`, so the host reads the page only for views that may. */
   readsPage: boolean;
-  /** SHA-256 over the paths and texts of the file and every file it uses (Beetle §6). */
+  /** SHA-256 over the paths and texts of the file and every file it uses (views §11). */
   version: string;
 }
 
@@ -312,7 +312,7 @@ export class BeetleHost implements AsyncDisposable {
   // ---------------------------------------------------------------- views
 
   /**
-   * What `page` is for a view in `file` (Beetle §3.7): the page holding its blocks, or a
+   * What `page` is for a view in `file` (views §5): the page holding its blocks, or a
    * `.beetle` file's own node. Its fields are the page's properties with no schema, plus
    * `name`, and `children` its child nodes read the same way. Null for a schema's views.
    */
@@ -388,9 +388,9 @@ export class BeetleHost implements AsyncDisposable {
   }
 
   /**
-   * A node's views drawn once for a browser `GET` (reading and watching §4.1, locators §7):
+   * A node's views drawn once for a browser `GET` (views §12.1, views §13):
    * with `view`, that named view of the node's file; else a `.beetle` body's unnamed view, or
-   * what each of a page's view blocks draws (Beetle §3.7). The query string is the input of
+   * what each of a page's view blocks draws (views §5). The query string is the input of
    * the view addressed and of a page's unnamed views. Null when the node has no Beetle to draw.
    */
   async draw(tree: string, root: ObjectHash, path: string, query: URLSearchParams, context: { caller?: UpdateCaller; me: string | null }):
@@ -452,7 +452,7 @@ export class BeetleHost implements AsyncDisposable {
   // ---------------------------------------------------------------- mutations
 
   /**
-   * Run a mutation (updates and merging §4) as its caller: check its file at the head,
+   * Run a mutation (mutations §3) as its caller: check its file at the head,
    * gather its facts over the accepted rows, and submit the rows they change as one
    * update guarded on that head. A head that moved runs it again. An exact retry is
    * answered from its receipt.

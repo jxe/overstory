@@ -1,4 +1,4 @@
-// Beetle conditions as SQL (spec 1.5 §3.2): a `for`'s `where` over one table, translated
+// Beetle conditions as SQL (spec 4.1 §2): a `for`'s `where` over one table, translated
 // so a SQL store can narrow the rows it reads. The evaluator still applies every
 // condition to what comes back, so a translation only has to keep every row Beetle would
 // keep. Each condition is translated twice over: `sup`, true of every row Beetle keeps

@@ -1,4 +1,4 @@
-// The tables of a schema.beetle once checked (spec 1.5 §2, §5): resolved
+// The tables of a schema.beetle once checked (spec 3.3): resolved
 // models, their storage layout, model fingerprint layer, logical rows, setup
 // SQL, and checks that a store implements them. `compileSchema` in ../schema.ts
 // produces the CheckResult everything here reads.
