@@ -47,8 +47,8 @@ discussion. Where it says *query* or *endpoint*, read *view*
 - **Transient state is `state x = …`**, bound to a control with `value={x}`. `keep x = …`
   persists it as a one-row `my` table, keyed by placement and name.
 - **Link props only address records** (which list, which practice).
-- **Actions are calls** in attributes: `Button action={addPractice(name: n)}` with `n` bound to a
-  `TextField`, `then={…}` to navigate, `set(x, v)` for state.
+- **Actions are calls** in attributes: `Button action={addPractice(name: n)}`, `Form
+  action={addPractice}`, `then={…}` to navigate, `set(x, v)` for state.
 - **Row actions come from mutations.** `mutation … for Model.delete` (or `move`, `edit`,
   `create`) lets any list of that model offer them. Without one, a list falls back to plain row edits
   through `POST /updates` when the reader can write.
@@ -62,13 +62,14 @@ discussion. Where it says *query* or *endpoint*, read *view*
 - **Views run locally on a placed tree when they can,** and on the host otherwise.
 - **The element types are part of Beetle, not a separate package** (Joe, 2026-11-17). The
   set is small, like the cores of SwiftUI, Compose and elm-ui: `Text`, `Markdown`, `Link`,
-  `Image`, `Button`, `TextField`, `Column`, `Row` and `Rows`
+  `Image`, `Button`, `TextField`, `Form`, `Column`, `Row` and `Rows`
   ([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)).
   Card, Stack, Section, Grid, Badge and Avatar go: a card is a `Column` with a style, and a
   portrait is an `Image` of a person. The design doc's 26 components are dropped.
-  - No `Form` (Joe, 2026-11-17: "we don't want this to be like HTML"). A mutation's input
-    comes from state bound to controls, so the host's browser page needs a small script to
-    run actions.
+  - `Form` came back (Joe, 2026-11-18), defined in Beetle's terms rather than HTML's: named
+    controls give a mutation's parameters, typed; Return submits; it clears on success and shows
+    field errors at their controls
+    ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-forms-and-events)).
   - Layout is a few attributes that say what a layout should do, not how: `spacing`,
     `align`, `grow`, `padding`, `minWidth`/`maxWidth` and `style` roles. Story draws them with
     SwiftUI stacks and the HTML renderer with flexbox. No positions, constraints, colors or
