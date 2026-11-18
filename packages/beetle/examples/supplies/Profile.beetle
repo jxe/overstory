@@ -1,7 +1,7 @@
 // A person's page. There are no per-table read rules: what a view may read is what its
 // caller may read.
-use "data/schema.beetle"
-use "parts/cards.beetle"
+import data/schema.beetle
+import parts/cards.beetle
 
 rule curatedBy(l: List, person: Person):
   l.owner == person

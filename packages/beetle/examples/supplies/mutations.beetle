@@ -17,7 +17,7 @@
 //
 // Every fact reads the state from before the mutation. A field written only on creation
 // takes its table's default (Contribution.first Date = today in the schema).
-use "data/schema.beetle"
+import data/schema.beetle
 
 rule editor(l: List):
   l.owner == me or l.openToEdits

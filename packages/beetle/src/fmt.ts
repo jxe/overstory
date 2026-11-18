@@ -78,6 +78,11 @@ function orderBy(terms: OrderTerm[]): string {
   return terms.map((t) => expr(t.value) + (t.desc ? " desc" : "")).join(", ");
 }
 
+/** A path as an import writes it: bare unless it holds a space or a quote. */
+function importPathText(path: string): string {
+  return /[\s"]/.test(path) || path === "" ? quote(path) : path;
+}
+
 function params(ps: Param[]): string {
   return `(${ps.map((p) => (p.type ? `${p.name}: ${p.type.name}${arityText(p.type.arity)}` : p.name)).join(", ")})`;
 }
@@ -262,7 +267,7 @@ function memberLines(members: TableMember[], indent: string): string[] {
   const width = new Map<TableMember, number>();
   let run: TableMember[] = [];
   const close = () => {
-    const names = run.map((m) => (m.kind === "field" ? m.name.length : m.kind === "value" ? valueName(m).length : 0));
+    const names = run.map((m) => (m.kind === "field" ? m.name.length + 1 : m.kind === "value" ? valueName(m).length : 0));
     const records = run.some((m) => m.kind === "value" && m.values);
     for (const m of run) if (m.kind === "field" || records) width.set(m, Math.max(...names));
     run = [];
@@ -285,7 +290,7 @@ function memberLines(members: TableMember[], indent: string): string[] {
         lines.push(...withComments([`${indent}seed:`], m.comments, indent + "  "), ...memberLines(m.rows, indent + "  "));
         return;
       case "field": {
-        const name = m.name.padEnd(width.get(m) ?? m.name.length);
+        const name = `${m.name}:`.padEnd(width.get(m) ?? m.name.length + 1);
         const modifiers = m.modifiers.map((x) => x + " ").join("");
         const value = m.default ? ` = ${expr(m.default)}` : "";
         lines.push(...withComments([`${indent}${name} ${modifiers}${m.type}${arityText(m.arity)}${value}${attrsText(m.attrs)}`], m.comments, indent));
@@ -385,7 +390,7 @@ function declarationLines(entry: DeclarationEntry, connectionWidth: number): str
     case "comment":
       return [comment(decl.text)];
     case "use":
-      return [`use ${quote(decl.path)}${decl.picks ? ` (${decl.picks.map((p) => p.name + (p.as ? ` as ${p.as}` : "")).join(", ")})` : ""}${trailing}`];
+      return [`${decl.picks ? `from ${importPathText(decl.path)} import ${decl.picks.map((p) => p.name + (p.as ? ` as ${p.as}` : "")).join(", ")}` : `import ${importPathText(decl.path)}`}${trailing}`];
     case "rule":
       return [`rule ${decl.name}${params(decl.params)}:${trailing}`, ...ruleLines(decl.body)];
     case "element":

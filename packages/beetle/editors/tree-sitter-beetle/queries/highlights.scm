@@ -11,7 +11,7 @@
 (null) @constant.builtin
 
 [
-  "use" "as" "view" "rule" "mutation" "table" "enum" "re"
+  "import" "from" "as" "view" "rule" "mutation" "table" "enum" "re"
   "state" "keep" "on" "every" "if" "for" "where" "let"
   "desc" "asc"
 ] @keyword
@@ -32,7 +32,7 @@
 (key (identifier) @property)
 (pick name: (identifier) @function)
 (pick as: (identifier) @function)
-(use path: (string) @string.special)
+(import path: (path) @string.special)
 
 ; Tables: the built-in value types (and Person) stand apart from tables.
 (field_declaration name: (identifier) @property)

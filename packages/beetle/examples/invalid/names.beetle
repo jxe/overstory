@@ -1,7 +1,7 @@
 // Names that don't resolve, or clash.
-use "../supplies/data/schema.beetle"
+import ../supplies/data/schema.beetle
 // expect: unknown-pick
-use "../supplies/parts/cards.beetle" (PracticeCard, Missing)
+from ../supplies/parts/cards.beetle import PracticeCard, Missing
 
 // expect: builtin-name
 rule count(x: List):

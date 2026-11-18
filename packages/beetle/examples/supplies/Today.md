@@ -5,7 +5,7 @@ date: 2026-11-11
 # Today
 
 ```view
-use "Timer.beetle" (view as Timer)
+from Timer.beetle import view as Timer
 <Timer minutes={50} />
 ```
 

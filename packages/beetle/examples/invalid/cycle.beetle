@@ -1,2 +1,2 @@
 // expect: use-cycle
-use "uses.beetle"
+import uses.beetle

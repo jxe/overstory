@@ -1,6 +1,6 @@
 // Data views: JSON for other programs, with the same reads, plans and live results as
 // the UI views. Feeds?view=ListsByOwner&owner=… returns { "lists": [ … ] }.
-use "data/schema.beetle"
+import data/schema.beetle
 
 view ListsByOwner(owner: Person) {
   lists: {

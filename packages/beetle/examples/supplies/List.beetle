@@ -1,7 +1,7 @@
 // The view at List: its curators, a like button, and its practices with this list's tags.
-use "data/schema.beetle"
-use "parts/cards.beetle" (PracticeCard, Avatar)
-use "mutations.beetle" (toggleListReaction)
+import data/schema.beetle
+from parts/cards.beetle import PracticeCard, Avatar
+from mutations.beetle import toggleListReaction
 
 view(id):
   state showTags = true

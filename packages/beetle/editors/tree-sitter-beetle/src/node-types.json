@@ -1194,6 +1194,32 @@
     }
   },
   {
+    "type": "import",
+    "named": true,
+    "fields": {
+      "path": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "path",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "pick",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "interpolation",
     "named": true,
     "fields": {},
@@ -1786,6 +1812,21 @@
     }
   },
   {
+    "type": "path",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "pick",
     "named": true,
     "fields": {
@@ -1813,21 +1854,6 @@
           }
         ]
       }
-    }
-  },
-  {
-    "type": "picks",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "pick",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -2140,6 +2166,10 @@
           "named": true
         },
         {
+          "type": "import",
+          "named": true
+        },
+        {
           "type": "mutation",
           "named": true
         },
@@ -2153,10 +2183,6 @@
         },
         {
           "type": "table",
-          "named": true
-        },
-        {
-          "type": "use",
           "named": true
         },
         {
@@ -2383,32 +2409,6 @@
         },
         {
           "type": "unary_expression",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "use",
-    "named": true,
-    "fields": {
-      "path": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "string",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "picks",
           "named": true
         }
       ]
@@ -2748,11 +2748,19 @@
     "named": false
   },
   {
+    "type": "from",
+    "named": false
+  },
+  {
     "type": "identifier",
     "named": true
   },
   {
     "type": "if",
+    "named": false
+  },
+  {
+    "type": "import",
     "named": false
   },
   {
@@ -2857,10 +2865,6 @@
   },
   {
     "type": "unique",
-    "named": false
-  },
-  {
-    "type": "use",
     "named": false
   },
   {

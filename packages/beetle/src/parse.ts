@@ -1201,10 +1201,23 @@ function atEnd(c: Cursor): boolean {
   return result;
 }
 
+/** An import's path: a quoted string, or everything up to the next space. */
+function importPath(c: Cursor): string {
+  c.ws();
+  if (c.peek() === '"') return plainString(c);
+  const begin = c.pos;
+  while (c.pos < c.end && !/\s/.test(c.text[c.pos]!)) c.pos += 1;
+  if (c.pos === begin) c.fail("Expected a path, such as data/schema.beetle");
+  return c.text.slice(begin, c.pos);
+}
+
 function field(c: Cursor): Extract<TableMember, { kind: "field" }> {
   c.ws();
   const start = c.pos;
   const name = c.ident("a field name");
+  // `name: Type`; the colonless `name Type` is still read while trees move over (Beetle 001).
+  c.inlineWs();
+  if (c.peek() === ":") c.pos += 1;
   const modifiers: string[] = [];
   for (;;) {
     c.inlineWs();
@@ -1289,7 +1302,7 @@ function tableMembers(src: Source, first: number, last: number, diagnostics: Dia
     if (context === "table" && c.identAt() === "seed") {
       const m = c.mark();
       c.pos += 4;
-      if (c.accept(":")) {
+      if (c.accept(":") && (c.inlineWs(), c.atLineEnd() || c.startsWith("//"))) {
         const own = headerEnd(c);
         const rows = tableMembers(src, item.first + 1, item.last, diagnostics, "seed");
         return { kind: "seed", rows, span: src.span(start, line.end), blankBefore: item.blankBefore, comments: own !== undefined ? [own] : [] };
@@ -1343,8 +1356,33 @@ function declaration(src: Source, first: number, last: number, diagnostics: Diag
     finish(c, "the connection");
     return { decl, trailing: trailingOn(line.end + 1) };
   }
-  const word = c.ident("a declaration (use, view, rule, mutation, table or enum)");
+  const word = c.ident("a declaration (import, from, view, rule, mutation, table or enum)");
+  if (word === "from" || word === "import") {
+    // `from path import A, B as C` or `import path`.
+    const path = importPath(c);
+    const decl: UseDecl = { kind: "use", path, span: c.span(start) };
+    if (word === "from") {
+      c.ws();
+      if (!c.keyword("import")) c.fail(`Expected import and the names to take from ${path}`);
+      decl.picks = [];
+      do {
+        c.ws();
+        const pickStart = c.pos;
+        const name = c.ident("a name to import, or view");
+        let as: string | undefined;
+        if (c.keyword("as")) {
+          c.ws();
+          as = c.ident("a name");
+        }
+        decl.picks.push({ name, as, span: c.span(pickStart) });
+      } while (c.accept(","));
+      decl.span = c.span(start);
+    }
+    finish(c, "the import");
+    return { decl, trailing: trailingOn(line.end + 1) };
+  }
   if (word === "use") {
+    // The older spelling, still read while trees move over (Beetle 001).
     c.ws();
     if (c.peek() !== '"') c.fail('Expected a path in quotes, such as use "data/schema.beetle"');
     const path = plainString(c);

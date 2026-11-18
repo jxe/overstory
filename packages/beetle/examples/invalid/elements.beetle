@@ -1,6 +1,6 @@
 // Drawing views, limits, conditions and state.
-use "../supplies/data/schema.beetle"
-use "../supplies/parts/cards.beetle"
+import ../supplies/data/schema.beetle
+import ../supplies/parts/cards.beetle
 
 view():
   state q = ""

@@ -72,7 +72,7 @@ public struct SchemaName: Sendable, Equatable {
     public var at: SchemaPosition
 }
 
-/// `name [modifiers] Type [= default]`: a field of the table. Modifiers are `ordered`, `unique` and `path`.
+/// `name: [modifiers] Type [= default]`: a field of the table. Modifiers are `ordered`, `unique` and `path`.
 public struct SchemaFieldDecl: Sendable, Equatable {
     public var name: String
     public var modifiers: [SchemaName]
@@ -483,7 +483,7 @@ private struct Parser {
     /// In an enum, a value rather than a field: a name not followed by a type.
     func startsValue() -> Bool {
         if token.kind == .string { return true }
-        return token.kind == .ident && peek().kind != .ident
+        return token.kind == .ident && peek().kind != .ident && !`is`(":", peek())
     }
 
     /// One member line (a `seed:` block takes the lines below it too), through its end of line.
@@ -504,7 +504,7 @@ private struct Parser {
             try endOfLine()
             return .mention(SchemaMention(name: name, attrs: attributes, at: start))
         }
-        if context == .table && `is`("seed") && `is`(":", peek()) {
+        if context == .table && `is`("seed") && `is`(":", peek()) && (peek(2).kind == .newline || peek(2).kind == .eof) {
             let column = token.column
             next()
             next()
@@ -523,6 +523,8 @@ private struct Parser {
         }
         if token.kind == .ident {
             let name = next().text
+            // `name: Type`; the colonless `name Type` is still read while trees move over.
+            if `is`(":") { next() }
             var modifiers: [SchemaName] = []
             while token.kind == .ident && modifierKeywords.contains(token.text) && peek().kind == .ident {
                 modifiers.append(SchemaName(name: token.text, at: start))

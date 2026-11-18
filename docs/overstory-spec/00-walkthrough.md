@@ -118,7 +118,7 @@ Joe writes a view in `views/practices.beetle`, which is the node `views/practice
 the way a `.md` file is a page:
 
 ```
-use "../practices/schema.beetle"
+import ../practices/schema.beetle
 
 view():
   <Column>
@@ -130,7 +130,7 @@ and draws it in his page with a view block ([view blocks](1.5-beetle.md#37-view-
 
 ````md
 ```view
-use "views/practices.beetle" (view as Practices)
+from views/practices.beetle import view as Practices
 <Practices />
 ```
 ````

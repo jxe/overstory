@@ -1,5 +1,5 @@
 // Data views that don't check.
-use "../supplies/data/schema.beetle"
+import ../supplies/data/schema.beetle
 
 view Bad(id) {
   // expect: data-entry-key

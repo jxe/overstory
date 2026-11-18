@@ -98,8 +98,8 @@ describe("beetle formatting", () => {
     ].join("\n");
     expect(formatView(source)).toBe([
       "table Tag (list, id):  // why",
-      "  name  Text",
-      "  color Text?",
+      "  name:  Text",
+      "  color: Text?",
       "",
       "Tag.list        <-> List.tags[]",
       "Tag.practices[] <-> Practice.tags[]",
@@ -111,6 +111,17 @@ describe("beetle formatting", () => {
       "       owner: me)",
       "",
     ].join("\n"));
+  });
+
+  test("fields take a colon; the colonless form is still read, and a field may be named seed", () => {
+    const source = "main table A:\n  seed: Text\n  name unique Text\n";
+    expect(formatView(source)).toBe("main table A:\n  seed: Text\n  name: unique Text\n");
+    expect(compileSchema(source).diagnostics).toEqual([]);
+  });
+
+  test("imports put the file first; the older use is still read", () => {
+    const source = 'use "parts/cards.beetle" (Card as PlainCard, Avatar)\nuse "data/schema.beetle"\n';
+    expect(formatView(source)).toBe("from parts/cards.beetle import Card as PlainCard, Avatar\nimport data/schema.beetle\n");
   });
 
   test("a data view's record stays on one line only when it was written on one", () => {
@@ -300,13 +311,13 @@ describe("beetle schema limits and presentation", () => {
   test("~views keeps names with attributes, paths and quoted mentions", () => {
     const source = [
       "main table Game:",
-      "  name   Text",
-      "  status Status",
+      "  name:   Text",
+      "  status: Status",
       "",
       "Game.status <-> Status.games[]",
       "",
       "enum Status:",
-      "  color Text?",
+      "  color: Text?",
       "  Draft",
       '  "In review" { color: "#bd861a" }',
       "",

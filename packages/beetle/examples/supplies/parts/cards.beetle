@@ -1,5 +1,5 @@
 // Views drawn as elements. Used with: use "parts/cards.beetle" (ListCard, PracticeCard)
-use "../data/schema.beetle"
+import ../data/schema.beetle
 
 view ListCard(list: List):
   <Card>

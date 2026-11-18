@@ -183,9 +183,9 @@ query, declared in Beetle, a small language for views and data
 ```text
 // essays/schema.beetle
 main table Essay:
-  title  Text
-  date   Date
-  status Status
+  title:  Text
+  date:   Date
+  status: Status
 
 enum Status:
   Draft
@@ -208,7 +208,7 @@ language. A `.beetle` file holds a view, and the mutations it uses:
 
 ```
 // views/reading-room.beetle
-use "../essays/schema.beetle"
+import ../essays/schema.beetle
 
 mutation recommend(e: Essay):
   if me == null:
@@ -229,7 +229,7 @@ To use it, draw it from a `view` block in any page:
 
 ````md
 ```view
-use "views/reading-room.beetle" (view as ReadingRoom)
+from views/reading-room.beetle import view as ReadingRoom
 <ReadingRoom status="Draft" />
 ```
 ````

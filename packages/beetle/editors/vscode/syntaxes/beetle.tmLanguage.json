@@ -30,7 +30,7 @@
     "declaration": {
       "patterns": [
         {
-          "match": "^(use)\\b",
+          "match": "^(import|from)\\b|\\b(import)\\b",
           "captures": {
             "1": {
               "name": "keyword.control.import.beetle"
@@ -118,7 +118,7 @@
           }
         },
         {
-          "match": "^\\s+(?!(?:not|if|for|let|state|keep|on|every|unauthorized|forbidden|missing|invalid|conflict|true|false|null)\\b)([a-z_][A-Za-z0-9_]*)\\s+((?:(?:ordered|unique|path)\\s+)*)(Text|Markdown|Int|Number|Bool|Date|Duration|Person)\\b",
+          "match": "^\\s+(?!(?:not|if|for|let|state|keep|on|every|unauthorized|forbidden|missing|invalid|conflict|true|false|null)\\b)([a-z_][A-Za-z0-9_]*)\\s*:?\\s+((?:(?:ordered|unique|path)\\s+)*)(Text|Markdown|Int|Number|Bool|Date|Duration|Person)\\b",
           "captures": {
             "1": {
               "name": "variable.other.property.beetle"
@@ -132,7 +132,7 @@
           }
         },
         {
-          "match": "^\\s+(?!(?:not|if|for|let|state|keep|on|every|unauthorized|forbidden|missing|invalid|conflict|true|false|null)\\b)([a-z_][A-Za-z0-9_]*)\\s+((?:(?:ordered|unique|path)\\s+)*)([A-Z][A-Za-z0-9_]*)\\b",
+          "match": "^\\s+(?!(?:not|if|for|let|state|keep|on|every|unauthorized|forbidden|missing|invalid|conflict|true|false|null)\\b)([a-z_][A-Za-z0-9_]*)\\s*:?\\s+((?:(?:ordered|unique|path)\\s+)*)([A-Z][A-Za-z0-9_]*)\\b",
           "captures": {
             "1": {
               "name": "variable.other.property.beetle"

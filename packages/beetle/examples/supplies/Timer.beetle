@@ -1,8 +1,8 @@
 // A widget with its own tables, declared beside the view that uses them.
 
 my table Lap:  // one viewer's rows, across the whole app
-  at    Date
-  label Text
+  at:    Date
+  label: Text
 
 mutation lap(label: Text):
   Lap(at: now, label: label)

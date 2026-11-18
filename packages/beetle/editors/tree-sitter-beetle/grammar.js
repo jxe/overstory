@@ -35,12 +35,15 @@ module.exports = grammar({
     source_file: ($) => repeat(choice($._declaration, $._newline)),
 
     _declaration: ($) =>
-      choice($.use, $.view, $.rule, $.mutation, $.table, $.enum, $.re, $.connection, $.element),
+      choice($.import, $.view, $.rule, $.mutation, $.table, $.enum, $.re, $.connection, $.element),
 
-    // ------------------------------------------------------------ use
+    // ------------------------------------------------------------ imports
 
-    use: ($) => seq("use", field("path", $.string), optional($.picks)),
-    picks: ($) => seq("(", inner($, $.pick), ")"),
+    import: ($) => choice(
+      seq("import", field("path", $.path)),
+      seq("from", field("path", $.path), "import", $.pick, repeat(seq(",", $.pick))),
+    ),
+    path: ($) => choice($.string, /[^\s"]+/),
     pick: ($) => seq(field("name", choice($.identifier, "view")), optional(seq("as", field("as", $.identifier)))),
 
     // ------------------------------------------------------------ views
@@ -133,6 +136,7 @@ module.exports = grammar({
     field_declaration: ($) =>
       prec.right(seq(
         field("name", $.identifier),
+        optional(":"),
         repeat($.modifier),
         field("type", $.identifier),
         optional($.arity),

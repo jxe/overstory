@@ -1,23 +1,23 @@
 // Tables a file that isn't a schema declares.
-use "../supplies/data/schema.beetle"
+import ../supplies/data/schema.beetle
 
 // expect: data-table-outside-schema
 table Note:
-  text Text
+  text: Text
 
 my table Pin:
   // expect: unknown-type
-  list    Lisst
+  list:    Lisst
   // expect: implicit-field
-  created Date
+  created: Date
   // expect: default-value
-  at      Date = count(List)
+  at:      Date = count(List)
   // expect: state-connection
   Practice.pins[]
 
 // expect: duplicate-name
 session table List:
-  name Text
+  name: Text
 
 enum Mood:
   Calm

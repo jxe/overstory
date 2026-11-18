@@ -3,14 +3,14 @@
 // Story accounts, and portraits come from their profiles.
 
 main table Excellence:
-  name       Text
-  assessment Assessment
-  leads      Person[]  // cross-reference
-  projects   Project[]  // cross-reference
+  name:       Text
+  assessment: Assessment
+  leads:      Person[]  // cross-reference
+  projects:   Project[]  // cross-reference
 
 table Project:
-  name        Text
-  excellences Excellence[]  // cross-reference
+  name:        Text
+  excellences: Excellence[]  // cross-reference
 
 Excellence.leads[] <-> Person.excellences[]
 
@@ -19,7 +19,7 @@ Excellence.projects[] <-> Project.excellences[]
 Excellence.assessment <-> Assessment.excellences[]
 
 enum Assessment:
-  color Text
+  color: Text
   Good            { color: "#27815a" }
   Improving       { color: "#bd861a" }
   Bad             { color: "#c25357" }

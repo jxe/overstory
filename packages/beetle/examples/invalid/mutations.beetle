@@ -1,5 +1,5 @@
 // Mutations that write what they can't.
-use "../supplies/data/schema.beetle"
+import ../supplies/data/schema.beetle
 
 mutation bad(l: List, p: Practice):
   // expect: implicit-field

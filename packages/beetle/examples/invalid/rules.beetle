@@ -1,5 +1,5 @@
 // Rules may not refer to themselves.
-use "../supplies/data/schema.beetle"
+import ../supplies/data/schema.beetle
 
 // expect: rule-recursion
 rule above(a, b):
