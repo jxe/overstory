@@ -101,6 +101,11 @@ discussion. Where it says *query* or *endpoint*, read *view*
   accepts any capitalized type today), and the conformance fixtures and examples move to them
   (Supplies' `Card`, `Avatar`, `Section`, `Grid` and `Badge`).
 - Conformance fixtures, each a view tree with the expected rendering facts, including layout.
+- The controls of [views §7](../../docs/overstory-spec/4.1-views.md#7-actions-forms-and-events)
+  (Joe, 2026-11-18): `Toggle`, `Picker`, `Text editable`, and `value={t.field}` with an `action`
+  whose parameter named after the field takes the new value. The checker rejects a missing or
+  mistyped parameter; clients show the new value while the action runs and put the old one back
+  on a public error.
 - The host's plain browser rendering (`renderViewTree` in `public-page.ts`) moves to these
   types and draws the layout attributes with flexbox; `Portrait`, `Stack` and `Card` go.
 
