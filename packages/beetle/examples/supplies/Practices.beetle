@@ -8,7 +8,7 @@ view():
   keep sortBy = "name"
 
   <Shell title="Practices">
-    <Row slot="actions">
+    <Row>
       <TextField value={q} placeholder="Search" />
       <Button action={set(sortBy, "name")} selected={sortBy == "name"}>A–Z</Button>
       <Button action={set(sortBy, "authors")} selected={sortBy == "authors"}>Most authors</Button>

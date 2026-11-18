@@ -56,7 +56,7 @@ export type BoundRows = Record<string, RowsByTable>;
 
 type Env = Map<string, Value>;
 
-const LANGUAGE = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key", "slot"]);
+const LANGUAGE = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key"]);
 const isRecord = (v: Value): v is { [name: string]: Value } =>
   v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Row) && !(v instanceof EnumValue) && !(v instanceof Action);
 
@@ -948,8 +948,6 @@ export class Evaluator {
       for (const p of view.decl.params) inner.set(p.name, this.coerce(p, args[p.name] ?? null));
       for (const node of this.fileOf(view.from).drawView(view.decl, inner)) {
         if (typeof node !== "string" && ownKey !== null && node.key === null) node.key = ownKey;
-        const slot = el.attributes.find((a) => a.name === "slot");
-        if (slot && typeof node !== "string") node.props.slot = toProp(this.attribute(slot, env));
         out.push(node);
       }
       return;
@@ -981,7 +979,7 @@ export class Evaluator {
   private props(el: Element, env: Env): Record<string, unknown> {
     const props: Record<string, unknown> = {};
     for (const a of el.attributes) {
-      if (LANGUAGE.has(a.name) && a.name !== "slot") continue;
+      if (LANGUAGE.has(a.name)) continue;
       props[a.name] = toProp(this.attribute(a, env));
     }
     return props;

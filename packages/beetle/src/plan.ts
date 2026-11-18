@@ -86,7 +86,7 @@ interface Env {
   depth: number;
 }
 
-const LANGUAGE = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key", "slot"]);
+const LANGUAGE = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key"]);
 const AGGREGATES = new Set(["count", "exists", "sum", "min", "max"]);
 
 export class ElementPlanner {

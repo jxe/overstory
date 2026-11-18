@@ -10,17 +10,16 @@ view(id):
     for={l in List} where={l.id == id}
     fallback={<Shell title="List unavailable" />}>
 
-    <Row slot="subtitle">
+    <Row>
       <Text style="secondary">a list by</Text>
       <Avatar person={l.owner} />
       <Avatar person={c} for={c in l.contributors.person} where={c != l.owner} orderBy={c.name} />
     </Row>
 
-    <Button slot="actions" action={toggleListReaction(l: l)}
-      if={l.visibility == Public, me != null}>
+    <Button action={toggleListReaction(l: l)} if={l.visibility == Public, me != null}>
       👍 {count(l.reactions)}
     </Button>
-    <Toggle slot="actions" value={showTags}>Tags</Toggle>
+    <Toggle value={showTags}>Tags</Toggle>
 
     <Markdown source={l.about} />
 

@@ -211,7 +211,7 @@ export interface CheckOptions {
 export const BUILTIN_NAMES = ["me", "community", "page", "now", "today"] as const;
 export const BUILTIN_FUNCTIONS = ["count", "exists", "sum", "min", "max", "lower", "upper", "trim", "length", "set"] as const;
 const ROW_OPS = ["create", "edit", "delete", "move"];
-const LANGUAGE_ATTRIBUTES = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key", "slot"]);
+const LANGUAGE_ATTRIBUTES = new Set(["for", "where", "if", "orderBy", "group", "limit", "fallback", "key"]);
 const DATA_ATTRIBUTES = new Set(["for", "where", "if", "orderBy", "limit"]);
 
 // ---------------------------------------------------------------- paths
@@ -1034,8 +1034,6 @@ export class Checker {
     }
     const key = get("key");
     if (key?.value.kind === "expr") this.typeOf(key.value.expr, inner, ctx);
-    const slot = get("slot");
-    if (slot && slot.value.kind !== "text") this.error("slot", 'slot takes a name in quotes: slot="actions"', slot.span);
     for (const a of el.attributes) {
       if (["for", "where", "if", "orderBy"].includes(a.name) && a.value.kind !== a.name) {
         this.error("syntax", `${a.name} takes {…}`, a.span);

@@ -13,8 +13,8 @@
     "/invalid/uses.beetle": "// Uses that don't resolve.\n// expect: use-not-found\nuse \"nowhere.beetle\"\n// expect: use-cycle\nuse \"cycle.beetle\"\n// expect: ambiguous-use\nuse \"../supplies/parts/cards.beetle\"\nuse \"more-cards.beetle\"\n\nview():\n  <Text>hi</Text>\n",
     "/supplies/Feeds.beetle": "// Data views: JSON for other programs, with the same reads, plans and live results as\n// the UI views. Feeds?view=ListsByOwner&owner=… returns { \"lists\": [ … ] }.\nuse \"data/schema.beetle\"\n\nview ListsByOwner(owner Person) {\n  lists: {\n    name\n    size: count(l.items)\n    owner { name, handle }\n    practices: { name } for={p in l.items.practice} orderBy={p.name}\n  } for={l in List} where={l.owner == owner} orderBy={l.modified desc} limit={20}\n}\n\nview OnePractice(id) {\n  practice: {\n    name\n    about\n    authors { name }\n    lists: count(l in List where p in l.items.practice)\n    tagged: { tags { name, color } } if={count(p.tags) > 0}\n  } for={p in Practice} where={p.id == id}\n}\n",
     "/supplies/Home.beetle": "// Supplies' home page: the most liked public lists.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\"\n\nview():\n  <Shell title=\"Meaning Supplies\" subtitle=\"a directory of social practices\">\n    <Section title=\"Popular lists\">\n      <Grid columns={2}>\n        <ListCard list={l}\n          for={l in List} where={l.visibility == Public}\n          orderBy={count(l.reactions) desc} limit={12} />\n      </Grid>\n    </Section>\n  </Shell>\n",
-    "/supplies/List.beetle": "// The view at List: its curators, a like button, and its practices with this list's tags.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\" (PracticeCard, Avatar)\nuse \"mutations.beetle\" (toggleListReaction)\n\nview(id):\n  state showTags = true\n\n  <Shell title={l.name}\n    for={l in List} where={l.id == id}\n    fallback={<Shell title=\"List unavailable\" />}>\n\n    <Row slot=\"subtitle\">\n      <Text style=\"secondary\">a list by</Text>\n      <Avatar person={l.owner} />\n      <Avatar person={c} for={c in l.contributors.person} where={c != l.owner} orderBy={c.name} />\n    </Row>\n\n    <Button slot=\"actions\" action={toggleListReaction(l: l)}\n      if={l.visibility == Public, me != null}>\n      👍 {count(l.reactions)}\n    </Button>\n    <Toggle slot=\"actions\" value={showTags}>Tags</Toggle>\n\n    <Markdown source={l.about} />\n\n    <Grid columns={3}>\n      <Column for={i in l.items}>\n        <PracticeCard p={i.practice} />\n        <Row if={showTags}>\n          <Badge color={t.color} for={t in i.practice.tags} where={t.list == l}>{t.name}</Badge>\n        </Row>\n      </Column>\n    </Grid>\n  </Shell>\n",
-    "/supplies/Practices.beetle": "// Search and sort practices. The search text is state, so it never leaves the device:\n// the host returns every practice and the client filters them.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\"\n\nview():\n  state q = \"\"\n  keep sortBy = \"name\"\n\n  <Shell title=\"Practices\">\n    <Row slot=\"actions\">\n      <TextField value={q} placeholder=\"Search\" />\n      <Button action={set(sortBy, \"name\")} selected={sortBy == \"name\"}>A–Z</Button>\n      <Button action={set(sortBy, \"authors\")} selected={sortBy == \"authors\"}>Most authors</Button>\n    </Row>\n    <Grid columns={3}>\n      <PracticeCard p={p}\n        for={p in Practice} where={q == \"\" or q in p.name}\n        orderBy={sortBy == \"name\" ? p.name : count(p.authors) desc}\n        fallback={<Text style=\"secondary\">No practices match “{q}”.</Text>} />\n    </Grid>\n  </Shell>\n",
+    "/supplies/List.beetle": "// The view at List: its curators, a like button, and its practices with this list's tags.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\" (PracticeCard, Avatar)\nuse \"mutations.beetle\" (toggleListReaction)\n\nview(id):\n  state showTags = true\n\n  <Shell title={l.name}\n    for={l in List} where={l.id == id}\n    fallback={<Shell title=\"List unavailable\" />}>\n\n    <Row>\n      <Text style=\"secondary\">a list by</Text>\n      <Avatar person={l.owner} />\n      <Avatar person={c} for={c in l.contributors.person} where={c != l.owner} orderBy={c.name} />\n    </Row>\n\n    <Button action={toggleListReaction(l: l)} if={l.visibility == Public, me != null}>\n      👍 {count(l.reactions)}\n    </Button>\n    <Toggle value={showTags}>Tags</Toggle>\n\n    <Markdown source={l.about} />\n\n    <Grid columns={3}>\n      <Column for={i in l.items}>\n        <PracticeCard p={i.practice} />\n        <Row if={showTags}>\n          <Badge color={t.color} for={t in i.practice.tags} where={t.list == l}>{t.name}</Badge>\n        </Row>\n      </Column>\n    </Grid>\n  </Shell>\n",
+    "/supplies/Practices.beetle": "// Search and sort practices. The search text is state, so it never leaves the device:\n// the host returns every practice and the client filters them.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\"\n\nview():\n  state q = \"\"\n  keep sortBy = \"name\"\n\n  <Shell title=\"Practices\">\n    <Row>\n      <TextField value={q} placeholder=\"Search\" />\n      <Button action={set(sortBy, \"name\")} selected={sortBy == \"name\"}>A–Z</Button>\n      <Button action={set(sortBy, \"authors\")} selected={sortBy == \"authors\"}>Most authors</Button>\n    </Row>\n    <Grid columns={3}>\n      <PracticeCard p={p}\n        for={p in Practice} where={q == \"\" or q in p.name}\n        orderBy={sortBy == \"name\" ? p.name : count(p.authors) desc}\n        fallback={<Text style=\"secondary\">No practices match “{q}”.</Text>} />\n    </Grid>\n  </Shell>\n",
     "/supplies/Profile.beetle": "// A person's page. There are no per-table read rules: what a view may read is what its\n// caller may read.\nuse \"data/schema.beetle\"\nuse \"parts/cards.beetle\"\n\nrule curatedBy(l List, person Person):\n  l.owner == person\nrule curatedBy(l List, person Person):\n  person in l.contributors.person\n\nview(id):\n  <Shell title={person.name} subtitle=\"@{person.handle}\"\n    for={person in Person} where={person.id == id}\n    fallback={<Shell title=\"Profile not found\" />}>\n\n    <Section title=\"Practices\">\n      <Grid columns={3}>\n        <PracticeCard p={p} for={p in Practice} where={person in p.authors} orderBy={p.name} />\n      </Grid>\n    </Section>\n\n    <Section title=\"Lists featuring their practices\">\n      <Grid columns={2}>\n        <ListCard list={l} for={l in List} where={person in l.items.practice.authors} />\n      </Grid>\n    </Section>\n\n    <Section title=\"Lists they curate\">\n      <Grid columns={2}>\n        <ListCard list={l} for={l in List} where={curatedBy(l, person)} orderBy={l.name} />\n      </Grid>\n    </Section>\n\n    <Section title=\"Collaborators\">\n      <Row>\n        <Avatar person={other}\n          for={p in Practice, other in p.authors} where={person in p.authors, other != person}\n          orderBy={other.name} />\n      </Row>\n    </Section>\n\n    <Section title=\"Who wrote what with them\">\n      <Text for={p in Practice, other in p.authors} where={person in p.authors, other != person}>\n        {other.name} on {p.name}\n      </Text>\n    </Section>\n  </Shell>\n",
     "/supplies/Timer.beetle": "// A widget with its own tables, declared beside the view that uses them.\n\nmy table Lap:  // one viewer's rows, across the whole app\n  at    Date\n  label Text\n\nmutation lap(label Text):\n  Lap(at: now, label: label)\n\nview(minutes Int?):  // configuration is the view block's attributes\n  state running = false  // state x = v is a one-row session table\n  state elapsed = 0\n  every 1s → set(elapsed, running ? elapsed + 1 : elapsed)\n\n  <Column>\n    <Text style=\"heading\">{elapsed} s of {(minutes ?? 25) * 60}</Text>\n    <Row>\n      <Button action={set(running, not running)}>{running ? \"Stop\" : \"Start\"}</Button>\n      <Button action={lap(label: \"Lap \" + (count(Lap) + 1))}>Lap</Button>\n    </Row>\n    <Text for={l in Lap} orderBy={l.at desc}>{l.label}</Text>\n  </Column>\n",
     "/supplies/Today.md": "---\ndate: 2026-11-11\n---\n\n# Today\n\n```view\nuse \"Timer.beetle\" (view as Timer)\n<Timer minutes={50} />\n```\n\n```view\nview Late():\n  <Column>\n    <Text for={c in page.children} where={not c.done, c.due < page.date}>{c.name}</Text>\n  </Column>\n```\n",
@@ -1425,7 +1425,7 @@
               },
               {
                 "type": "Markdown",
-                "at": "25:5",
+                "at": "24:5",
                 "reads": [
                   {
                     "path": {
@@ -1439,7 +1439,7 @@
               },
               {
                 "type": "Column",
-                "at": "28:7",
+                "at": "27:7",
                 "for": [
                   {
                     "name": "i",
@@ -1459,7 +1459,7 @@
                 "children": [
                   {
                     "type": "PracticeCard",
-                    "at": "29:9",
+                    "at": "28:9",
                     "draws": {
                       "view": "PracticeCard",
                       "from": "/supplies/parts/cards.beetle",
@@ -1477,7 +1477,7 @@
                   },
                   {
                     "type": "Row",
-                    "at": "30:9",
+                    "at": "29:9",
                     "clientIf": [
                       {
                         "state": "showTags"
@@ -1486,7 +1486,7 @@
                     "children": [
                       {
                         "type": "Badge",
-                        "at": "31:11",
+                        "at": "30:11",
                         "for": [
                           {
                             "name": "t",
