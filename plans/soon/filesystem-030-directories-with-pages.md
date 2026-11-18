@@ -26,14 +26,16 @@ so nothing converts old roots.
 
 ## The objects
 
-A node keeps its page in its own entry, however the page is spelled (Joe chose this,
-2026-11-18, over keeping `_index.md` on the directory object or as an `_index` entry):
+Every node has a page and children, either of which may be empty, and a link base (Joe,
+2026-11-18). A node keeps all three in its own entry, however its page is spelled. Joe chose
+this over keeping `_index.md` on the directory object or as an `_index` entry.
 
 ```ts
 type ProtocolNode = {                       // a directory entry, and the tree's root
-  page?: Hash; created?: number; modified?: number;   // times iff page
-  directory?: Hash;
-  inside?: true;                            // the page is spelled `x/_index.md`; only with `directory`
+  page?: Hash;                              // left out when the page is empty
+  created: number; modified: number;        // the node's times, as a page entry's today
+  directory?: Hash;                         // left out when there are no children
+  base?: "folder";                          // the page is spelled `x/_index.md`
 };
 
 type ProtocolDirectoryEntry =
@@ -48,22 +50,29 @@ type ProtocolDirectory = {
 };
 ```
 
-- A node entry has at least one of `page` and `directory`.
-- The tree's root is a `ProtocolNode`, not a directory, so its page sits beside its children.
-  Its page is spelled `_index.md` on disk, and `inside` is not written for it.
-- Spelling is the one flag, `inside`, on the entry (Joe, 2026-11-18, over a `pageName`, an
-  `index` key in place of `page`, the page object, frontmatter, or converting `_index.md` on scan). A placement reads it to know where to write the file, and the link
-  resolver reads it to know the base. Editing a page changes the same objects whichever way it
-  is spelled, and a rename or move carries the page and its spelling together.
+- **There is no variation in the model.** Every node is (page, children, base). The canonical
+  encoding leaves out an empty page, empty children and the default base, so `{name, created,
+  modified}` alone is an empty node. Absence never means a different kind of thing.
+- **`base`** says what the page's relative links resolve from: by default the parent folder,
+  with the page spelled `x.md` beside `x/`, or with `base: "folder"` the node's own folder,
+  with the page spelled `x/_index.md`. Joe preferred naming it for what it does, over `inside`
+  and over a `pageName`, an `index` key in place of `page`, the page object, frontmatter, or
+  converting `_index.md` on scan. `base` is written only when the page has content.
+- **The root** is a `ProtocolNode`, not a directory, so its page sits beside its children. Its
+  page is spelled `_index.md` on disk, and it has no `base`.
+- **On disk:**
+  - An empty page writes no file, and empty children write no folder.
+  - A node that is empty on both counts is an empty `x.md`, which is what a new page is.
+  - Empty folders are not tree content, as in git. A placement leaves them alone, and a
+    folder becomes a node once it holds something.
+  - Folders get times: every node carries `created` and `modified`, whether or not its page
+    has content. A child's change doesn't touch them.
 - When a folder holds both `x.md` and `x/_index.md`, a placement keeps `_index.md` as the page,
   reports `shadowed-body` as now, and leaves the other file out of the tree.
 - A file entry may not take a name that a node entry has (`x` beside `x.md`), as with today's
   `duplicate-node-representation`.
-
-Open:
-
-- Whether a node entry with only a `directory` and an empty directory object is allowed. Today
-  an empty folder is a directory entry, so probably yes.
+- A rename or move carries the page, its children and its base together. Editing a page changes
+  the same objects whichever way it is spelled.
 
 ## Steps
 
