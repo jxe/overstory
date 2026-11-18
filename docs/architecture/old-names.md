@@ -40,7 +40,7 @@ On 2026-11-11 the spec's numbered chapters became five layers. Code comments tha
 | 03 locators | [locators](../overstory-spec/1.4-locators.md) |
 | 04 accounts and devices | [accounts and devices](../overstory-spec/5.1-accounts-and-devices.md); §4 local placements moved to [placements on disk §6](../overstory-spec/6.2-placements-on-disk.md#6-local-placements); placement accounts, invitations as placements, published device keys and visitor sessions moved to [federation](../overstory-spec/5.3-federation.md) |
 | 05 access control | [access control](../overstory-spec/5.2-access-control.md) |
-| 06 child backings | [collections](../overstory-spec/2.1-collections.md) (§1–2.3, 2.5), [placements on disk](../overstory-spec/6.2-placements-on-disk.md) (projections, SQLite, migration), Postgres moved to [Postgres 001](../../plans/later/postgres-001-postgres-backed-collections.md), [views §12](../overstory-spec/3.1-views.md#12-evaluating-views-on-a-host) (§5–6) |
+| 06 child backings | [collections](../overstory-spec/2.1-records.md) (§1–2.3, 2.5), [placements on disk](../overstory-spec/6.2-placements-on-disk.md) (projections, SQLite, migration), Postgres moved to [Postgres 001](../../plans/later/postgres-001-postgres-backed-collections.md), [views §12](../overstory-spec/3.1-views.md#12-evaluating-views-on-a-host) (§5–6) |
 | 07 executable documents | [views §12](../overstory-spec/3.1-views.md#12-evaluating-views-on-a-host) |
 | 08 authoring API | [views §12](../overstory-spec/3.1-views.md#12-evaluating-views-on-a-host) |
 | 09 client synchronization | [working trees](../overstory-spec/6.1-working-trees.md) |

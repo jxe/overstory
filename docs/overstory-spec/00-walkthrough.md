@@ -94,22 +94,22 @@ state. That unresolved acceptance continues syncing. Invalid contributions,
 failed guards or exceeded bounds can instead produce an explicit rejection
 ([authority decision](1.3-updates-and-merging.md#32-the-acceptance-procedure)).
 
-## 6. Add a collection
+## 6. Add records
 
 Joe creates `practices/schema.beetle` declaring a `Practice` table, and
-`practices/_store.csv` with a header row. The
-folder is now a collection: each CSV row is a child node of
+`practices/_store.csv` with a header record. The
+folder is now a typed node: each CSV record is a child node of
 `/practices`, its fields are the child's properties, and its stable key is
-the canonical key JSON of its `id` ([collections](2.1-collections.md),
-[row identity](2.1-collections.md#3-row-identity-and-order)). The CSV is only
-how Joe's Mac projects the rows: the host holds them in its database, the
+the canonical key JSON of its `id` ([records](2.1-records.md),
+[record identity](2.1-records.md#3-record-identity-and-order)). The CSV is only
+how Joe's Mac projects the records: the host holds them in its database, the
 tree holds their log of accepted changes beside the exact bytes of
-`schema.beetle`, and his iPhone keeps the same rows in SQLite. Story Sync
-turns each edit to the CSV into row operations, and the authority replays
-them, appends the changed rows to the log and updates the rows hash and the
-collection's logical hash
-([what the tree holds](2.1-collections.md#1-what-the-tree-holds)).
-Each row has an ordinary public address such as
+`schema.beetle`, and his iPhone keeps the same records in SQLite. Story Sync
+turns each edit to the CSV into record operations, and the authority replays
+them, appends the changed records to the log and updates the records hash and the
+typed node's logical hash
+([what the tree holds](2.1-records.md#1-what-the-tree-holds)).
+Each record has an ordinary public address such as
 `/~joe/atlas/practices/walking;overstory-key=…` ([reading at the canonical URL](1.4-locators.md#6-reading-at-the-canonical-url)).
 
 ## 7. Show it on a page
@@ -140,8 +140,8 @@ The plan comes from the source alone: the `Link` expands once per published
 practice ([expansion](3.1-views.md#4-expansion), [the language](2.2-beetle.md)).
 A visitor's browser receives the page with the view drawn as HTML. Story opens
 `QUERY /.overstory/trees/tr_…/views` naming the view's handle and code version,
-receives the plan's rows as `result`, then `ready`, and draws the view natively.
-When Joe edits the CSV, the tree advances, the host sees which rows the plan
+receives the plan's records as `result`, then `ready`, and draws the view natively.
+When Joe edits the CSV, the tree advances, the host sees which records the plan
 read changed, and a new `result` with a new `outputHash` follows
 ([views §12](3.1-views.md#12-evaluating-views-on-a-host)).
 
@@ -161,7 +161,7 @@ mutation addPractice(title: Text):
 A form on the page names it as its action, `<Form action={addPractice}>`.
 The browser sends `POST /.overstory/trees/tr_…/mutate` with the handle, the input, and a
 caller-chosen `mutationID`. The runtime checks the error conditions, then submits the
-new row as one guarded update of row operations. The receipt's `affected` names
+new record as one guarded update of record operations. The receipt's `affected` names
 that accepted update, and Alice's watch sees an ordinary `tree.update` frame;
 Joe's Mac rewrites the CSV. A retry with the same `mutationID` returns the
 original receipt and does nothing twice ([mutations](3.2-mutations.md),

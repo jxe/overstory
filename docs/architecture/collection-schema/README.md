@@ -3,7 +3,7 @@
 [Architecture overview](../README.md) · [Implementation status](../../../status.md)
 
 `@ovst/collection-schema` implements the collection schemas of
-[collections](../../overstory-spec/2.1-collections.md):
+[collections](../../overstory-spec/2.1-records.md):
 a collection's `schema.beetle`, in the
 [Beetle](../../overstory-spec/2.2-beetle.md), compiled by
 [`@ovst/beetle`](../../../packages/beetle/README.md) and interpreted over JSON values.

@@ -27,6 +27,14 @@ flag day, so nothing converts old roots.
 3. **Story Sync:** a scan reads `x.md` beside `x/`, or `x/_index.md`, as one node and records the
    base; writes each page back where its base says; writes an empty node as an empty `x.md`;
    ignores empty folders; reports `shadowed-body` and `duplicate-node-representation`.
+   **Typed nodes and records** (spec 2026-11-18, same flag day): a node's `schema` names its
+   schema file and its `children` then names the head log entry; the directory's `collection`
+   reference, `modelFingerprint` and `version` go (the fingerprint is computed from the schema),
+   and `schema.beetle` stops being a directory entry. Wire renames from rows to records:
+   `recordsHash`/`records` in log entries, `RecordChange { table, key, record }`, `TypedRecord`,
+   `recordCreate`/`recordDelete`, record targets `{ node, table, record }`, `record-fields-v1`,
+   `record-steps`/`records-steps`, a path read's `records: [{ table, record }]`, and a `field`
+   decision's `record`. Code names (`collection-schema`, `collections.*`) can follow later.
 4. **Story and StoryKit:** `presentPage` and the sidebar read one entry per node, and the pairing
    code goes. Folders show their own times. Links to a `.beetle` file keep its extension.
 5. **Flag day:** host, Story, Story Sync and npm `@ovst/cli` ship together. Trees restart from
