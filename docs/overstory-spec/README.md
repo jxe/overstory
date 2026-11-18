@@ -1,7 +1,7 @@
-# Overstory: a successor to the web
+# Overstory specification
 
 *This file is the entry point to the specification. The chapters live in [`docs/overstory-spec/`](), named by layer and chapter; read them in the order of the table below.*
-*Spec overview, v0.8. Overstory names the system, its protocol, and its independently versioned trees; Story names the device tools (the app, the `story` command and Story Sync) and overstoryd the reference host.*
+*Overstory names the system, its protocol, and its independently versioned trees; Story names the device tools (the app, the `story` command and Story Sync) and overstoryd the reference host.*
 
 ## Specification stance
 
@@ -36,36 +36,6 @@ Story-compatible client conforms to all six. Every route is listed in the [route
 contract is [the command line](6.3-command-line.md); local
 client/daemon transport, UI controls, other CLI commands, runtime algorithms, package
 topology, private-state layout, and test machinery are reference choices.
-
-## Thesis
-
-Overstory's global space is a sparse table from `TreeID` to independently
-versioned trees. It is a shared identity space, not one enumerable database or
-central authority: every device and community sees only the trees it can
-locate and read. Canonical URLs are a secondary lookup: DNS places an
-Overstory host, whose path boundaries select trees. Local, private and
-disconnected trees stay complete without it, and each person places the trees
-they can reach wherever suits them on their own devices.
-
-**Ordinary files and folders to navigate and edit; independent Overstory trees where synchronization, history, or permissions require a boundary; and ordinary authored files for turning those trees into apps.**
-
-Four ideas organize the system:
-
-1. An **Overstory tree** is a `TreeID`-rooted hierarchy of nodes with its own
-   history, synchronization stream and permission boundary. Trees nest by
-   mounting, each still a separate graph and access boundary.
-2. A **node** has properties, optional content, and children. Page, folder,
-   collection, row and file are [readings of a node](1.1-data-model.md#2-nodes-children-and-readings),
-   not competing kinds, and expanded files, collection files and SQLite are
-   interchangeable [representations](1.1-data-model.md#3-representations) of
-   the same model.
-3. A **canonical URL** is found by DNS, then by the host's longest readable
-   mount boundary ([locators §5](1.4-locators.md#5-finding-trees)). It can be
-   renamed; `overstory://<TreeID>/` cannot.
-4. An **app** is ordinary files in a tree: tables, views and mutations written in Beetle, a
-   declarative language, so every read is a plan a host can see. They run as
-   their caller, bounded by [access control](5.2-access-control.md), and mean
-   the same whichever placement or host runs them.
 
 ## Specification map
 
