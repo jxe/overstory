@@ -17,7 +17,7 @@ more files, each run by both implementations:
 - `markdown-link-destinations.json`: which hrefs a Markdown source contains.
 
 `invitations.json` binds invitation codes
-([accounts and devices §1.2](../6.1-accounts-and-devices.md#12-claiming-an-account-with-the-profile-key)):
+([accounts and devices §1.2](../5.1-accounts-and-devices.md#12-claiming-an-account-with-the-profile-key)):
 each code's `sha256:` digest, the form a community's `members` entry reserves, and its join
 link. TypeScript (`inviteCodeDigest`, `buildInviteLocator`) and Swift (`StoryInvitation`)
 check them.
@@ -40,8 +40,8 @@ hashes, collection tables and row chunks, and schema fingerprints) uses this enc
 `protocol-update-intent.json` records the currently implemented update digest derived from it.
 
 `collection-schemas.json` binds the collection schemas of
-[collections](../3.1-collections.md), written in
-the [Beetle](../3.2-beetle.md), in its 2026-10-24
+[collections](../2.1-collections.md), written in
+the [Beetle](../2.2-beetle.md), in its 2026-10-24
 layered syntax; the logical collection objects (a directory's `collection`
 reference, `table` and `rows`) are vectors in `protocol-objects.json`. It covers accepted schemas with their columns, key, child name and fingerprint; rejected
 schemas with the first diagnostic's code and location; value and CSV-cell
@@ -115,9 +115,9 @@ authority for the implemented subset; the request grammar itself is in
 - `page-conversion-undo.json` checks paired Swift/TypeScript page-creation
   receipts, historical removal and redo target identities through queue restart.
 
-- `resource-policy.json`: shared valid/invalid `who` / `app` / `allow` / `within` grammar, `admin` and `apps.yaml` rules, a profile subject named by its locator at another host ([access control §1](../6.2-access-control.md#1-subjects-and-rules)), the locators' canonical spelling and origin (`locators`, [locators §1](../1.4-locators.md#1-forms)), whole `access.yaml` and `apps.yaml` rule lists (`validFiles` / `invalidFiles`: merge keys, which compare a locator in its canonical spelling), and the safe projection, which redacts a link and keeps a locator; consumed by `@ovst/protocol` and Swift `Overstory`.
+- `resource-policy.json`: shared valid/invalid `who` / `app` / `allow` / `within` grammar, `admin` and `apps.yaml` rules, a profile subject named by its locator at another host ([access control §1](../5.2-access-control.md#1-subjects-and-rules)), the locators' canonical spelling and origin (`locators`, [locators §1](../1.4-locators.md#1-forms)), whole `access.yaml` and `apps.yaml` rule lists (`validFiles` / `invalidFiles`: merge keys, which compare a locator in its canonical spelling), and the safe projection, which redacts a link and keeps a locator; consumed by `@ovst/protocol` and Swift `Overstory`.
 - `tree-configuration.json`: derived configuration TreeIDs, the graph by tree kind, validation, invariants and merge, consumed by `@ovst/protocol` (derivation also by Swift `Overstory`).
-- `device-keys.json`: device `key` encodings and their DER public keys, and the device-session challenges ([accounts and devices §4](../6.1-accounts-and-devices.md#4-device-pairing)) with their exact canonical CBOR and signatures. Ed25519 signatures are deterministic and must match; the P-256 signature is one valid signature, to verify rather than reproduce. Consumed by `@ovst/protocol`, overstoryd and Swift `Overstory`.
+- `device-keys.json`: device `key` encodings and their DER public keys, and the device-session challenges ([accounts and devices §4](../5.1-accounts-and-devices.md#4-device-pairing)) with their exact canonical CBOR and signatures. Ed25519 signatures are deterministic and must match; the P-256 signature is one valid signature, to verify rather than reproduce. Consumed by `@ovst/protocol`, overstoryd and Swift `Overstory`.
 
 ## Index
 
@@ -136,8 +136,8 @@ authority for the implemented subset; the request grammar itself is in
 | `node-model.json` | Provider-neutral node model decoding |
 | `node-targets.json` | Node target resolution |
 | `observation-events.sse`, `observation-events-invalid.json` | Watch stream framing, valid and invalid: the cursor in the SSE `id`, the kind in `event`, one transition per `tree.update`, and `resync-required` with no `id` |
-| `presence-events.sse`, `presence-events-invalid.json` | Presence stream framing, valid and invalid ([spec 12](../7.1-presence.md)): a ready roster, peers (one an agent with a status), cursors, a leave, and frames a client must reject |
-| `presence-runners.sse` | Runners and messages ([spec 12 §6](../7.1-presence.md#6-runners-and-messages)): a runner in the roster, a `run` message, an agent doing the run, `stop` and `done` |
+| `presence-events.sse`, `presence-events-invalid.json` | Presence stream framing, valid and invalid ([spec 12](../4.3-presence.md)): a ready roster, peers (one an agent with a status), cursors, a leave, and frames a client must reject |
+| `presence-runners.sse` | Runners and messages ([spec 12 §6](../4.3-presence.md#6-runners-and-messages)): a runner in the roster, a `run` message, an agent doing the run, `stop` and `done` |
 | `page-presentation.json` | Page presentation (spec 02 §4.1): presented title and Children headings (`cases`), and the source an edited page writes (`edits`) |
 | `page-conversion-undo.json` | Page-creation receipts and undo targets through restart |
 | `resource-policy.json` | `who` / `app` / `allow` / `within` rule grammar, profile locators, and one file's rules |
@@ -146,7 +146,7 @@ authority for the implemented subset; the request grammar itself is in
 | `source-moves.json` | Moves beside edits in basis coordinates, their refusals, and their frames |
 | `tree-configuration.json` | Tree configuration derivation, graph, validation, invariants and merge |
 | `url-resolution.json` | Locator resolution (spec 03) |
-| `beetle.json` | [Beetle](../3.2-beetle.md) views, rules, state tables and mutations: a tree of `.beetle` files, pages and a `schema.beetle`, and for each file its diagnostics (line, column, code), its views' plans and its mutations' writes, `let` names and public errors |
+| `beetle.json` | [Beetle](../2.2-beetle.md) views, rules, state tables and mutations: a tree of `.beetle` files, pages and a `schema.beetle`, and for each file its diagnostics (line, column, code), its views' plans and its mutations' writes, `let` names and public errors |
 | `protocol-accepted-state.json`, `protocol-accepted-transport.json` | Accepted states, receipts, inspection, and catch-up transport |
 | `protocol-authored-updates.json`, `protocol-authored-transport.json` | The authored request grammar, digests, and transport encodings |
 | `protocol-endpoints.json` | Route shapes |
@@ -154,6 +154,6 @@ authority for the implemented subset; the request grammar itself is in
 | `protocol-operations.json`, `protocol-update-intent.json` | Source operations and the update digest |
 | `protocol-path-reads.json` | Path reads: which objects a read of a path holds, the bundle's bytes, and bundles a reader must reject ([reading §5](../1.2-reading.md#5-reading-a-path)) |
 
-`protocol-account-challenges.json` covers community-address, exact-account and invitation-code challenge requests. All return the same complete account-bound challenge; placement accounts have none ([federation §2](../6.3-federation.md#2-placement-accounts)). Its `signing` section fixes the bytes a profile key signs for a challenge, with the signature. TypeScript and Swift clients consume these cases.
+`protocol-account-challenges.json` covers community-address, exact-account and invitation-code challenge requests. All return the same complete account-bound challenge; placement accounts have none ([federation §2](../5.3-federation.md#2-placement-accounts)). Its `signing` section fixes the bytes a profile key signs for a challenge, with the signature. TypeScript and Swift clients consume these cases.
 
-`errors.json` includes the two errors a placement host names the home host in, as `details.homeHost`: `permission-denied` for a route that belongs to the home host, and a retryable `internal-error` when the home host's device keys cannot be refreshed ([federation §4](../6.3-federation.md#4-published-device-keys)).
+`errors.json` includes the two errors a placement host names the home host in, as `details.homeHost`: `permission-denied` for a route that belongs to the home host, and a retryable `internal-error` when the home host's device keys cannot be refreshed ([federation §4](../5.3-federation.md#4-published-device-keys)).

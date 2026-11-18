@@ -1,6 +1,6 @@
 # Porting the client library
 
-*Reference documentation, not part of the spec. The three ways a client holds a tree are [working trees §1](../overstory-spec/8.1-working-trees.md#1-three-ways-to-hold-a-tree); local placements are [placements on disk §6](../overstory-spec/8.2-placements-on-disk.md#6-local-placements).*
+*Reference documentation, not part of the spec. The three ways a client holds a tree are [working trees §1](../overstory-spec/6.1-working-trees.md#1-three-ways-to-hold-a-tree); local placements are [placements on disk §6](../overstory-spec/6.2-placements-on-disk.md#6-local-placements).*
 
 The client library exists once per language (TypeScript and Swift now), and
 every port has the same seven modules with the same interfaces and the same

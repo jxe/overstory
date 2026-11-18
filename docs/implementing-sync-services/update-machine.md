@@ -3,7 +3,7 @@
 This guide describes the reference implementation, not additional portable requirements.
 
 Every working tree runs one machine, specified in
-[working trees](../overstory-spec/8.1-working-trees.md). Its
+[working trees](../overstory-spec/6.1-working-trees.md). Its
 sources append **local changes** to a durable **change log**; the machine
 decides when and how the log is published; the **runner** performs what the
 machine decides. An editor generation, a structural action, a review

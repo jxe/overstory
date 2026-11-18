@@ -1,4 +1,4 @@
-// The logical form of a collection's rows (spec 3.1 §1): what the tree holds,
+// The logical form of a collection's rows (spec 2.1 §1): what the tree holds,
 // whatever a placement stores them in. One table per model with data rows;
 // each row is its key as `[field, value]` pairs, its stored fields, and its
 // timestamps.

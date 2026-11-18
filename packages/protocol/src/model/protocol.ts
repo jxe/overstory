@@ -93,7 +93,7 @@ export interface MutationResultReceipt<Result = unknown> {
   /** The accepted update the mutation's writes made, when it wrote (07 §12.2). */
   affected?: { tree: TreeID; update: string };
   result: Result;
-  /** A Beetle mutation's written rows, ordered by table then key, `deleted` on a row it deleted (spec 4.2 §3). */
+  /** A Beetle mutation's written rows, ordered by table then key, `deleted` on a row it deleted (spec 3.2 §3). */
   rows?: Array<{ table: string; key: string; deleted?: true }>;
 }
 

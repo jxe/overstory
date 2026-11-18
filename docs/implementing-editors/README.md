@@ -8,7 +8,7 @@ it is not the editor's publication path.
 
 1. Read the portable [data model](../overstory-spec/1.1-data-model.md), [locators](../overstory-spec/1.4-locators.md), and [updates and merging](../overstory-spec/1.3-updates-and-merging.md) contracts.
 2. Implement an [editor source](editor-source.md): exact per-generation capture, durable appends to the change log, keystroke guards, and recovery from the log.
-3. Connect admission to the [working-tree update machine](../implementing-sync-services/update-machine.md) and [working trees contract](../overstory-spec/8.1-working-trees.md).
+3. Connect admission to the [working-tree update machine](../implementing-sync-services/update-machine.md) and [working trees contract](../overstory-spec/6.1-working-trees.md).
 4. Review [Story local state](../architecture/story-browser/local-state.md) for the reference app's working trees and change logs.
 5. Run the shared [conformance fixtures](../overstory-spec/conformance/README.md) and the relevant [development gates](../../DEVELOPMENT.md#verification).
 

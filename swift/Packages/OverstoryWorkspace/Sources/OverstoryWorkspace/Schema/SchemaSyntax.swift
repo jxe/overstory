@@ -1,6 +1,6 @@
 import Foundation
 
-// A collection's `schema.beetle` (spec 3.3), read for its data tables: `table`,
+// A collection's `schema.beetle` (spec 2.3), read for its data tables: `table`,
 // `connection table`, `enum` and `re`, as the syntax tree the table checker
 // (SchemaCheck.swift) reads; a connection field (`owner: Person <-> ownedLists[]`)
 // becomes a connection with two ends. Views, rules, mutations, imports and state tables

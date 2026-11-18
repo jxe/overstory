@@ -1,4 +1,4 @@
-// Parser for Beetle files (spec 3.2). Declarations start in the first column; a declaration
+// Parser for Beetle files (spec 2.2). Declarations start in the first column; a declaration
 // runs until the next line that does, so a broken one doesn't hide the rest. A header's
 // `:` ends its line, and its body is the lines below it, indented further; a line indented
 // further than its body continues the line above it. Elements and expressions are
@@ -1468,7 +1468,7 @@ function declaration(src: Source, first: number, last: number, diagnostics: Diag
   return c.fail(`Expected use, view, rule, mutation, table, enum, re or a connection, found '${word}'`, start, c.pos);
 }
 
-/** Bounds on what a file may ask of a parser (spec 3.2 §5), so an untrusted one can't exhaust a host. */
+/** Bounds on what a file may ask of a parser (spec 2.2 §5), so an untrusted one can't exhaust a host. */
 export const BEETLE_LIMITS = { sourceBytes: 1_048_576, tokens: 65_536, depth: 32 } as const;
 
 /** Names, numbers, strings, operators and punctuation, not counting comments or space. */

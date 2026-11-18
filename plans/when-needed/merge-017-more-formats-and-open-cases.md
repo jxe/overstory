@@ -50,7 +50,7 @@ A merge tool may give any of three outcomes:
 - **Review.** For when a merge would lose something or break the syntax. Both
   versions are kept as alternatives and a person chooses. Reviews already never
   block synchronization or further editing
-  ([conflicts §4](../../docs/overstory-spec/5.1-conflicts.md#4-accepted-decisions-and-continued-editing)).
+  ([conflicts §4](../../docs/overstory-spec/4.2-conflicts.md#4-accepted-decisions-and-continued-editing)).
 
 Review costs the user attention, so **ours should rarely call for review**. It
 biases towards the two merge outcomes and uses review for real loss or broken
@@ -124,7 +124,7 @@ Each names the case and the outcome it would get: **merge**, **note** or
    Native copies such a selection until it merges in both orders.
 2. **Two moves of the same text.** You move a paragraph up, I move it down. A
    real choice: **review**, presented as "moved here, or here" rather than byte
-   ranges through the portable [accepted-state review contract](../../docs/overstory-spec/8.1-working-trees.md#54-accepted-state-review).
+   ranges through the portable [accepted-state review contract](../../docs/overstory-spec/6.1-working-trees.md#54-accepted-state-review).
 3. **A move and a delete.** You move a paragraph while I delete it. Deleting
    loses your move, so **review**, which is today's behaviour. Keep it.
 

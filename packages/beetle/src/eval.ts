@@ -1,4 +1,4 @@
-// The evaluator (spec 4.1): a view over a collection's rows into its view tree, and a
+// The evaluator (spec 3.1): a view over a collection's rows into its view tree, and a
 // data view into its JSON. It walks the checked source, so it means what the checker
 // checked: rules expand where they are called, names come from `for`, parameters and state,
 // and an element expands once per distinct combination of the names it uses (§3.5).

@@ -4,7 +4,7 @@
   "spec": [
     "docs/overstory-spec/1.2-reading.md",
     "docs/overstory-spec/1.3-updates-and-merging.md",
-    "docs/overstory-spec/8.1-working-trees.md"
+    "docs/overstory-spec/6.1-working-trees.md"
   ],
   "cases": [
     {

@@ -16,7 +16,7 @@ was open question 6 in [candidates](../candidates.md); Joe made it a feature in 
 
 ## What the tables mean
 
-Beetle's tables ([Beetle tables](../../docs/overstory-spec/3.3-beetle-tables.md), from USL) mean migrations between
+Beetle's tables ([Beetle tables](../../docs/overstory-spec/2.3-beetle-tables.md), from USL) mean migrations between
 relation forms to be small edits to one declaration: change the storage, widen or narrow an
 arity (`Episode.series` to many), promote a value array to a model and a connection, or grow
 an `enum` into a `seed` model. None is built; Joe deferred a migration diff on 2026-10-14.

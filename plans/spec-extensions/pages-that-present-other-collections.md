@@ -18,5 +18,5 @@ form, and no spec says what it means. An arrangement lives on a collection (its
 schema's `~views`) and on pages that present it; views in a schema are defaults a page may
 override (Joe, 2026-10-13). Formerly milestone 2 of Schema language 002, moved here on
 2026-10-28. The view such a page presents is a declared view
-([views](../../docs/overstory-spec/4.1-views.md)), drawn
+([views](../../docs/overstory-spec/3.1-views.md)), drawn
 as any view is ([Apps 011](../soon/apps-011-widgets-in-story.md) step 6; Joe, 2026-11-06).

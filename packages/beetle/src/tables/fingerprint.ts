@@ -1,5 +1,5 @@
 // The model layer of a checked schema, in the canonical form its model
-// fingerprint hashes (spec 3.3 §5.3): models, fields, values and connections in
+// fingerprint hashes (spec 2.3 §5.3): models, fields, values and connections in
 // UTF-8 order of name, with every storage (`@`) and presentation (`~`)
 // attribute left out. A caller hashes it as canonical CBOR; this package has
 // no hashing of its own.

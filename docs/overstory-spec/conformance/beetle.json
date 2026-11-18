@@ -1,5 +1,5 @@
 {
-  "description": "Beetle (spec 3.2): each file's diagnostics (line, column, code), its views' plans, and its mutations' writes, let names and public errors, as packages/beetle checks them. `files` is the tree, by logical path; a case checks one file in it. Regenerate with `bun tests/support/regenerate-beetle.ts`.",
+  "description": "Beetle (spec 2.2): each file's diagnostics (line, column, code), its views' plans, and its mutations' writes, let names and public errors, as packages/beetle checks them. `files` is the tree, by logical path; a case checks one file in it. Regenerate with `bun tests/support/regenerate-beetle.ts`.",
   "files": {
     "/invalid/cycle.beetle": "// expect: use-cycle\nimport uses.beetle\n",
     "/invalid/data.beetle": "// Data views that don't check.\nimport ../supplies/data/schema.beetle\n\nview Bad(id) {\n  // expect: data-entry-key\n  name\n  lists: {\n    // expect: unknown-field\n    colour\n    // expect: not-a-relationship\n    name { size }\n    // expect: duplicate-key\n    colour: 1\n  } for={l in List} where={l.id == id}\n  // expect: not-data\n  go: <Text>x</Text>\n  // expect: limit\n  few: { name } for={p in Practice} limit={\"ten\"}\n  // expect: unknown-attribute\n  one: { a: 1 } key={1}\n  // expect: where-without-for\n  two: { a: 1 } where={id == \"\"}\n}\n",

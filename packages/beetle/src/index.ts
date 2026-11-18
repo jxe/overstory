@@ -1,4 +1,4 @@
-// Beetle, the views-and-data language (.beetle, spec 3.2): parser, formatter and checker for
+// Beetle, the views-and-data language (.beetle, spec 2.2): parser, formatter and checker for
 // tables, views, rules, state tables and mutations. A collection's tables are checked by
 // ./tables, which also gives their layout, fingerprint and setup SQL (`@ovst/beetle/tables`).
 

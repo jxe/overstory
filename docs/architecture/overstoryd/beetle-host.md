@@ -1,6 +1,6 @@
 # The Beetle host
 
-overstoryd runs Beetle views and mutations ([views](../../overstory-spec/4.1-views.md), [mutations](../../overstory-spec/4.2-mutations.md))
+overstoryd runs Beetle views and mutations ([views](../../overstory-spec/3.1-views.md), [mutations](../../overstory-spec/3.2-mutations.md))
 in process, in `src/beetle-host.ts`, for every tree
 ([deployment](../../../packages/overstoryd/deploy/README.md#views-and-mutations)). It
 interprets Beetle with [`@ovst/beetle`](../../../packages/beetle/README.md)'s checker and

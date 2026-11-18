@@ -1,4 +1,4 @@
-// The checker (spec 3.2): resolves every use, table, field and path against the bound
+// The checker (spec 2.2): resolves every use, table, field and path against the bound
 // schemas and state tables, types parameters, finds what each element expands by, and
 // reports source spans. For each view it produces the plan (plan.ts), and for each
 // mutation the rows it can write.

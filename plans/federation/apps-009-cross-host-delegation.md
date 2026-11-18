@@ -57,6 +57,6 @@ caller-signed only; those stay same-host until someone needs them.
 - Record the grant's format,
   its lifetime and revocation (a revoked device or lend ends the execution on
   S, as on one host), and how a long-running or resumed execution renews it;
-  then spec ([views §12.2](../../docs/overstory-spec/4.1-views.md#122-plans-and-live-dependencies),
-  [mutations §3.1](../../docs/overstory-spec/4.2-mutations.md#31-relationship-to-tree-synchronization),
+  then spec ([views §12.2](../../docs/overstory-spec/3.1-views.md#122-plans-and-live-dependencies),
+  [mutations §3.1](../../docs/overstory-spec/3.2-mutations.md#31-relationship-to-tree-synchronization),
   access control §1.1 and §2.1, the deferred list), overstoryd on both roles, and a two-host test.

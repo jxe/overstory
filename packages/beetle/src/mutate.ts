@@ -1,4 +1,4 @@
-// Running a mutation (spec 4.2): its facts, read against the rows as they were, become one
+// Running a mutation (spec 3.2): its facts, read against the rows as they were, become one
 // set of row writes. Every line reads the state from before the mutation, so lines are
 // gathered first and applied together; the first public error, in the order lines are
 // written, ends the mutation and writes nothing. Two facts that can't both hold are a

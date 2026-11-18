@@ -77,14 +77,14 @@ both platforms. The Mac cannot forget an account from the app,
 and iOS cannot restore or back up an identity file; the service declares both
 as missing capabilities.
 Every device signs in with the device key it claimed or paired with
-([accounts and devices §4.1](../../overstory-spec/6.1-accounts-and-devices.md#41-device-sessions)):
+([accounts and devices §4.1](../../overstory-spec/5.1-accounts-and-devices.md#41-device-sessions)):
 on the Mac the data home holds it, and the app opens its own sessions with it
 (`DataHomeAccountStore` and `DataHomeCredentialProvider` in `OverstoryClient`); on
 iOS it is a Secure Enclave P-256 key (a software key in the simulator), kept
 as a tagged value in the account's Keychain slot, and
 `AccountStoredCredentialProvider` opens hour-long sessions with it. A slot
 holding anything else is not used.
-A placement account ([federation §2](../../overstory-spec/6.3-federation.md#2-placement-accounts))
+A placement account ([federation §2](../../overstory-spec/5.3-federation.md#2-placement-accounts))
 is a connection per (profile, placement host) that holds no key: every device
 signs in there with its own home device key, because the placement host
 accepts the devices the home host lists. The account panel lists an account's

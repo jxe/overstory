@@ -19,7 +19,7 @@ export interface ProtocolDirectory {
   collection?: CollectionReference;
 }
 
-/** A collection folder's schema file entry (spec 3.3 §5). */
+/** A collection folder's schema file entry (spec 2.3 §5). */
 export const COLLECTION_SCHEMA_NAME = "schema.beetle";
 
 export function isCollectionSchemaName(name: string): boolean {

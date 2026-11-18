@@ -8,7 +8,7 @@ with its bundle. `story me create` is a once-per-person identity setup command;
 and `story daemon` is mainly for machine setup or troubleshooting.
 
 The commands scripts, agents and runners rely on, with their arguments, exit codes and
-JSON output, are specified in [the command line](../overstory-spec/8.3-command-line.md);
+JSON output, are specified in [the command line](../overstory-spec/6.3-command-line.md);
 this page adds examples and the reference implementation's own choices.
 
 From a checkout, run `bun run story -- <command>`. After `bun link`, use the
@@ -93,7 +93,7 @@ story place https://garden.example/~joe/handbook ~/Documents/handbook
 
 A URL on another host selects your placement account there, once that
 host's community has reserved your profile by its URL at your home host
-(such as `https://garden.example/~joe`; [federation §2](../overstory-spec/6.3-federation.md#2-placement-accounts)).
+(such as `https://garden.example/~joe`; [federation §2](../overstory-spec/5.3-federation.md#2-placement-accounts)).
 The first `story place` onto the host connects this device to that account
 with its own device key; without a reservation it says what to ask the
 host's administrators to reserve. Both forms then create or place the tree on that host,
@@ -117,7 +117,7 @@ With `--read-only`, the URL may be at any host, including one where your
 profile has no account: the folder follows the tree and never sends your
 edits. Story Sync reads it with your account there if you have one, else as a
 visitor whom that host checks against the device keys your home host
-publishes ([federation §5](../overstory-spec/6.3-federation.md#5-visitor-sessions)),
+publishes ([federation §5](../overstory-spec/5.3-federation.md#5-visitor-sessions)),
 else as anyone. A visitor reads what the host's rules grant your profile by
 its URL at your home host (such as `https://garden.example/~joe`), plus
 whatever is public.
@@ -406,7 +406,7 @@ new device with it as usual; that device becomes the profile's only one.
 
 `story me accounts` lists this installation's home account and the profile's
 placement accounts, each with the folders placed on it. A placement account
-([federation §2](../overstory-spec/6.3-federation.md#2-placement-accounts))
+([federation §2](../overstory-spec/5.3-federation.md#2-placement-accounts))
 is made by the other host, not claimed: its community reserves your profile
 by its URL at your home host, which gives you a placement root at the
 account's address, and that host accepts every device your home host lists.

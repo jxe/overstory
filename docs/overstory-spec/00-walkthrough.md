@@ -29,8 +29,8 @@ laptop, with its key, as the first administrator device. The server derives the 
 Profile TreeID from the supplied public key, verifies the target-bound
 signature locally, and in one transaction creates the account and the
 configuration and declares the profile tree. It receives no profile bytes yet
-([accounts and devices §1.1](6.1-accounts-and-devices.md#11-beginning-a-person-identity), [profiles and accounts](6.1-accounts-and-devices.md#1-profiles-and-host-accounts),
-[configuration graph](6.1-accounts-and-devices.md#2-tree-configuration-graph)).
+([accounts and devices §1.1](5.1-accounts-and-devices.md#11-beginning-a-person-identity), [profiles and accounts](5.1-accounts-and-devices.md#1-profiles-and-host-accounts),
+[configuration graph](5.1-accounts-and-devices.md#2-tree-configuration-graph)).
 
 ## 2. Declare a tree
 
@@ -45,9 +45,9 @@ Joe also has an ordinary folder, `~/projects/atlas`. The laptop generates a fres
 `atlas: tr_…` to his profile's `mounts.yaml`, and records the local folder
 as a placement on his laptop, which never reaches the host. The server validates each candidate
 under the `tree-config-v1` policy and reserves the tree; nothing is readable
-yet ([configuration YAML](6.1-accounts-and-devices.md#3-configuration-yaml),
-[accounts and devices §6](6.1-accounts-and-devices.md#6-governed-configuration-trees),
-[accounts and devices §5](6.1-accounts-and-devices.md#5-declaring-activating-and-mounting-a-tree)).
+yet ([configuration YAML](5.1-accounts-and-devices.md#3-configuration-yaml),
+[accounts and devices §6](5.1-accounts-and-devices.md#6-governed-configuration-trees),
+[accounts and devices §5](5.1-accounts-and-devices.md#5-declaring-activating-and-mounting-a-tree)).
 
 ## 3. Activate it
 
@@ -85,7 +85,7 @@ its accepted `update`, then opens `GET .../watch?after=<update>`. Every
 later accepted update arrives as a `tree.update` frame carrying the transition
 from the previous root to the new one, as objects and deltas. She applies a
 batch in memory and materializes only its final state
-([read](1.2-reading.md), [watch](2.1-watching.md#1-the-watch-stream)).
+([read](1.2-reading.md), [watch](4.1-watching.md#1-the-watch-stream)).
 If Alice has write access and edits a different file from the same base, her
 independent contribution merges onto Joe's.
 If both edit `notes.md`, applicable format-aware rules combine the edits when
@@ -100,15 +100,15 @@ Joe creates `practices/schema.beetle` declaring a `Practice` table, and
 `practices/_store.csv` with a header row. The
 folder is now a collection: each CSV row is a child node of
 `/practices`, its fields are the child's properties, and its stable key is
-the canonical key JSON of its `id` ([collections](3.1-collections.md),
-[row identity](3.1-collections.md#3-row-identity-and-order)). The CSV is only
+the canonical key JSON of its `id` ([collections](2.1-collections.md),
+[row identity](2.1-collections.md#3-row-identity-and-order)). The CSV is only
 how Joe's Mac projects the rows: the host holds them in its database, the
 tree holds their log of accepted changes beside the exact bytes of
 `schema.beetle`, and his iPhone keeps the same rows in SQLite. Story Sync
 turns each edit to the CSV into row operations, and the authority replays
 them, appends the changed rows to the log and updates the rows hash and the
 collection's logical hash
-([what the tree holds](3.1-collections.md#1-what-the-tree-holds)).
+([what the tree holds](2.1-collections.md#1-what-the-tree-holds)).
 Each row has an ordinary public address such as
 `/~joe/atlas/practices/walking;overstory-key=…` ([reading at the canonical URL](1.4-locators.md#6-reading-at-the-canonical-url)).
 
@@ -125,7 +125,7 @@ view():
   </Column>
 ```
 
-and draws it in his page with a view block ([view blocks](4.1-views.md#5-view-blocks-in-pages)):
+and draws it in his page with a view block ([view blocks](3.1-views.md#5-view-blocks-in-pages)):
 
 ````md
 ```view
@@ -135,15 +135,15 @@ from views/practices.beetle import view as Practices
 ````
 
 The server has enabled hosting for the tree, so it checks the file and binds
-`Practice` to `(tr_…, /practices, schema fingerprint)` ([handles](4.1-views.md#11-handles-and-code-versions)).
+`Practice` to `(tr_…, /practices, schema fingerprint)` ([handles](3.1-views.md#11-handles-and-code-versions)).
 The plan comes from the source alone: the `Link` expands once per published
-practice ([expansion](4.1-views.md#4-expansion), [the language](3.2-beetle.md)).
+practice ([expansion](3.1-views.md#4-expansion), [the language](2.2-beetle.md)).
 A visitor's browser receives the page with the view drawn as HTML. Story opens
 `QUERY /.overstory/trees/tr_…/views` naming the view's handle and code version,
 receives the plan's rows as `result`, then `ready`, and draws the view natively.
 When Joe edits the CSV, the tree advances, the host sees which rows the plan
 read changed, and a new `result` with a new `outputHash` follows
-([views §12](4.1-views.md#12-evaluating-views-on-a-host)).
+([views §12](3.1-views.md#12-evaluating-views-on-a-host)).
 
 ## 8. Run a mutation
 
@@ -164,8 +164,8 @@ caller-chosen `mutationID`. The runtime checks the error conditions, then submit
 new row as one guarded update of row operations. The receipt's `affected` names
 that accepted update, and Alice's watch sees an ordinary `tree.update` frame;
 Joe's Mac rewrites the CSV. A retry with the same `mutationID` returns the
-original receipt and does nothing twice ([mutations](4.2-mutations.md),
-[mutations §3](4.2-mutations.md#3-running-mutations), [actions](4.1-views.md#7-actions-forms-and-events)).
+original receipt and does nothing twice ([mutations](3.2-mutations.md),
+[mutations §3](3.2-mutations.md#3-running-mutations), [actions](3.1-views.md#7-actions-forms-and-events)).
 
 ## 9. Rename the canonical URL
 

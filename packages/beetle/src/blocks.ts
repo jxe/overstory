@@ -1,4 +1,4 @@
-// View blocks in pages (spec 4.1 §5): fenced code blocks whose info string is `view`.
+// View blocks in pages (spec 3.1 §5): fenced code blocks whose info string is `view`.
 // All of a page's blocks are one source; positions stay the page's own lines.
 
 import type { Diagnostic, Span, ViewFile } from "./ast.ts";

@@ -238,7 +238,7 @@ domain actually arrives with, and count from that.
 
 ### Views and mutations
 
-A host runs the Beetle views and mutations ([views](../../../docs/overstory-spec/4.1-views.md), [mutations](../../../docs/overstory-spec/4.2-mutations.md))
+A host runs the Beetle views and mutations ([views](../../../docs/overstory-spec/3.1-views.md), [mutations](../../../docs/overstory-spec/3.2-mutations.md))
 of every tree, in process, over each tree's accepted rows.
 
 - **Who runs.** A view reads with its caller's access (profile cards they can't read
