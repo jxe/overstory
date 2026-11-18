@@ -56,18 +56,32 @@ discussion. Where it says *query* or *endpoint*, read *view*
   in code. A reader's choice of sort or grouping is a `keep` control (a picker) that the
   view reads, kept per placement. A layout shared by everyone reading a page is dropped for
   now; if it matters, it comes back as a page property the view reads.
-- **Native `Rows` cells** (Joe, 2026-11-11, deferred to here): Story draws a `Rows` element
-  ([Beetle §3.1](../../docs/overstory-spec/1.5-beetle.md#31-elements)) as its native list when
-  every cell is one it knows. Proposed starter set: `Bullet`, `Text`, `People`, `Count`,
-  `Date`. A `Rows` with any other cell falls back to ordinary view drawing.
+- **Native `Rows` cells** (Joe, 2026-11-17): `Bullet`, `Text`, `People`, `Count` and `Date`.
+  A `Rows` with any other cell is drawn whole as ordinary columns and rows
+  ([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)).
 - **Views run locally on a placed tree when they can,** and on the host otherwise.
-- **The UI language becomes its own package, like Beetle:**
-  - The component model and vocabulary.
-  - The wire form.
-  - The host interface.
-  - Conformance fixtures.
-
-  Swift is one implementation, and an HTML renderer is another.
+- **The element types are part of Beetle, not a separate package** (Joe, 2026-11-17). The
+  set is small, like the cores of SwiftUI, Compose and elm-ui: `Text`, `Markdown`, `Link`,
+  `Image`, `Button`, `TextField`, `Form`, `Column`, `Row` and `Rows`
+  ([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)).
+  Card, Stack, Section, Grid, Badge and Avatar go: a card is a `Column` with a style, and a
+  portrait is an `Image` of a person. The design doc's 26 components are dropped.
+  - `Form` stays only so a browser can run a mutation with no script
+    ([Beetle §3.10](../../docs/overstory-spec/1.5-beetle.md#310-actions-forms-and-events));
+    in Story, a `TextField` bound to state plus a `Button` does the same.
+  - Layout is a few attributes that say what a layout should do, not how: `spacing`,
+    `align`, `grow`, `padding`, `minWidth`/`maxWidth` and `style` roles. Story draws them with
+    SwiftUI stacks and the HTML renderer with flexbox. No positions, constraints, colors or
+    font sizes.
+  - Grids, overlapping layouts and custom layouts are new element types from client plugins
+    ([Apps 014](../later/apps-014-client-plugins.md)).
+- **`my` rows live in a private tree of the reader's own** (Joe, 2026-11-17), one folder per
+  app, never in the profile tree, which others read
+  ([Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state)).
+- **Mutations offline** (Joe, 2026-11-17): on a placed tree, a mutation applies to Story
+  Sync's local copy at once and is sent when back online, like a row edit, and a refusal then
+  shows as its error. On a tree that isn't placed, actions are disabled while offline. Until
+  step 5 every tree works like one that isn't placed.
 
 ## 1. Story understands Beetle files
 
@@ -79,17 +93,15 @@ discussion. Where it says *query* or *endpoint*, read *view*
   plain text today), from the tree-sitter grammar in `packages/beetle/editors` or a port of its
   highlight queries.
 
-## 2. The UI language package
+## 2. The element types in Beetle
 
-- The view tree types and element vocabulary as their own package, with:
-  - The view tree types.
-  - The vocabulary of the 26 components listed in the design doc.
-  - Their props and events.
-  - Conformance fixtures, each a view tree with the expected rendering facts.
-- **Decide first:** the package's name and where its spec lives (proposed:
-  `docs/ui-language/`).
-- The host's plain browser rendering (`renderViewTree` in `public-page.ts`) moves to this
-  vocabulary.
+- `@ovst/beetle` checks element types against
+  [Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout) (it
+  accepts any capitalized type today), and the conformance fixtures and examples move to them
+  (Supplies' `Card`, `Avatar`, `Section`, `Grid` and `Badge`).
+- Conformance fixtures, each a view tree with the expected rendering facts, including layout.
+- The host's plain browser rendering (`renderViewTree` in `public-page.ts`) moves to these
+  types and draws the layout attributes with flexbox; `Portrait`, `Stack` and `Card` go.
 
 ## 3. The SwiftUI renderer, drawing the host's answer
 
@@ -123,9 +135,10 @@ discussion. Where it says *query* or *endpoint*, read *view*
   - The old tree stays on screen until the new one is ready.
   - Story waits up to about 100 ms so all of an evaluation's streams are at one tree version.
 - `state`, `keep`, `my` and `session` tables per
-  [Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state); session tables in memory.
-  Decide where `my` table rows are stored and how they reach the reader's other devices, then
-  write it into Beetle. Proposed: under the reader's own tree, syncing like any collection.
+  [Beetle §3.9](../../docs/overstory-spec/1.5-beetle.md#39-state); session tables in memory,
+  `my` rows in the reader's private tree. Decide how a client finds that tree (from the
+  account, presumably) and create it on first write.
+- Mutations on a placed tree apply locally first and queue while offline, as decided above.
 - Controls bind to named fields; lists of a model offer its row actions.
 
 **Verify:** the fixtures pass in both stacks; a state change redraws without a request.

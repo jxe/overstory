@@ -87,6 +87,22 @@ Two jobs, in two places (proposed to Joe 2026-11-11):
   inside `step`, over the rows it is given. A spatial built-in such as
   `within(a, b, 20)` could serve views too.
 
+## Custom layouts
+
+Beetle's layout is `Column`, `Row` and a few attributes
+([Beetle §3.13](../../docs/overstory-spec/1.5-beetle.md#313-element-types-and-layout)). A new
+layout, such as a grid, masonry or overlapping layers for a game, is a new element type a
+plugin supplies (Joe, 2026-11-17), used where a `Column` would be: `<Masonry columns={3}>`.
+It has the shape SwiftUI's Layout protocol, Compose's custom layouts and CSS's Houdini layout
+API share:
+- **Measure:** given the space offered and a way to ask each child its size, return its own
+  size.
+- **Place:** given its final size, return where each child goes.
+
+It runs on the device on every layout pass, so it must be fast and pure. It sees only sizes
+and its attributes, never rows, so it doesn't change a view's plan. It names an element type
+from Beetle's list to draw instead where the plugin is missing, such as the HTML renderer.
+
 ## Open questions
 
 - **Writing `my` tables.** Joe 2026-11-11 meant session; whether a plugin may ever write a
