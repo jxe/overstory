@@ -4,39 +4,32 @@
 table Page:
   title:    Text
   body:     Markdown?
-  parent:   Page?  // cross-references
+  parent:   Page? <-> ordered children[]
   children: Page[]
-
-Page.parent? <-> ordered Page.children[]
 
 // 1:1: each team has at most one lead, and a person leads at most one team.
 table Team:
   name:    Text
-  lead:    Person?  // cross-references
-  members: Person[]
-
-Team.lead? <-> Person.ledTeam?
-
-Team.members[] <-> Person.teams[]
+  lead:    Person? <-> ledTeam?
+  members: Person[] <-> teams[]
 
 // Keyed by its ends: one rating per person per game.
-table Rating:
-  Person.ratings[]
-  Game.ratings[]
-  stars: Number
+connection table Rating:
+  person: Person <-> ratings[]
+  game:   Game <-> ratings[]
+  stars:  Number
 
 // A header key of (id) gives each row its own id, so one person can review
 // the same game twice.
-table Review (id):
-  Person.reviews[]
-  Game.reviews[]
-  body: Markdown
+connection table Review (id):
+  person: Person <-> reviews[]
+  game:   Game <-> reviews[]
+  body:   Markdown
 
-// Two ends on the same model: `as` names the field each end gets here, since
-// both would otherwise be called `person`.
-table Friendship:
-  Person.friends[] as from
-  Person.friendOf[] as to
+// Two ends on the same table: each end's field name tells them apart.
+connection table Friendship:
+  from:  Person <-> friends[]
+  to:    Person <-> friendOf[]
   since: Date?
 
 table Game:
@@ -46,7 +39,8 @@ table Game:
 // 1:n: every episode belongs to exactly one series. Stored as a column on
 // Episode, because that is the single side.
 table Episode:
-  title: Text
+  title:  Text
+  series: Series <-> ordered episodes[] @column("series_id")
 
 // @table and @column name what is stored, for a database the schema didn't
 // create. Storage defaults; a placement's own mapping may override them.
@@ -54,8 +48,6 @@ table Series:
   title: Text @column("series_title")
 
   @table("series")
-
-Episode.series @column("series_id") <-> ordered Series.episodes[]
 
 // An enum at the three stages of its life. A field that uses it, such as a
 // game's genre, is the same at every stage.

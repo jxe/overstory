@@ -7,13 +7,13 @@ table Note:
 
 my table Pin:
   // expect: unknown-type
-  list:    Lisst
+  list:     Lisst
   // expect: implicit-field
-  created: Date
+  created:  Date
   // expect: default-value
-  at:      Date = count(List)
+  at:       Date = count(List)
   // expect: state-connection
-  Practice.pins[]
+  practice: Practice <-> pins[]
 
 // expect: duplicate-name
 session table List:

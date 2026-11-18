@@ -12,7 +12,7 @@ let root: string;
 let state: string;
 let workspace: Workspace;
 
-const schema = 'table Item:\n  title Text\n';
+const schema = 'table Item:\n  title: Text\n';
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "story-child-provider-"));
@@ -44,7 +44,7 @@ beforeAll(async () => {
   await writeFile(join(root, "mixed", "one.md"), "---\nid: physical\ntitle: Physical\n---\nBody.\n");
 
   await mkdir(join(root, "sqlite"));
-  const items = "table items:\n  title Text\n";
+  const items = "table items:\n  title: Text\n";
   await writeFile(join(root, "sqlite", "schema.beetle"), items);
   const database = new Database(join(root, "sqlite", "_store.sqlite3"));
   database.exec(setupSql(layoutOf(compileSchema(items), { store: "database" }), "sqlite"));

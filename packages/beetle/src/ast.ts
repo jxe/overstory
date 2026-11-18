@@ -222,7 +222,7 @@ export interface CommentDecl {
 
 export type Declaration =
   | UseDecl | ViewDecl | BlockElementDecl | RuleDecl | MutationDecl | CommentDecl
-  | TableDecl | EnumDecl | ReDecl | ConnectionDecl;
+  | TableDecl | EnumDecl | ReDecl;
 
 export interface DeclarationEntry {
   decl: Declaration;
@@ -257,10 +257,8 @@ export type TableMember = MemberBase & (
   | {
       kind: "field"; name: string; modifiers: string[]; type: string; arity: TypeRef["arity"];
       default?: Expr; attrs: SchemaAttribute[];
-    }
-  | {
-      kind: "end"; ordered: boolean; table: string; field: string; arity: TypeRef["arity"];
-      as?: string; attrs: SchemaAttribute[];
+      /** `<-> [ordered] inverse[?|[]] [as array]`: the field is a connection, and this is its other end. */
+      link?: Link;
     }
   /** A table-level attribute on a line of its own. */
   | { kind: "attribute"; attr: SchemaAttribute }
@@ -275,7 +273,7 @@ export type TableMember = MemberBase & (
 export interface TableDecl {
   kind: "table";
   /** `table`, `main table`, `my table` or `session table`. */
-  tableKind: "data" | "main" | "my" | "session";
+  tableKind: "data" | "main" | "connection" | "my" | "session";
   name: string;
   nameSpan: Span;
   key?: { name: string; span: Span }[];
@@ -299,15 +297,16 @@ export interface ReDecl {
   span: Span;
 }
 
-export type EndMember = Extract<TableMember, { kind: "end" }>;
-
-/** `A.x <-> B.y`. */
-export interface ConnectionDecl {
-  kind: "connection";
-  a: EndMember;
-  b: EndMember;
+/** The far end of a connection written as a field: the field the other table gains. */
+export interface Link {
+  inverse: string;
+  inverseArity: TypeRef["arity"];
+  inverseOrdered: boolean;
+  /** `as array`: in data files, kept as an array on rows instead of a table of its own. */
+  array: boolean;
   span: Span;
 }
+
 
 // ---------------------------------------------------------------- mutation lines
 

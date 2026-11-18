@@ -4,7 +4,7 @@ view(:
 
 mutation m():
   // expect: syntax
-  insert List { name: "x" }
+  insert: List { name: "x" }
 
 view ok():
   // expect: syntax

@@ -20,13 +20,12 @@ import { deviceClient, testAccount } from "../../helpers/devices.ts";
 const TEST_TIME = new Date(Date.UTC(2026, 10, 11)).toISOString();
 const SCHEMA = [
   "main table Author:",
-  "  name unique Text",
+  "  name: unique Text",
   "",
   "table Book:",
-  "  title  Text",
-  "  author Author",
+  "  title:  Text",
+  "  author: Author <-> books[]",
   "",
-  "Book.author <-> Author.books[]",
   "",
 ].join("\n");
 const token = "db-owner";
@@ -162,7 +161,7 @@ test("a restarted host opens the database where it was, and replays nothing", as
 
 
 test("a holder's change leaves the times of its connection rows that stay", async () => {
-  const logical = compileLogicalSchema("main table Game:\n  name Text\n  lists List[]\n\ntable List:\n  name Text\n  games Game[]\n\nordered List.games[] <-> Game.lists[]\n");
+  const logical = compileLogicalSchema("main table Game:\n  name: Text\n  lists: List[]\n\ntable List:\n  name: Text\n  games: ordered Game[] <-> lists[]\n\n");
   const schema = new StoreSchema(logical.result);
   const T0 = Date.parse("2026-10-24T09:00:00.000Z"), T1 = Date.parse("2026-11-16T11:00:00.000Z");
   const games = [idRow("g1", { name: "Chess" }, T0), idRow("g2", { name: "Go" }, T0)];

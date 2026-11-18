@@ -48,13 +48,13 @@ describe("beetle schemas", () => {
   });
 
   test("defaults, state tables and the schema's own views leave the data layer alone", () => {
-    const base = "main table Note:\n  text Text\n";
-    const more = "main table Note:\n  text Text = \"\"  // a default\n\nmy table Pin:\n  note Note\n\nview Recent():\n  <Rows for={n in Note}>\n    <Text>{n.text}</Text>\n  </Rows>\n";
+    const base = "main table Note:\n  text: Text\n";
+    const more = "main table Note:\n  text: Text = \"\"  // a default\n\nmy table Pin:\n  note: Note\n\nview Recent():\n  <Rows for={n in Note}>\n    <Text>{n.text}</Text>\n  </Rows>\n";
     expect(modelLayer(compileSchema(more))).toEqual(modelLayer(compileSchema(base)));
   });
 
   test("data tables belong in schema.beetle", () => {
-    const result = checkView("table Note:\n  text Text\n", { path: "/Notes.beetle" });
+    const result = checkView("table Note:\n  text: Text\n", { path: "/Notes.beetle" });
     expect(result.diagnostics.map((d) => d.code)).toEqual(["data-table-outside-schema"]);
   });
 
@@ -63,7 +63,7 @@ describe("beetle schemas", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.views.map((v) => v.name)).toEqual(["ByOwner"]);
     expect(result.views[0]!.plan).toMatchObject({ type: "Rows", group: { path: { name: "l" }, fields: ["owner"] } });
-    const broken = checkView("table A:\n  b B\n", { path: "/schema.beetle" });
+    const broken = checkView("table A:\n  b: B\n", { path: "/schema.beetle" });
     expect(broken.diagnostics.map((d) => d.code)).toEqual(["unknown-type"]);
   });
 });
@@ -84,11 +84,10 @@ describe("beetle formatting", () => {
   test("formatting keeps comments, lines up fields and connections, and wraps long facts", () => {
     const source = [
       "table Tag (list, id):  // why",
-      "  name Text",
-      "  color   Text?",
-      "",
-      "Tag.list <-> List.tags[]",
-      "Tag.practices[]   <-> Practice.tags[]",
+      "  name: Text",
+      "  color:   Text?",
+      "  list: List <-> tags[]",
+      "  practices: Practice[] <-> tags[]",
       "",
       "mutation m(l: List, longName: Text):",
       "  if me == null:",
@@ -98,11 +97,10 @@ describe("beetle formatting", () => {
     ].join("\n");
     expect(formatView(source)).toBe([
       "table Tag (list, id):  // why",
-      "  name:  Text",
-      "  color: Text?",
-      "",
-      "Tag.list        <-> List.tags[]",
-      "Tag.practices[] <-> Practice.tags[]",
+      "  name:      Text",
+      "  color:     Text?",
+      "  list:      List <-> tags[]",
+      "  practices: Practice[] <-> tags[]",
       "",
       "mutation m(l: List, longName: Text):",
       "  if me == null:",
@@ -113,15 +111,38 @@ describe("beetle formatting", () => {
     ].join("\n"));
   });
 
-  test("fields take a colon; the colonless form is still read, and a field may be named seed", () => {
-    const source = "main table A:\n  seed: Text\n  name unique Text\n";
-    expect(formatView(source)).toBe("main table A:\n  seed: Text\n  name: unique Text\n");
+  test("fields take a colon, and a field may be named seed", () => {
+    const source = "main table A:\n  seed: Text\n  name: unique Text\n";
+    expect(formatView(source)).toBe(source);
     expect(compileSchema(source).diagnostics).toEqual([]);
+    expect(parseView("main table A:\n  name Text\n").diagnostics.map((d) => d.code)).toEqual(["syntax"]);
   });
 
-  test("imports put the file first; the older use is still read", () => {
-    const source = 'use "parts/cards.beetle" (Card as PlainCard, Avatar)\nuse "data/schema.beetle"\n';
+  test("imports put the file first", () => {
+    const source = 'from parts/cards.beetle import Card as PlainCard, Avatar\nimport "data/schema.beetle"\n';
     expect(formatView(source)).toBe("from parts/cards.beetle import Card as PlainCard, Avatar\nimport data/schema.beetle\n");
+    expect(parseView('use "data/schema.beetle"\n').diagnostics.map((d) => d.code)).toEqual(["syntax"]);
+  });
+
+  test("a connection is a field that names its other end", () => {
+    const source = [
+      "main table List:",
+      "  name:  Text",
+      "  owner: Person <-> ownedLists[]",
+      "  games: ordered Game[] <-> lists[] as array",
+      "",
+      "table Game:",
+      "  name: Text",
+      "",
+      "connection table Item:",
+      "  list: List <-> ordered items[]",
+      "  game: Game <-> items[]",
+      "",
+    ].join("\n");
+    expect(formatView(source)).toBe(source);
+    const schema = compileSchema(source);
+    expect(schema.diagnostics).toEqual([]);
+    expect(parseView("A.x <-> B.y[]\n").diagnostics.map((d) => d.code)).toEqual(["syntax"]);
   });
 
   test("a data view's record stays on one line only when it was written on one", () => {
@@ -304,7 +325,7 @@ describe("beetle conformance vectors", () => {
 describe("beetle schema limits and presentation", () => {
 
   test("a file over the token limit is rejected", () => {
-    const source = "table Wide:\n" + Array.from({ length: 33_000 }, (_, i) => `  f${i} Text\n`).join("");
+    const source = "table Wide:\n" + Array.from({ length: 33_000 }, (_, i) => `  f${i}: Text\n`).join("");
     expect(parseView(source).diagnostics.map((d) => d.code)).toEqual(["limit"]);
   });
 
@@ -312,9 +333,7 @@ describe("beetle schema limits and presentation", () => {
     const source = [
       "main table Game:",
       "  name:   Text",
-      "  status: Status",
-      "",
-      "Game.status <-> Status.games[]",
+      "  status: Status <-> games[]",
       "",
       "enum Status:",
       "  color: Text?",
@@ -338,15 +357,15 @@ describe("beetle schema limits and presentation", () => {
   test("a color is a field, not an attribute; only ~views is left of ~", () => {
     const schema = compileSchema([
       "main table Tag:",
-      "  color Text ~color",
-      "  name  Text ~label(\"Name\")",
+      "  color: Text ~color",
+      "  name:  Text ~label(\"Name\")",
       "",
       "enum Status:",
       '  Draft ~color("#9aa0aa")',
       "",
     ].join("\n"));
     expect(schema.diagnostics.filter((d) => d.code === "presentation-attribute").map((d) => d.line)).toEqual([2, 3, 6]);
-    const tag = compileSchema("main table Tag:\n  color Text\n");
+    const tag = compileSchema("main table Tag:\n  color: Text\n");
     expect(tag.models.find((m) => m.name === "Tag")!.fields.find((f) => f.name === "color")!.color).toBe(true);
   });
 });

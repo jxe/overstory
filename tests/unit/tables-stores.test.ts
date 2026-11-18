@@ -154,18 +154,18 @@ describe("tables: for Overstory", () => {
 
 
   test("`path` names rows by a required text field", () => {
-    const ok = compileSchema("table Post:\n  slug  path Text\n  title Text\n");
+    const ok = compileSchema("table Post:\n  slug:  path Text\n  title: Text\n");
     expect(ok.diagnostics).toEqual([]);
     expect(ok.models.find((m) => m.name === "Post")!.path).toBe("slug");
-    expect(compileSchema("table Post:\n  slug path Text?\n").diagnostics.map((d) => d.code)).toEqual(["path-field"]);
-    expect(compileSchema("table Post:\n  a path Text\n  b path Text\n").diagnostics.map((d) => d.code)).toEqual(["duplicate-path"]);
+    expect(compileSchema("table Post:\n  slug: path Text?\n").diagnostics.map((d) => d.code)).toEqual(["path-field"]);
+    expect(compileSchema("table Post:\n  a: path Text\n  b: path Text\n").diagnostics.map((d) => d.code)).toEqual(["duplicate-path"]);
   });
 
   test("Int is a whole number, stored as INTEGER and bigint", () => {
-    const tables = layoutOf(compileSchema("table Count:\n  n Int\n"));
+    const tables = layoutOf(compileSchema("table Count:\n  n: Int\n"));
     expect(setupSql(tables, "sqlite")).toContain(`"n" INTEGER NOT NULL`);
     expect(setupSql(tables, "postgres")).toContain(`"n" bigint NOT NULL`);
-    expect(compileSchema('table C:\n  name Text\n  n    Int\n  seed:\n    A { name: "A", n: 1.5 }\n').diagnostics.map((d) => d.code)).toContain("bad-value");
+    expect(compileSchema('table C:\n  name: Text\n  n:    Int\n  seed:\n    A { name: "A", n: 1.5 }\n').diagnostics.map((d) => d.code)).toContain("bad-value");
   });
 
   test("limits stop a hostile schema", () => {
@@ -211,7 +211,7 @@ enum Status:
     const game = result.models.find((m) => m.name === "Game")!;
     expect(game.indexes).toEqual([["status", "modified"]]);
     expect(game.fields.map((f) => f.name)).toEqual(["name", "status", "tags", "done", "due", "authors", "lists", "notes"]);
-    const many = compileSchema("table A:\n  tags Text[]\n  @index(tags)\n  @index(nope)\n").diagnostics.map((d) => d.code);
+    const many = compileSchema("table A:\n  tags: Text[]\n  @index(tags)\n  @index(nope)\n").diagnostics.map((d) => d.code);
     expect(many).toEqual(["index-many", "unknown-field"]);
   });
 

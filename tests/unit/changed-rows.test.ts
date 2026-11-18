@@ -9,14 +9,13 @@ import { collectionDirectory, idRow } from "../support/collection-trees.ts";
 
 const SCHEMA = [
   "main table Author:",
-  "  name unique Text",
-  "  born Date?",
+  "  name: unique Text",
+  "  born: Date?",
   "",
   "table Book:",
-  "  title  Text",
-  "  author Author",
+  "  title:  Text",
+  "  author: Author <-> books[]",
   "",
-  "Book.author <-> Author.books[]",
   "",
 ].join("\n");
 const AT = Date.parse("2026-11-16T12:00:00.000Z");

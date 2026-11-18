@@ -581,7 +581,7 @@ for (const encoding of ["cbor", "json"] as const) describe(`update host over ${e
       }));
       const peoplePath = join(treePath, "people");
       await mkdir(peoplePath);
-      await writeFile(join(peoplePath, "schema.beetle"), "main table Contact:\n  name  Text\n  email Text\n");
+      await writeFile(join(peoplePath, "schema.beetle"), "main table Contact:\n  name:  Text\n  email: Text\n");
       await writeFile(join(peoplePath, "_store.json"), '[{"id":"alice","name":"Alice","email":"alice@example.test"}]\n');
       const beforeCollectionFile = await client.descriptor(treeID);
       await client.submitUpdate(

@@ -546,21 +546,6 @@
     }
   },
   {
-    "type": "connection",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "end",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "data_entry",
     "named": true,
     "fields": {
@@ -705,56 +690,6 @@
     }
   },
   {
-    "type": "end",
-    "named": true,
-    "fields": {
-      "as": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "field": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "table": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "arity",
-          "named": true
-        },
-        {
-          "type": "schema_attribute",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "end_tag",
     "named": true,
     "fields": {
@@ -790,19 +725,15 @@
       "required": false,
       "types": [
         {
-          "type": "connection",
-          "named": true
-        },
-        {
-          "type": "end",
-          "named": true
-        },
-        {
           "type": "field_declaration",
           "named": true
         },
         {
           "type": "schema_attribute",
+          "named": true
+        },
+        {
+          "type": "seed",
           "named": true
         },
         {
@@ -944,6 +875,10 @@
       "types": [
         {
           "type": "arity",
+          "named": true
+        },
+        {
+          "type": "link",
           "named": true
         },
         {
@@ -1390,6 +1325,32 @@
         },
         {
           "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "link",
+    "named": true,
+    "fields": {
+      "inverse": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "arity",
           "named": true
         }
       ]
@@ -1876,19 +1837,15 @@
       "required": false,
       "types": [
         {
-          "type": "connection",
-          "named": true
-        },
-        {
-          "type": "end",
-          "named": true
-        },
-        {
           "type": "field_declaration",
           "named": true
         },
         {
           "type": "schema_attribute",
+          "named": true
+        },
+        {
+          "type": "seed",
           "named": true
         },
         {
@@ -2044,6 +2001,11 @@
     }
   },
   {
+    "type": "seed",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "self_closing_tag",
     "named": true,
     "fields": {
@@ -2154,10 +2116,6 @@
       "required": false,
       "types": [
         {
-          "type": "connection",
-          "named": true
-        },
-        {
           "type": "element",
           "named": true
         },
@@ -2250,6 +2208,10 @@
         "required": false,
         "types": [
           {
+            "type": "connection",
+            "named": false
+          },
+          {
             "type": "main",
             "named": false
           },
@@ -2279,14 +2241,6 @@
       "required": false,
       "types": [
         {
-          "type": "connection",
-          "named": true
-        },
-        {
-          "type": "end",
-          "named": true
-        },
-        {
           "type": "field_declaration",
           "named": true
         },
@@ -2296,6 +2250,10 @@
         },
         {
           "type": "schema_attribute",
+          "named": true
+        },
+        {
+          "type": "seed",
           "named": true
         },
         {
@@ -2695,6 +2653,10 @@
     "named": false
   },
   {
+    "type": "array",
+    "named": false
+  },
+  {
     "type": "as",
     "named": false
   },
@@ -2709,6 +2671,10 @@
   },
   {
     "type": "conflict",
+    "named": false
+  },
+  {
+    "type": "connection",
     "named": false
   },
   {
@@ -2829,6 +2795,10 @@
   },
   {
     "type": "rule",
+    "named": false
+  },
+  {
+    "type": "seed",
     "named": false
   },
   {

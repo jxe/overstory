@@ -3,7 +3,7 @@
 // reports source spans. For each view it produces the plan (plan.ts), and for each
 // mutation the rows it can write.
 
-import { checkTables, IMPLICIT_FIELDS, VALUE_TYPES, type CheckResult as TablesResult, type ResolvedModel } from "./tables/index.ts";
+import { IMPLICIT_FIELDS, VALUE_TYPES, type CheckResult as TablesResult, type ResolvedModel } from "./tables/index.ts";
 import type {
   Arg, Attribute, Binding, DataRecord, Declaration, Diagnostic, Element, ErrorCode, Expr, Line, MutationDecl, Param,
   RuleDecl, Span, TextPart, TypeRef, ViewDecl, ViewFile,
@@ -11,7 +11,7 @@ import type {
 import { parseView } from "./parse.ts";
 import { pageSource, type PageSource } from "./blocks.ts";
 import { ElementPlanner, type DataPlan, type ElementPlan, type PlanExpr } from "./plan.ts";
-import { tablesFileOf } from "./schema.ts";
+import { checkSchemaTables, tablesFileOf } from "./schema.ts";
 
 // ---------------------------------------------------------------- types
 
@@ -373,7 +373,7 @@ export class Checker {
     this.bound.add(path);
     if (path === this.source.path) {
       const { tables, diagnostics, defaults } = tablesFileOf(this.source.file, true);
-      const result = checkTables(tables);
+      const result = checkSchemaTables(tables);
       this.diagnostics.push(...diagnostics, ...result.diagnostics);
       this.schemas.set(path, { result, defaults });
       for (const model of modelsOf(path, result, defaults)) this.addModel(model);
@@ -386,7 +386,7 @@ export class Checker {
     }
     if (!this.uses.includes(path)) this.uses.push(path);
     const { tables, diagnostics, defaults } = tablesFileOf(parseView(text).file, true);
-    const result = checkTables(tables);
+    const result = checkSchemaTables(tables);
     this.schemas.set(path, { result, defaults });
     const problems = [...diagnostics, ...result.diagnostics];
     if (problems.length) {
@@ -537,8 +537,7 @@ export class Checker {
           }
           if (!isType(m.type)) this.error("unknown-type", `${m.type} is neither a value type nor a table`, m.span);
           if (m.default) this.defaultValue(m.default, m.type);
-        } else if (m.kind === "end") {
-          this.error("state-connection", `A state table refers to rows with a field (${m.table.toLowerCase()} ${m.table}), not a connection end`, m.span);
+          if (m.link) this.error("state-connection", `A state table refers to rows with a plain field (${m.name}: ${m.type}), not a connection`, m.span);
         } else if (m.kind === "seed") {
           this.error("state-seed", "A state table has no seed rows", m.span);
         }

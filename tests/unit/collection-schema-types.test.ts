@@ -5,17 +5,13 @@ import { tmpdir } from "node:os";
 import { collectionTypeDeclarations, compileCollectionSchema } from "@ovst/collection-schema";
 
 const source = `table Entry:
-  status  Status
-  note    Markdown?
-  count   Int
-  flag    Bool
-  due     Date?
-  tags    Text[]
-  authors Person[]
-
-Entry.status <-> Status.entries[]
-
-Entry.authors[] @fold <-> Person.entries[]
+  status: Status <-> entries[]
+  note:    Markdown?
+  count:   Int
+  flag:    Bool
+  due:     Date?
+  tags:    Text[]
+  authors: Person[] <-> entries[] as array
 
 enum Status:
   draft

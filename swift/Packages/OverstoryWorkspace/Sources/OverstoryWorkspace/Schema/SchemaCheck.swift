@@ -386,7 +386,7 @@ public func checkSchema(_ parsed: SchemaFile) -> SchemaCheckResult {
             if !modelExists(end.model) { continue }
             let fieldName = keyFieldOf(end)
             if fields.has(fieldName) || declared.has(fieldName) {
-                let hint = end.as != nil ? "" : "; name this side with `as ...`"
+                let hint = end.as != nil ? "" : "; give this field another name"
                 report("duplicate-field", end.at, "`\(name)` already has a field `\(fieldName)`, which this end would key it by\(hint)")
                 continue
             }
@@ -416,7 +416,7 @@ public func checkSchema(_ parsed: SchemaFile) -> SchemaCheckResult {
             if isValueType(decl.type) || !modelExists(decl.type) { continue }
             let written = "\(decl.name) \(decl.type)\(arityText(decl.arity))"
             guard let info = ends["\(name).\(decl.name)"] else {
-                report("undeclared-connection", decl.at, "`\(written)` refers to a connection nobody declares; add `\(name).\(decl.name)\(arityText(decl.arity)) <-> \(decl.type).<field>`")
+                report("undeclared-connection", decl.at, "`\(decl.name)` is a \(decl.type), so it is a connection: name the field \(decl.type) gains, as in `\(decl.name): \(decl.type)\(arityText(decl.arity)) <-> <field>[]`")
                 continue
             }
             let declaredEnd = "\(name).\(decl.name)\(arityText(info.decl.arity))"

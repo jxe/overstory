@@ -138,7 +138,7 @@ test("snapshot suffixes retain hidden attribution and unrelated accepted additio
 
 /** `basis` with its entries but `_index.md` replaced by an empty collection whose one field is `name`. */
 function collection(basis: string, name: string) {
-  const source = `table Item:\n  ${name} Text\n`;
+  const source = `table Item:\n  ${name}: Text\n`;
   const encoded = encodeCollection(compileLogicalSchema(new TextEncoder().encode(source)), {});
   for (const [hash, bytes] of encoded.objects) objects.set(hash, bytes);
   const value = decodeProtocolDirectory(objects.get(basis)!);
@@ -432,7 +432,7 @@ test("health checks only the database while integrity audits history in one shar
 });
 
 test("the host validates logical collections itself", async () => {
-  const schema = "main table Item:\n  count Int\n";
+  const schema = "main table Item:\n  count: Int\n";
   const fingerprint = compileLogicalSchema(new TextEncoder().encode(schema)).fingerprint;
   // Tables written directly, so the host sees rows no encoder checked.
   const people = (rows: ReturnType<typeof idRow>[], modelFingerprint = fingerprint) => {

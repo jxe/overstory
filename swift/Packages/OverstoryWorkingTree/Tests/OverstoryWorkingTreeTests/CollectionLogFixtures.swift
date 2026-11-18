@@ -7,11 +7,9 @@ import SQLite3
 enum GamesCollection {
     static let source = """
         main table Game:
-          name   Text
-          status Status
-          tags   Text[]
-
-        Game.status <-> Status.games[]
+          name:   Text
+          status: Status <-> games[]
+          tags:   Text[]
 
         enum Status:
           Draft

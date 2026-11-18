@@ -4,19 +4,13 @@
 
 main table Excellence:
   name:       Text
-  assessment: Assessment
-  leads:      Person[]  // cross-reference
-  projects:   Project[]  // cross-reference
+  assessment: Assessment <-> excellences[]
+  leads:      Person[] <-> excellences[]
+  projects:   Project[] <-> excellences[]
 
 table Project:
   name:        Text
   excellences: Excellence[]  // cross-reference
-
-Excellence.leads[] <-> Person.excellences[]
-
-Excellence.projects[] <-> Project.excellences[]
-
-Excellence.assessment <-> Assessment.excellences[]
 
 enum Assessment:
   color: Text

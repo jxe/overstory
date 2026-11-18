@@ -2,13 +2,13 @@
 // expect: reserved-model
 // expect: duplicate-model
 table Person:
-  name Text
+  name: Text
 
 table Text:
-  body Text
+  body: Text
 
 table Book:
-  title Text
+  title: Text
 
 table Book:
-  name Text
+  name: Text

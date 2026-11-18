@@ -58,7 +58,7 @@ beforeAll(async () => {
     { name: "photo.bin", file: photo, created: 0, modified: 0 },
   ]) }));
   // /Games: a collection whose rows are its children.
-  const games = collectionDirectory("main table Game:\n  name Text\n", { Game: [idRow("chess", { name: "Chess" }), idRow("go", { name: "Go" })] }, objects);
+  const games = collectionDirectory("main table Game:\n  name: Text\n", { Game: [idRow("chess", { name: "Chess" }), idRow("go", { name: "Go" })] }, objects);
   hashes.games = games;
   hashes.gamesLog = decodeProtocolDirectory(objects.get(games)!).collection!.log;
   const directory = encodeProtocolDirectory({

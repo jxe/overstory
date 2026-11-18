@@ -67,14 +67,13 @@ function presentationAttributes(file: ViewFile): Diagnostic[] {
   };
   const walk = (members: TableMember[]) => {
     for (const m of members) {
-      if (m.kind === "field" || m.kind === "end" || m.kind === "value" || m.kind === "mention") check(m.attrs);
+      if (m.kind === "field" || m.kind === "value" || m.kind === "mention") check(m.attrs);
       else if (m.kind === "attribute") check([m.attr]);
       else if (m.kind === "seed") walk(m.rows);
     }
   };
   for (const { decl } of file.declarations) {
     if (decl.kind === "table" || decl.kind === "enum" || decl.kind === "re") walk(decl.members);
-    else if (decl.kind === "connection") { check(decl.a.attrs); check(decl.b.attrs); }
   }
   return found;
 }
@@ -92,23 +91,49 @@ function row(member: Extract<TableMember, { kind: "value" }>): Tables.Row {
   };
 }
 
-function members(list: TableMember[], context: "table" | "enum" | "re"): Tables.Member[] {
+/** Where a table's connection fields go: a connection table's become its ends, any other's its connections. */
+interface Owner {
+  name: string;
+  connectionTable: boolean;
+  connections: Tables.ConnectionDecl[];
+}
+
+function members(list: TableMember[], context: "table" | "enum" | "re", owner?: Owner): Tables.Member[] {
   const result: Tables.Member[] = [];
   const values: Tables.Row[] = [];
   let valuesAt: Tables.Position | null = null;
   for (const m of list) {
     switch (m.kind) {
       case "field":
+        if (m.link && owner) {
+          const link = m.link;
+          const far: Tables.EndDecl = {
+            kind: "end", model: m.type, field: link.inverse, arity: link.inverseArity,
+            ordered: link.inverseOrdered ? at(link.span) : null, as: null, attrs: [], at: at(link.span),
+          };
+          if (owner.connectionTable) {
+            // `list: List <-> ordered items[]` in a connection table is its end `ordered List.items[] as list`.
+            if (m.name !== m.type.toLowerCase()) far.as = { name: m.name, at: at(m.span) };
+            far.attrs = attributes(m.attrs);
+            result.push(far);
+            if (link.array) result.push({ kind: "modelAttribute", sigil: "@", name: "fold", args: [{ kind: "ident", name: m.type, attrs: [], at: at(link.span) }], at: at(link.span) });
+          } else {
+            const near: Tables.EndDecl = {
+              kind: "end", model: owner.name, field: m.name, arity: m.arity,
+              ordered: m.modifiers.includes("ordered") ? at(m.span) : null, as: null,
+              attrs: [...attributes(m.attrs), ...(link.array ? [{ sigil: "@" as const, name: "fold", args: [], at: at(link.span) }] : [])],
+              at: at(m.span),
+            };
+            owner.connections.push({ kind: "connection", spelling: "arrow", members: [near, far], at: at(m.span) });
+            // The field also stands where it is written, so the table's fields keep their written order.
+            result.push({ kind: "field", name: m.name, modifiers: [], type: m.type, arity: m.arity, attrs: [], at: at(m.span) });
+          }
+          break;
+        }
         result.push({
           kind: "field", name: m.name, modifiers: m.modifiers.map((name) => ({ name, at: at(m.span) })), type: m.type,
           arity: m.arity, attrs: [...attributes(m.attrs), ...(context === "table" && isColorField(m) && !m.attrs.some((a) => a.name === COLOR) ? [colorAttribute(at(m.span))] : [])],
           at: at(m.span),
-        });
-        break;
-      case "end":
-        result.push({
-          kind: "end", model: m.table, field: m.field, arity: m.arity, ordered: m.ordered ? at(m.span) : null,
-          as: m.as ? { name: m.as, at: at(m.span) } : null, attrs: attributes(m.attrs), at: at(m.span),
         });
         break;
       case "attribute":
@@ -143,9 +168,9 @@ export function tablesFileOf(file: ViewFile, isSchema: boolean): { tables: Table
   const defaults: SchemaResult["defaults"] = {};
   for (const { decl } of file.declarations) {
     if (decl.kind === "table" && (decl.tableKind === "my" || decl.tableKind === "session")) continue;
-    const isData = decl.kind === "table" || decl.kind === "connection" || decl.kind === "re";
+    const isData = decl.kind === "table" || decl.kind === "re";
     if (isData && !isSchema) {
-      const span = decl.kind === "connection" ? decl.span : decl.nameSpan;
+      const span = decl.nameSpan;
       diagnostics.push({
         code: "data-table-outside-schema",
         message: "A collection's data tables, connections and re blocks are declared only in its schema.beetle; declare state here as `my table` or `session table`",
@@ -159,30 +184,26 @@ export function tablesFileOf(file: ViewFile, isSchema: boolean): { tables: Table
         for (const m of table.members) {
           if (m.kind === "field" && m.default) (defaults[table.name] ??= {})[m.name] = m.default;
         }
+        const owner: Owner = { name: table.name, connectionTable: table.tableKind === "connection", connections: [] };
         declarations.push({
           kind: "model", form: "model", name: table.name, main: table.tableKind === "main" ? at(table.span) : null,
           key: table.key ? { fields: table.key.map((k) => ({ name: k.name, at: at(k.span) })), at: at(table.key[0]!.span) } : null,
-          members: members(table.members, "table"), at: at(table.nameSpan),
+          members: members(table.members, "table", owner), at: at(table.nameSpan),
         });
+        declarations.push(...owner.connections);
         break;
       }
       case "enum": {
         if (!isSchema) break; // a file's own enums are checked with its state tables
         const e = decl as EnumDecl;
-        declarations.push({ kind: "model", form: "enum", name: e.name, main: null, key: null, members: members(e.members, "enum"), at: at(e.nameSpan) });
+        const owner: Owner = { name: e.name, connectionTable: false, connections: [] };
+        declarations.push({ kind: "model", form: "enum", name: e.name, main: null, key: null, members: members(e.members, "enum", owner), at: at(e.nameSpan) });
+        declarations.push(...owner.connections);
         break;
       }
       case "re": {
         const re = decl as ReDecl;
         declarations.push({ kind: "re", name: re.name, members: members(re.members, "re"), at: at(re.nameSpan) });
-        break;
-      }
-      case "connection": {
-        const end = (m: typeof decl.a): Tables.EndDecl => ({
-          kind: "end", model: m.table, field: m.field, arity: m.arity, ordered: m.ordered ? at(m.span) : null,
-          as: m.as ? { name: m.as, at: at(m.span) } : null, attrs: attributes(m.attrs), at: at(m.span),
-        });
-        declarations.push({ kind: "connection", spelling: "arrow", members: [end(decl.a), end(decl.b)], at: at(decl.span) });
         break;
       }
       default:
@@ -192,10 +213,28 @@ export function tablesFileOf(file: ViewFile, isSchema: boolean): { tables: Table
   return { tables: { declarations }, diagnostics, defaults };
 }
 
+/**
+ * The table checker's result, reported once per line: a connection written as a field is both
+ * a field and a connection to the checker, so one mistake can surface twice on its line.
+ */
+export function checkSchemaTables(tables: Tables.SchemaFile): ReturnType<typeof checkTables> {
+  const result = checkTables(tables);
+  const ends = new Set(result.diagnostics.filter((d) => d.code === "duplicate-end").map((d) => d.line));
+  const seen = new Set<string>();
+  const diagnostics = result.diagnostics.filter((d) => {
+    if (d.code === "duplicate-field" && ends.has(d.line)) return false;
+    const key = `${d.line}:${d.code}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ...result, diagnostics };
+}
+
 /** Checks a schema.beetle's tables. Its views, rules and mutations are checked by checkView. */
 export function compileSchema(text: string): SchemaResult {
   const parsed = parseView(text);
   const { tables, diagnostics, defaults } = tablesFileOf(parsed.file, true);
-  const result = checkTables(tables);
+  const result = checkSchemaTables(tables);
   return { ...result, diagnostics: [...parsed.diagnostics, ...presentationAttributes(parsed.file), ...diagnostics, ...result.diagnostics], defaults };
 }

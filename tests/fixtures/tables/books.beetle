@@ -2,9 +2,7 @@
 
 main table Book:
   title:  Text
-  status: Status
-
-Book.status <-> Status.books[]
+  status: Status <-> books[]
 
 enum Status:
   Reading

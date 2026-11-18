@@ -35,7 +35,7 @@ module.exports = grammar({
     source_file: ($) => repeat(choice($._declaration, $._newline)),
 
     _declaration: ($) =>
-      choice($.import, $.view, $.rule, $.mutation, $.table, $.enum, $.re, $.connection, $.element),
+      choice($.import, $.view, $.rule, $.mutation, $.table, $.enum, $.re, $.element),
 
     // ------------------------------------------------------------ imports
 
@@ -121,7 +121,7 @@ module.exports = grammar({
 
     table: ($) =>
       prec.right(seq(
-        optional(field("kind", choice("main", "my", "session"))),
+        optional(field("kind", choice("main", "connection", "my", "session"))),
         "table",
         field("name", $.identifier),
         optional($.key),
@@ -131,30 +131,32 @@ module.exports = grammar({
     key: ($) => seq("(", inner($, $.identifier), ")"),
     enum: ($) => prec.right(seq("enum", field("name", $.identifier), ":", repeat(choice($._newline, seq($._member, $._newline))))),
     re: ($) => prec.right(seq("re", field("name", $.identifier), ":", repeat(choice($._newline, seq($._member, $._newline))))),
-    _member: ($) => choice($.field_declaration, $.end, $.schema_attribute, $.value, $.connection),
+    _member: ($) => choice($.field_declaration, $.seed, $.schema_attribute, $.value),
+    // `seed:` alone on its line; the values below it are the rows a new tree starts with.
+    seed: (_) => seq("seed", ":"),
 
     field_declaration: ($) =>
       prec.right(seq(
-        field("name", $.identifier),
-        optional(":"),
+        // A field may be named after a word that starts a declaration.
+        field("name", choice($.identifier, alias(choice("from", "import", "seed"), $.identifier))),
+        ":",
         repeat($.modifier),
         field("type", $.identifier),
         optional($.arity),
+        optional($.link),
         optional(seq("=", field("default", $._expression))),
         repeat($.schema_attribute),
       )),
     modifier: (_) => choice("ordered", "unique", "path"),
-    end: ($) =>
+    // The other end of a connection: the field the other table gains.
+    link: ($) =>
       prec.right(seq(
+        "<->",
         optional("ordered"),
-        field("table", $.identifier),
-        ".",
-        field("field", $.identifier),
+        field("inverse", $.identifier),
         optional($.arity),
-        optional(seq("as", field("as", $.identifier))),
-        repeat($.schema_attribute),
+        optional(seq("as", "array")),
       )),
-    connection: ($) => seq($.end, "<->", $.end),
     // An enum's value, or a field or value named again in `re`.
     value: ($) => prec.right(-1, seq(field("name", choice($.identifier, $.string)), optional($.record), repeat($.schema_attribute))),
 

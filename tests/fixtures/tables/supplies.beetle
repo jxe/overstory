@@ -7,60 +7,52 @@
 main table List:
   name:        Text
   about:       Markdown?
-  visibility:  Visibility
-  kind:        ListKind
+  visibility:  Visibility <-> lists[]
+  kind:        ListKind <-> lists[]
   openToEdits: Bool  // was allow_arbor_user_edits
-  owner:       Person  // was owner_profile
+  owner:       Person <-> ownedLists[]
   items:       Item[]  // cross-references, declared below
   tags:        Tag[]
 
   @index(owner, modified)  // my lists, newest first
 
-List.owner <-> Person.ownedLists[]
-
-List.visibility <-> Visibility.lists[]
-
-List.kind <-> ListKind.lists[]
-
 table Practice:
   name:    unique Text  // no two practices share a name
   about:   Markdown?
-  authors: Person[]  // cross-reference
+  authors: Person[] <-> practices[]
 
 // practice_authors
-Practice.authors[] <-> Person.practices[]
 
 // list_practices: a named connection, because tags hang off it.
-table Item:
-  ordered List.items[]  // position column, per list
-  Practice.items[]
+connection table Item:
+  list:     List <-> ordered items[]  // position column, per list
+  practice: Practice <-> items[]
 
 // list_tags: a tag's id is unique only within its list, so the list is part
 // of its key.
 table Tag (list, id):
-  name:  Text
-  color: Text?  // data, since people add tags
-
-Tag.list <-> List.tags[]
+  name:      Text
+  color:     Text?  // data, since people add tags
+  list:      List <-> tags[]
+  practices: Practice[] <-> tags[]
 
 // practice_tags: tags connect to the practice, not the list item. A tag
 // belongs to one list, so a tagging can't cross lists. Unlike the SQL, a
 // practice removed from a list keeps its tags there, and gets them back if
 // re-added.
-Tag.practices[] <-> Practice.tags[]
 
 // list_reactions: one emoji per person per list.
-table Reaction:
-  List.reactions[]
-  Person.reactions[]
-  emoji: Text
+connection table Reaction:
+  list:   List <-> reactions[]
+  person: Person <-> reactions[]
+  emoji:  Text
 
 // list_contributors
-table Contribution:
-  List.contributors[]
-  Person.contributions[]
-  first: Date
-  last:  Date
+connection table Contribution:
+  list:   List <-> contributors[]
+  person: Person <-> contributions[]
+  first:  Date
+  last:   Date
 
 enum Visibility:
   Public

@@ -5,23 +5,18 @@
 
 main table Game:
   name:        Text
-  status:      Status  // stored as "Draft"
+  status:      Status <-> games[]
   description: Markdown?
   tags:        Text[]  // values, stored on the row
-  authors:     Person[]  // cross-reference: declared below
+  authors:     Person[] <-> games[] as array
   lists:       List[]  // cross-reference: declared below
 
 table List:
   name:  Text
-  games: Game[]  // cross-reference
+  games: ordered Game[] <-> lists[] as array
 
 // @fold: in data files, these are arrays on Game and List rows rather than
 // files of their own. A storage default; a placement may choose otherwise.
-Game.authors[] @fold <-> Person.games[]
-
-ordered List.games[] @fold <-> Game.lists[]
-
-Game.status <-> Status.games[]
 
 enum Status:
   color: Text

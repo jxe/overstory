@@ -4,18 +4,18 @@
 // row. Contacts are yours to write: notes, and placeholders for people with
 // no profile yet.
 main table Tie:
-  person Person
-  group  Person?
-  kind   TieKind
-  name   Text?
-  handle Text?
-  host   Text?
+  person: Person <-> ties[]
+  group:  Person? <-> members[]
+  kind:   TieKind <-> ties[]
+  name:   Text?
+  handle: Text?
+  host:   Text?
 
 table Contact:
-  name    Text
-  profile Person?
-  reach   Text?
-  notes   Markdown?
+  name:    Text
+  profile: Person? <-> contacts[]
+  reach:   Text?
+  notes:   Markdown?
 
 enum TieKind:
   Community
@@ -25,14 +25,6 @@ enum TieKind:
   Invited
   InvitedYou
   Opened
-
-Tie.person <-> Person.ties[]
-
-Tie.group? <-> Person.members[]
-
-Tie.kind <-> TieKind.ties[]
-
-Contact.profile? <-> Person.contacts[]
 
 // One line per person, whatever the ties behind it.
 re Tie:

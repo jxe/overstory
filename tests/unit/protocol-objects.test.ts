@@ -313,7 +313,7 @@ describe("canonical tree objects", () => {
       const destination = await mkdtemp(join(tmpdir(), `story-wire-${codec}-materialized-`));
       const collections = new CollectionProjections({ now: () => "2026-10-24T09:00:00.000Z" });
       try {
-        await writeFile(join(root, "schema.beetle"), "table Item:\n  title Text\n");
+        await writeFile(join(root, "schema.beetle"), "table Item:\n  title: Text\n");
         await writeFile(join(root, `_store.${codec}`), source);
         // The schema file dates its entry; the same date in each format.
         await utimes(join(root, "schema.beetle"), new Date(), new Date("2026-10-24T09:00:00.000Z"));
@@ -346,7 +346,7 @@ describe("canonical tree objects", () => {
     const destination = await mkdtemp(join(tmpdir(), "story-wire-beetle-materialized-"));
     const collections = new CollectionProjections({ now: () => "2026-10-24T09:00:00.000Z" });
     try {
-      await writeFile(join(root, "schema.beetle"), "table Item:\n  title Text\n");
+      await writeFile(join(root, "schema.beetle"), "table Item:\n  title: Text\n");
       await writeFile(join(root, "schema.usl"), "model Item {\n  title Text\n}\n");
       await writeFile(join(root, "_store.jsonl"), '{"id":"one","title":"One"}\n');
       const snapshot = await resolveSnapshot(await snapshotDirectory(root, new Map(), [], (directory, names) => collections.read(directory, names)));
@@ -357,7 +357,7 @@ describe("canonical tree objects", () => {
       await writeFile(join(destination, "schema.usl"), "model Item {\n  title Text\n}\n");
       await materializeTree(destination, snapshot.root, async (hash) => snapshot.objects.get(hash)!, undefined, [], undefined,
         (directory, value, load) => new CollectionProjections().write(directory, value, load));
-      expect(await readFile(join(destination, "schema.beetle"), "utf8")).toBe("table Item:\n  title Text\n");
+      expect(await readFile(join(destination, "schema.beetle"), "utf8")).toBe("table Item:\n  title: Text\n");
       expect(await readFile(join(destination, "_store.jsonl"), "utf8")).toContain('"title":"One"');
       expect(existsSync(join(destination, "schema.usl"))).toBe(false);
       expect(collectionSchemaName(["_store.jsonl", "schema.usl"])).toBeUndefined();

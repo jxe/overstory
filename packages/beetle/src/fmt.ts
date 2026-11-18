@@ -5,7 +5,7 @@
 // formatting refuses a source with syntax errors rather than lose any text.
 
 import type {
-  Attribute, Binding, Child, ConnectionDecl, DataEntry, DataRecord, Declaration, DeclarationEntry, Element, EndMember, Expr, Line, OrderTerm, Param,
+  Attribute, Binding, Child, DataEntry, DataRecord, Declaration, DeclarationEntry, Element, Expr, Line, OrderTerm, Param,
   RuleLine, SchemaAttribute, TableMember, TextPart, TypeRef, ViewLine,
 } from "./ast.ts";
 import { parseView } from "./parse.ts";
@@ -250,9 +250,6 @@ function attrsText(attrs: SchemaAttribute[]): string {
 
 const arityText = (arity: TypeRef["arity"]): string => (arity === "optional" ? "?" : arity === "many" ? "[]" : "");
 
-function endText(m: EndMember): string {
-  return `${m.ordered ? "ordered " : ""}${m.table}.${m.field}${arityText(m.arity)}${m.as ? ` as ${m.as}` : ""}${attrsText(m.attrs)}`;
-}
 
 function valueName(m: Extract<TableMember, { kind: "value" }>): string {
   return m.quoted ? quote(m.name) : m.name;
@@ -293,12 +290,10 @@ function memberLines(members: TableMember[], indent: string): string[] {
         const name = `${m.name}:`.padEnd(width.get(m) ?? m.name.length + 1);
         const modifiers = m.modifiers.map((x) => x + " ").join("");
         const value = m.default ? ` = ${expr(m.default)}` : "";
-        lines.push(...withComments([`${indent}${name} ${modifiers}${m.type}${arityText(m.arity)}${value}${attrsText(m.attrs)}`], m.comments, indent));
+        const link = m.link ? ` <-> ${m.link.inverseOrdered ? "ordered " : ""}${m.link.inverse}${arityText(m.link.inverseArity)}${m.link.array ? " as array" : ""}` : "";
+        lines.push(...withComments([`${indent}${name} ${modifiers}${m.type}${arityText(m.arity)}${link}${value}${attrsText(m.attrs)}`], m.comments, indent));
         return;
       }
-      case "end":
-        lines.push(...withComments([indent + endText(m)], m.comments, indent));
-        return;
       case "attribute":
         lines.push(...withComments([indent + schemaAttribute(m.attr)], m.comments, indent));
         return;
@@ -380,10 +375,9 @@ function ruleLines(body: RuleLine[]): string[] {
   return lines;
 }
 
-const TABLE_WORDS = { data: "table", main: "main table", my: "my table", session: "session table" } as const;
+const TABLE_WORDS = { data: "table", main: "main table", connection: "connection table", my: "my table", session: "session table" } as const;
 
-/** `connectionWidth` lines up `<->` across a run of connections. */
-function declarationLines(entry: DeclarationEntry, connectionWidth: number): string[] {
+function declarationLines(entry: DeclarationEntry): string[] {
   const decl: Declaration = entry.decl;
   const trailing = entry.trailing !== undefined ? "  " + comment(entry.trailing) : "";
   switch (decl.kind) {
@@ -420,8 +414,6 @@ function declarationLines(entry: DeclarationEntry, connectionWidth: number): str
     case "enum":
     case "re":
       return [`${decl.kind} ${decl.name}:${trailing}`, ...memberLines(decl.members, "  ")];
-    case "connection":
-      return [`${endText(decl.a).padEnd(connectionWidth)} <-> ${endText(decl.b)}${trailing}`];
   }
 }
 
@@ -436,23 +428,10 @@ export function formatView(source: string): string {
     const d = parsed.diagnostics[0]!;
     throw new FormatError(`${d.line}:${d.column}: ${d.message}`);
   }
-  // `<->` lines up across a run of connections with no blank line between them.
-  const widths = new Map<DeclarationEntry, number>();
-  let run: DeclarationEntry[] = [];
-  const close = () => {
-    const width = Math.max(0, ...run.map((e) => endText((e.decl as ConnectionDecl).a).length));
-    for (const e of run) widths.set(e, width);
-    run = [];
-  };
-  for (const entry of parsed.file.declarations) {
-    if (entry.decl.kind !== "connection" || entry.blankBefore) close();
-    if (entry.decl.kind === "connection") run.push(entry);
-  }
-  close();
   const lines: string[] = [];
   parsed.file.declarations.forEach((entry, i) => {
     if (entry.blankBefore && i > 0) lines.push("");
-    lines.push(...declarationLines(entry, widths.get(entry) ?? 0));
+    lines.push(...declarationLines(entry));
   });
   const result = lines.map((line) => line.replace(/[ \t]+$/, "")).join("\n") + "\n";
   const again = parseView(result);

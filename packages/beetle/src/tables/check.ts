@@ -310,7 +310,7 @@ export function checkTables(parsed: SchemaFile): CheckResult {
       if (!modelExists(end.model)) continue;
       const fieldName = keyFieldOf(end);
       if (fields.has(fieldName) || declared.has(fieldName)) {
-        const hint = end.as ? "" : `; name this side with \`as ...\``;
+        const hint = end.as ? "" : "; give this field another name";
         report("duplicate-field", end.at, `\`${name}\` already has a field \`${fieldName}\`, which this end would key it by${hint}`);
         continue;
       }
@@ -352,7 +352,7 @@ export function checkTables(parsed: SchemaFile): CheckResult {
         report(
           "undeclared-connection",
           decl.at,
-          `\`${written}\` refers to a connection nobody declares; add \`${name}.${decl.name}${arityText(decl.arity)} <-> ${decl.type}.<field>\``,
+          `\`${decl.name}\` is a ${decl.type}, so it is a connection: name the field ${decl.type} gains, as in \`${decl.name}: ${decl.type}${arityText(decl.arity)} <-> <field>[]\``,
         );
         continue;
       }

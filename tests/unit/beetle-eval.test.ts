@@ -12,7 +12,7 @@ import { exampleFiles } from "../support/beetle-vectors.ts";
 
 const files = exampleFiles();
 // Facts the examples don't exercise.
-files["/supplies/more.beetle"] = `use "data/schema.beetle"
+files["/supplies/more.beetle"] = `import data/schema.beetle
 
 mutation clash(l: List, m: List):
   l.name = "One"

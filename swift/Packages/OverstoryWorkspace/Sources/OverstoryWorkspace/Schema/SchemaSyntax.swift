@@ -1,8 +1,9 @@
 import Foundation
 
 // A collection's `schema.beetle` (spec 1.5 §2, §5), read for its data tables: `table`,
-// `enum`, `re` and connection declarations, as the syntax tree the table checker
-// (SchemaCheck.swift) reads. Views, rules, mutations, `use` lines and state tables
+// `connection table`, `enum` and `re`, as the syntax tree the table checker
+// (SchemaCheck.swift) reads; a connection field (`owner: Person <-> ownedLists[]`)
+// becomes a connection with two ends. Views, rules, mutations, imports and state tables
 // (`my table`, `session table`) are skipped, and so is a field's default: Story reads
 // only the data layer here, and a seed row may leave a defaulted field out. The
 // TypeScript reference is `tablesFileOf` in packages/beetle/src/schema.ts with the
@@ -82,7 +83,8 @@ public struct SchemaFieldDecl: Sendable, Equatable {
     public var at: SchemaPosition
 }
 
-/// `[ordered] Table.field [as name]`: an end of a connection, declaring the field that table gains.
+/// An end of a connection, declaring the field that table gains: one side of a connection field,
+/// or in a connection table a field such as `list: List <-> ordered items[]` (with `as` its name there).
 public struct SchemaEndDecl: Sendable, Equatable {
     public var model: String
     public var field: String
@@ -169,7 +171,7 @@ public struct SchemaReDecl: Sendable, Equatable {
     public var at: SchemaPosition
 }
 
-/// An unnamed connection: `A.x <-> B.y`. (`braces` is no longer written.)
+/// A connection declared by a field (`owner: Person <-> ownedLists[]`), as its two ends. (`braces` is no longer written.)
 public struct SchemaConnectionDecl: Sendable, Equatable {
     public enum Spelling: String, Sendable { case braces, arrow }
     public var spelling: Spelling
@@ -229,7 +231,7 @@ private func isLetter(_ c: Unicode.Scalar) -> Bool {
 private func isDigit(_ c: Unicode.Scalar) -> Bool { c >= "0" && c <= "9" }
 
 /// Top-level declarations that hold no data tables.
-private let skippedDeclaration = try! NSRegularExpression(pattern: #"^(?:view|rule|mutation|use|my\s+table|session\s+table)\b"#)
+private let skippedDeclaration = try! NSRegularExpression(pattern: #"^(?:view|rule|mutation|import|from|my\s+table|session\s+table)\b"#)
 
 /// The source with every declaration that holds no data tables blanked, line for line,
 /// so views' elements and expressions never reach the lexer.
@@ -347,6 +349,8 @@ private struct Parser {
     /// Inside an attribute's arguments, where `~` marks a view line's presentation (`~bullet`)
     /// and is not reported.
     var argumentDepth = 0
+    /// Connections declared by the fields of the declaration being read, which follow it in the file.
+    var pendingConnections: [SchemaConnectionDecl] = []
 
     var token: Token { tokens[pos] }
     func peek(_ offset: Int = 1) -> Token { tokens[min(pos + offset, tokens.count - 1)] }
@@ -395,6 +399,8 @@ private struct Parser {
         while !atEnd {
             if token.column != 1 { throw fail("a declaration at the start of a line") }
             declarations.append(try declaration())
+            declarations.append(contentsOf: pendingConnections.map { .connection($0) })
+            pendingConnections = []
             // A block's last member already ended its line; a connection has not.
             if pos == 0 || tokens[pos - 1].kind != .newline { try endOfLine() }
         }
@@ -407,11 +413,15 @@ private struct Parser {
             next()
             return .model(try table(main: start))
         }
+        if `is`("connection") && `is`("table", peek()) && peek(2).kind == .ident {
+            next()
+            return .model(try table(main: nil, connectionTable: true, column: start.column))
+        }
         if `is`("table") && peek().kind == .ident { return .model(try table(main: nil)) }
         if `is`("enum") && peek().kind == .ident {
             next()
             let name = next()
-            let members = try body(.enum, column: start.column)
+            let members = try body(.enum, column: start.column, owner: Owner(name: name.text, connectionTable: false))
             return .model(SchemaModelDecl(form: .enum, name: name.text, main: nil, key: nil, members: members, at: at(name)))
         }
         if `is`("re") && peek().kind == .ident {
@@ -420,19 +430,13 @@ private struct Parser {
             let members = try body(.re, column: start.column)
             return .re(SchemaReDecl(name: name.text, members: members, at: at(name)))
         }
-        if startsEnd() {
-            let left = try end()
-            try expect("<->")
-            let right = try end()
-            if `is`("<->") { throw fail("one arrow per connection; use a connection table for more ends") }
-            return .connection(SchemaConnectionDecl(spelling: .arrow, members: [.end(left), .end(right)], at: start))
-        }
-        throw fail("`table`, `enum`, `re` or a connection `A.x <-> B.y`")
+        if startsEnd() { throw fail("a connection as a field of one of its tables: `owner: Person <-> ownedLists[]`") }
+        throw fail("`table`, `enum` or `re`")
     }
 
     /// `table Name [(key, ...)]:` and its body, after any `main`.
-    mutating func table(main: SchemaPosition?) throws -> SchemaModelDecl {
-        let column = token.column
+    mutating func table(main: SchemaPosition?, connectionTable: Bool = false, column start: Int? = nil) throws -> SchemaModelDecl {
+        let column = start ?? token.column
         try expect("table")
         let name = next()
         var key: SchemaHeaderKey?
@@ -448,7 +452,7 @@ private struct Parser {
             next()
             if let first = fields.first { key = SchemaHeaderKey(fields: fields, at: first.at) }
         }
-        let members = try body(.table, column: main?.column ?? column)
+        let members = try body(.table, column: main?.column ?? column, owner: Owner(name: name.text, connectionTable: connectionTable))
         return SchemaModelDecl(form: .model, name: name.text, main: main, key: key, members: members, at: at(name))
     }
 
@@ -460,8 +464,14 @@ private struct Parser {
 
     enum BlockContext { case table, `enum`, re }
 
+    /// Where a block's connection fields go: a connection table's become its ends, any other's its connections.
+    struct Owner {
+        var name: String
+        var connectionTable: Bool
+    }
+
     /// `:` ending a header line, then the lines indented further than `column`.
-    mutating func body(_ context: BlockContext, column: Int) throws -> [SchemaMember] {
+    mutating func body(_ context: BlockContext, column: Int, owner: Owner? = nil) throws -> [SchemaMember] {
         try expect(":")
         try endOfLine()
         var members: [SchemaMember] = []
@@ -473,7 +483,7 @@ private struct Parser {
                 values.append(try row())
                 try endOfLine()
             } else {
-                members.append(try member(context))
+                members.append(contentsOf: try member(context, owner: owner))
             }
         }
         if context == .enum { members.append(.rows(SchemaRowsBlock(mode: .fixed, rows: values, at: valuesAt ?? SchemaPosition(line: 1, column: 1)))) }
@@ -487,12 +497,12 @@ private struct Parser {
     }
 
     /// One member line (a `seed:` block takes the lines below it too), through its end of line.
-    mutating func member(_ context: BlockContext) throws -> SchemaMember {
+    mutating func member(_ context: BlockContext, owner: Owner?) throws -> [SchemaMember] {
         let start = here
         if `is`("@") || `is`("~") {
             let attr = try attribute()
             try endOfLine()
-            return .modelAttribute(SchemaModelAttribute(sigil: attr.sigil, name: attr.name, args: attr.args, at: attr.at))
+            return [.modelAttribute(SchemaModelAttribute(sigil: attr.sigil, name: attr.name, args: attr.args, at: attr.at))]
         }
         if context == .re {
             let name: String
@@ -502,7 +512,7 @@ private struct Parser {
             let attributes = try attrs()
             if attributes.isEmpty { throw fail("an attribute for `\(name)` (`re` blocks only annotate)") }
             try endOfLine()
-            return .mention(SchemaMention(name: name, attrs: attributes, at: start))
+            return [.mention(SchemaMention(name: name, attrs: attributes, at: start))]
         }
         if context == .table && `is`("seed") && `is`(":", peek()) && (peek(2).kind == .newline || peek(2).kind == .eof) {
             let column = token.column
@@ -514,17 +524,13 @@ private struct Parser {
                 rows.append(try row())
                 try endOfLine()
             }
-            return .rows(SchemaRowsBlock(mode: .seed, rows: rows, at: start))
+            return [.rows(SchemaRowsBlock(mode: .seed, rows: rows, at: start))]
         }
-        if startsEnd() {
-            let end = try end()
-            try endOfLine()
-            return .end(end)
-        }
+        if startsEnd() { throw fail("a connection as a field: `list: List <-> ordered items[]`") }
         if token.kind == .ident {
             let name = next().text
-            // `name: Type`; the colonless `name Type` is still read while trees move over.
-            if `is`(":") { next() }
+            if !`is`(":") { throw SchemaSyntaxError(message: "Write a field with a colon: \(name): Type", at: here) }
+            next()
             var modifiers: [SchemaName] = []
             while token.kind == .ident && modifierKeywords.contains(token.text) && peek().kind == .ident {
                 modifiers.append(SchemaName(name: token.text, at: start))
@@ -532,13 +538,56 @@ private struct Parser {
             }
             let type = try ident("a type for field `\(name)`").text
             let arity = try arityChecked()
+            var link: (inverse: String, arity: SchemaArity, ordered: SchemaPosition?, array: Bool, at: SchemaPosition)?
+            if `is`("<->") {
+                next()
+                let linkAt = here
+                var ordered: SchemaPosition?
+                if `is`("ordered") && peek().kind == .ident {
+                    ordered = here
+                    next()
+                }
+                let inverse = try ident("the field \(type) gains").text
+                let inverseArity = try arityChecked()
+                var array = false
+                if `is`("as") {
+                    next()
+                    if !`is`("array") { throw fail("`array`: only `as array` follows a connection's other end") }
+                    next()
+                    array = true
+                }
+                link = (inverse, inverseArity, ordered, array, linkAt)
+            }
             if `is`("=") {
                 skipDefault()
                 defaulted.insert(name)
             }
             let attributes = try attrs()
             try endOfLine()
-            return .field(SchemaFieldDecl(name: name, modifiers: modifiers, type: type, arity: arity, attrs: attributes, at: start))
+            if let link {
+                guard let owner else { throw SchemaSyntaxError(message: "A connection is a field of a table or enum", at: start) }
+                var far = SchemaEndDecl(model: type, field: link.inverse, arity: link.arity, ordered: link.ordered, as: nil, attrs: [], at: link.at)
+                if owner.connectionTable {
+                    // `list: List <-> ordered items[]` in a connection table is its end `ordered List.items[] as list`.
+                    if name != type.lowercased() { far.as = SchemaName(name: name, at: start) }
+                    far.attrs = attributes
+                    var result: [SchemaMember] = [.end(far)]
+                    if link.array {
+                        result.append(.modelAttribute(SchemaModelAttribute(sigil: .storage, name: "fold", args: [.ident(type, attrs: [], at: link.at)], at: link.at)))
+                    }
+                    return result
+                }
+                let near = SchemaEndDecl(
+                    model: owner.name, field: name, arity: arity,
+                    ordered: modifiers.contains { $0.name == "ordered" } ? start : nil, as: nil,
+                    attrs: attributes + (link.array ? [SchemaAttribute(sigil: .storage, name: "fold", args: [], at: link.at)] : []),
+                    at: start
+                )
+                pendingConnections.append(SchemaConnectionDecl(spelling: .arrow, members: [.end(near), .end(far)], at: start))
+                // The field also stands where it is written, so the table's fields keep their written order.
+                return [.field(SchemaFieldDecl(name: name, modifiers: [], type: type, arity: arity, attrs: [], at: start))]
+            }
+            return [.field(SchemaFieldDecl(name: name, modifiers: modifiers, type: type, arity: arity, attrs: attributes, at: start))]
         }
         throw fail("a field, a connection end `Table.field`, or an attribute")
     }
@@ -739,6 +788,13 @@ public func compileCollectionSchema(_ source: String) -> SchemaCheckResult {
     let parsed = parseSchema(source)
     guard let file = parsed.file else { return SchemaCheckResult(diagnostics: parsed.diagnostics, models: [], connections: []) }
     var result = checkSchema(file)
+    // A connection field stands as both a field and an end, so one mistake can be reported twice.
+    let endLines = Set(result.diagnostics.filter { $0.code == "duplicate-end" }.map(\.line))
+    var seen = Set<String>()
+    result.diagnostics = result.diagnostics.filter { diagnostic in
+        if diagnostic.code == "duplicate-field" && endLines.contains(diagnostic.line) { return false }
+        return seen.insert("\(diagnostic.line):\(diagnostic.code)").inserted
+    }
     result.diagnostics.removeAll { diagnostic in
         diagnostic.code == "missing-value" && parsed.defaulted.contains { diagnostic.message.hasSuffix("needs a value for `\($0)`") }
     }

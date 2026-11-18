@@ -31,12 +31,12 @@ describe("tables: broken examples", () => {
 describe("tables: resolution", () => {
   test("a connection table is keyed by its ends and gives each side a field", () => {
     const { models } = compileSchema(`table Game:
-  name Text
+  name: Text
 
-table Rating:
-  Person.ratings[]
-  Game.ratings[]
-  stars Number
+connection table Rating:
+  person: Person <-> ratings[]
+  game: Game <-> ratings[]
+  stars: Number
 `);
     const rating = models.find((m) => m.name === "Rating")!;
     expect(rating.key).toEqual(["person", "game"]);
@@ -46,16 +46,15 @@ table Rating:
 
   test("storage: 1:n is a column on the single side, n:m an array on the first end with a table", () => {
     const { connections } = compileSchema(`table Episode:
-  title Text
+  title: Text
 
 table Series:
-  title Text
-
-Series.episodes[] <-> Episode.series
-Person.games[] <-> Game.authors[]
+  title: Text
+  episodes: Episode[] <-> series
 
 table Game:
-  name Text
+  name: Text
+  authors: Person[] <-> games[]
 `);
     expect(connections.map((c) => c.storage)).toEqual([
       { kind: "column", on: "Episode", field: "series" },
@@ -67,11 +66,9 @@ table Game:
 describe("tables: model layer", () => {
   const layer = (source: string) => modelLayer(compileSchema(source));
   const base = `main table Game:
-  name   Text
-  status Status
-
-Game.authors[] <-> Person.games[]
-Game.status <-> Status.games[]
+  name:   Text
+  status: Status <-> games[]
+  authors: Person[] <-> games[]
 
 enum Status:
   B
@@ -80,13 +77,11 @@ enum Status:
 
   test("leaves out storage", () => {
     const decorated = `main table Game:
-  name   Text @column("title")
-  status Status
+  name:   Text @column("title")
+  status: Status <-> games[]
+  authors: Person[] <-> games[] as array
   @table("games")
   @index(name)
-
-Game.authors[] @fold <-> Person.games[]
-Game.status <-> Status.games[]
 
 enum Status:
   B
@@ -103,20 +98,18 @@ re Status:
   A
   B
 
-Game.status <-> Status.games[]
-
 main table Game:
-  status Status
-  name   Text
+  status: Status <-> games[]
+  name:   Text
+  authors: Person[] <-> games[]
 
-Game.authors[] <-> Person.games[]
 `;
     expect(layer(reordered)).toEqual(layer(base));
     expect(layer(base).models.map((m) => m.name)).toEqual(["Game", "Person", "Status"]);
   });
 
   test("changes with the model", () => {
-    expect(layer(base.replace("name   Text", "name   unique Text"))).not.toEqual(layer(base));
+    expect(layer(base.replace("name:   Text", "name:   unique Text"))).not.toEqual(layer(base));
     expect(layer(base.replace("main table", "table"))).not.toEqual(layer(base));
   });
 });

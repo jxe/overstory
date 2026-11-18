@@ -3,24 +3,24 @@
 // one an hour per page and device); and one Placement per tree placed on a
 // device. Each is a fact, so no two devices ever change the same field.
 main table Tree:
-  title  Text?
-  path   Text?
-  host   Text?
-  owner  Person?
-  parent Tree?
-  kind   TreeKind
+  title:  Text?
+  path:   Text?
+  host:   Text?
+  owner:  Person? <-> trees[]
+  parent: Tree? <-> children[]
+  kind:   TreeKind <-> trees[]
 
 table Visit:
-  tree   Tree
-  path   Text
-  title  Text?
-  how    Arrival
-  device Text?
-  at     Date
+  tree:   Tree <-> visits[]
+  path:   Text
+  title:  Text?
+  how:    Arrival <-> visits[]
+  device: Text?
+  at:     Date
 
 table Placement:
-  tree   Tree
-  device Text
+  tree:   Tree <-> placements[]
+  device: Text
 
 enum TreeKind:
   Profile
@@ -34,18 +34,6 @@ enum Arrival:
   Placed
   SharedWithYou
   Followed
-
-Tree.owner? <-> Person.trees[]
-
-Tree.parent? <-> Tree.children[]
-
-Tree.kind <-> TreeKind.trees[]
-
-Visit.tree <-> Tree.visits[]
-
-Visit.how <-> Arrival.visits[]
-
-Placement.tree <-> Tree.placements[]
 
 re Tree:
   ~views([{ label: "Recent", line: [title, owner, visits.at ~latest ~ago], sort: visits.at ~latest }, { label: "By kind", group: kind, line: [title, owner, parent] }, { label: "By owner", group: owner, line: [title, visits.at ~latest ~ago] }])

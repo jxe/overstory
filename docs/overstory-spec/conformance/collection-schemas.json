@@ -11,7 +11,7 @@
   "schemas": [
     {
       "name": "basic",
-      "source": "table Item:\n  slug        path Text\n  title       Text\n  description Markdown?\n  quantity    Int\n",
+      "source": "table Item:\n  slug:        path Text\n  title:       Text\n  description: Markdown?\n  quantity:    Int\n",
       "accept": {
         "columns": [
           "id",
@@ -315,7 +315,7 @@
     },
     {
       "name": "value types",
-      "source": "table Entry:\n  name  Text\n  notes Markdown?\n  count Int\n  score Number\n  done  Bool\n  due   Date?\n  tags  Text[]\n",
+      "source": "table Entry:\n  name:  Text\n  notes: Markdown?\n  count: Int\n  score: Number\n  done:  Bool\n  due:   Date?\n  tags:  Text[]\n",
       "accept": {
         "columns": [
           "id",
@@ -634,7 +634,7 @@
     },
     {
       "name": "an enum is a choice of its value names",
-      "source": "table Task:\n  name   Text\n  status Status\n\nTask.status <-> Status.tasks[]\n\nenum Status:\n  Todo\n  Done\n",
+      "source": "table Task:\n  name:   Text\n  status: Status <-> tasks[]\n\nenum Status:\n  Todo\n  Done\n",
       "accept": {
         "columns": [
           "id",
@@ -687,7 +687,7 @@
     },
     {
       "name": "people are profile ids or contact: placeholders, and a folded many-to-many is an array",
-      "source": "table Game:\n  name    Text\n  owner   Person\n  authors Person[]\n\nGame.owner <-> Person.owned[]\n\nGame.authors[] @fold <-> Person.games[]\n",
+      "source": "table Game:\n  name:    Text\n  owner: Person <-> owned[]\n  authors: Person[] <-> games[] as array\n\n",
       "accept": {
         "columns": [
           "id",
@@ -794,7 +794,7 @@
     },
     {
       "name": "a declared key replaces id",
-      "source": "table Edition (title, year):\n  title Text\n  year  Int\n",
+      "source": "table Edition (title, year):\n  title: Text\n  year:  Int\n",
       "accept": {
         "columns": [
           "title",
@@ -820,7 +820,7 @@
     },
     {
       "name": "stored names",
-      "source": "table Book:\n  title Text @column(\"book_title\")\n\n  @table(\"books\")\n",
+      "source": "table Book:\n  title: Text @column(\"book_title\")\n\n  @table(\"books\")\n",
       "accept": {
         "columns": [
           "id",
@@ -857,14 +857,14 @@
     },
     {
       "name": "two data models",
-      "source": "table Book:\n  title Text\n\ntable Author:\n  name Text\n",
+      "source": "table Book:\n  title: Text\n\ntable Author:\n  name: Text\n",
       "reject": {
         "code": "collection-tables"
       }
     },
     {
       "name": "an unfolded many-to-many is a second table",
-      "source": "table Game:\n  name    Text\n  authors Person[]\n\nGame.authors[] <-> Person.games[]\n",
+      "source": "table Game:\n  name:    Text\n  authors: Person[] <-> games[]\n\n",
       "reject": {
         "code": "collection-tables"
       }
@@ -878,7 +878,7 @@
     },
     {
       "name": "syntax error",
-      "source": "table Book:\n  title Text\n  pages\n",
+      "source": "table Book:\n  title: Text\n  pages\n",
       "reject": {
         "code": "syntax",
         "line": 3,
@@ -887,7 +887,7 @@
     },
     {
       "name": "unknown type",
-      "source": "table Book:\n  title Txt\n",
+      "source": "table Book:\n  title: Txt\n",
       "reject": {
         "code": "unknown-type",
         "line": 2,
@@ -896,21 +896,21 @@
     },
     {
       "name": "one-sided connection",
-      "source": "table Book:\n  title   Text\n  authors Person[]\n",
+      "source": "table Book:\n  title:   Text\n  authors: Person[]\n",
       "reject": {
         "code": "undeclared-connection"
       }
     },
     {
       "name": "reserved field",
-      "source": "table Book:\n  created Text\n",
+      "source": "table Book:\n  created: Text\n",
       "reject": {
         "code": "reserved-field"
       }
     },
     {
       "name": "members sort by a field they have",
-      "source": "table Game:\n  name    Text\n  authors Person[]\n\n  ~views([{ label: \"Games\", line: [name, authors ~sort(nickname)] }])\n\nGame.authors[] @fold <-> Person.games[]\n",
+      "source": "table Game:\n  name:    Text\n  authors: Person[] <-> games[] as array\n\n  ~views([{ label: \"Games\", line: [name, authors ~sort(nickname)] }])\n\n",
       "reject": {
         "code": "unknown-field",
         "line": 5,
@@ -919,14 +919,14 @@
     },
     {
       "name": "only a connection's members sort",
-      "source": "table Game:\n  name    Text\n  authors Person[]\n\n  ~views([{ label: \"Games\", line: [name ~sort(name), authors] }])\n\nGame.authors[] @fold <-> Person.games[]\n",
+      "source": "table Game:\n  name:    Text\n  authors: Person[] <-> games[] as array\n\n  ~views([{ label: \"Games\", line: [name ~sort(name), authors] }])\n\n",
       "reject": {
         "code": "sort-field"
       }
     },
     {
       "name": "a group takes only ~sort",
-      "source": "table Game:\n  name    Text\n  authors Person[]\n\n  ~views([{ label: \"Games\", line: [name], group: authors ~summary }])\n\nGame.authors[] @fold <-> Person.games[]\n",
+      "source": "table Game:\n  name:    Text\n  authors: Person[] <-> games[] as array\n\n  ~views([{ label: \"Games\", line: [name], group: authors ~summary }])\n\n",
       "reject": {
         "code": "misplaced-attribute"
       }
@@ -952,10 +952,10 @@
     {
       "name": "source at the byte limit",
       "parts": [
-        "table Book:\n  title Text\n",
+        "table Book:\n  title: Text\n",
         {
           "repeat": "/",
-          "count": 1048551
+          "count": 1048550
         }
       ],
       "accept": true
@@ -963,10 +963,10 @@
     {
       "name": "source over the byte limit",
       "parts": [
-        "table Book:\n  title Text\n",
+        "table Book:\n  title: Text\n",
         {
           "repeat": "/",
-          "count": 1048552
+          "count": 1048551
         }
       ],
       "reject": {
@@ -978,7 +978,7 @@
       "parts": [
         "table Wide:\n",
         {
-          "repeat": "  f{i} Text\n",
+          "repeat": "  f{i}: Text\n",
           "count": 1000
         }
       ],
@@ -989,7 +989,7 @@
       "parts": [
         "table Wide:\n",
         {
-          "repeat": "  f{i} Text\n",
+          "repeat": "  f{i}: Text\n",
           "count": 33000
         }
       ],
@@ -1001,7 +1001,7 @@
   "budgetValues": [
     {
       "name": "a row over the step limit",
-      "source": "table Series:\n  values Int[]\n",
+      "source": "table Series:\n  values: Int[]\n",
       "value": {
         "id": "s",
         "values": {
@@ -1019,7 +1019,7 @@
     },
     {
       "name": "a row within the step limit",
-      "source": "table Series:\n  values Int[]\n",
+      "source": "table Series:\n  values: Int[]\n",
       "value": {
         "id": "s",
         "values": {

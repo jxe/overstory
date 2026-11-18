@@ -129,7 +129,7 @@ describe("the rows hash", () => {
 });
 
 describe("log objects", () => {
-  const schema = compileLogicalSchema("main table Item:\n  n Int\n");
+  const schema = compileLogicalSchema("main table Item:\n  n: Int\n");
   const item = (id: string, n: number) => row([["id", id]], { n });
 
   test("an entry is decoded strictly: changes in order, each row once, its key its row's", () => {
@@ -253,13 +253,13 @@ describe("collections", () => {
   });
 
   test("the fingerprint follows the model layer, not storage or presentation", () => {
-    const restyled = source.replace("  lists       List[]  // cross-reference: declared below\n", "  lists       List[]\n  @table(\"games\")\n");
+    const restyled = source.replace("  lists:       List[]  // cross-reference: declared below\n", "  lists:       List[]\n  @table(\"games\")\n");
     expect(compileLogicalSchema(restyled).fingerprint).toBe(logical.fingerprint);
-    expect(compileLogicalSchema(`${source}\ntable Extra:\n  name Text\n`).fingerprint).not.toBe(logical.fingerprint);
+    expect(compileLogicalSchema(`${source}\ntable Extra:\n  name: Text\n`).fingerprint).not.toBe(logical.fingerprint);
   });
 
   test("unique fields are unique", () => {
-    const schema = compileLogicalSchema("main table Tag:\n  name unique Text\n");
+    const schema = compileLogicalSchema("main table Tag:\n  name: unique Text\n");
     const diagnostics = checkLogicalTables(schema, { Tag: [row([["id", "a"]], { name: "x" }), row([["id", "b"]], { name: "x" })] });
     expect(fields(diagnostics)).toEqual([["duplicate-value", "/fields/name"]]);
   });

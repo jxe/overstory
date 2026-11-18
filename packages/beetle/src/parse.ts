@@ -6,8 +6,8 @@
 
 import {
   ERROR_CODES,
-  type Arg, type Attribute, type AttributeValue, type Binding, type BinaryOperator, type Child, type ConnectionDecl,
-  type DataEntry, type DataRecord, type Declaration, type DeclarationEntry, type Diagnostic, type Element, type EndMember, type EnumDecl, type ErrorCode,
+  type Arg, type Attribute, type AttributeValue, type Binding, type BinaryOperator, type Child,
+  type DataEntry, type Link, type DataRecord, type Declaration, type DeclarationEntry, type Diagnostic, type Element, type EnumDecl, type ErrorCode,
   type Expr, type Line as MutationLine, type MutationDecl, type OrderTerm, type Param, type ReDecl, type RuleDecl,
   type RuleLine, type SchemaAttribute, type Span, type TableDecl, type TableMember, type TextPart, type TypeRef,
   type UseDecl, type ViewDecl, type ViewFile, type ViewLine,
@@ -1160,29 +1160,6 @@ function arity(c: Cursor): TypeRef["arity"] {
   return "one";
 }
 
-/** `[ordered] Table.field[?|[]] [as name] attrs`, with `c` at its start. */
-function end(c: Cursor): Omit<EndMember, "blankBefore" | "comments"> {
-  c.ws();
-  const start = c.pos;
-  let ordered = false;
-  if (c.identAt() === "ordered") {
-    c.pos += 7;
-    c.ws();
-    ordered = true;
-  }
-  const table = c.ident("a table name");
-  c.expect(".");
-  const field = c.ident("a field name");
-  const a = arity(c);
-  let as: string | undefined;
-  if (c.keyword("as")) {
-    c.ws();
-    as = c.ident("a name");
-  }
-  const attrs = schemaAttributes(c);
-  return { kind: "end", ordered, table, field, arity: a, ...(as ? { as } : {}), attrs, span: c.span(start) };
-}
-
 /** True when the cursor is at an end, `[ordered] Table.field`. */
 function atEnd(c: Cursor): boolean {
   const m = c.mark();
@@ -1215,9 +1192,9 @@ function field(c: Cursor): Extract<TableMember, { kind: "field" }> {
   c.ws();
   const start = c.pos;
   const name = c.ident("a field name");
-  // `name: Type`; the colonless `name Type` is still read while trees move over (Beetle 001).
   c.inlineWs();
-  if (c.peek() === ":") c.pos += 1;
+  if (c.peek() !== ":") c.fail(`Write a field with a colon: ${name}: Type`);
+  c.pos += 1;
   const modifiers: string[] = [];
   for (;;) {
     c.inlineWs();
@@ -1236,6 +1213,26 @@ function field(c: Cursor): Extract<TableMember, { kind: "field" }> {
   c.inlineWs();
   const type = c.ident("a type");
   const a = arity(c);
+  let link: Link | undefined;
+  if (c.accept("<->")) {
+    c.ws();
+    const linkStart = c.pos;
+    let inverseOrdered = false;
+    if (c.identAt() === "ordered") {
+      c.pos += 7;
+      c.ws();
+      inverseOrdered = true;
+    }
+    const inverse = c.ident(`the field ${type} gains, such as ${name === type.toLowerCase() ? "items" : name}[]`);
+    const inverseArity = arity(c);
+    let array = false;
+    if (c.keyword("as")) {
+      c.ws();
+      if (c.ident("array") !== "array") c.fail("Only `as array` follows a connection's other end");
+      array = true;
+    }
+    link = { inverse, inverseArity, inverseOrdered, array, span: c.span(linkStart) };
+  }
   let defaultValue: Expr | undefined;
   if (c.lookingAt("=") && !c.lookingAt("==")) {
     c.expect("=");
@@ -1243,7 +1240,7 @@ function field(c: Cursor): Extract<TableMember, { kind: "field" }> {
   }
   const attrs = schemaAttributes(c);
   return {
-    kind: "field", name, modifiers, type, arity: a, ...(defaultValue ? { default: defaultValue } : {}), attrs,
+    kind: "field", name, modifiers, type, arity: a, ...(defaultValue ? { default: defaultValue } : {}), ...(link ? { link } : {}), attrs,
     span: c.span(start), blankBefore: false, comments: [],
   };
 }
@@ -1316,7 +1313,7 @@ function tableMembers(src: Source, first: number, last: number, diagnostics: Dia
       return finishMember({ kind: "mention", name, attrs, span: c.span(start), blankBefore: false, comments: [] });
     }
     if (context === "seed" || (context === "enum" && atValue(c))) return finishMember(value(c));
-    if (context === "table" && atEnd(c)) return finishMember({ ...end(c), blankBefore: false, comments: [] });
+    if (context === "table" && atEnd(c)) c.fail("A connection is a field: `list: List <-> ordered items[]`");
     return finishMember(field(c));
   });
 }
@@ -1348,14 +1345,7 @@ function declaration(src: Source, first: number, last: number, diagnostics: Diag
     finish(c, "the element (a view block has at most one)");
     return { decl: { kind: "element", element, span: element.span } };
   }
-  if (atEnd(c)) {
-    const a = { ...end(c), blankBefore: false, comments: [] };
-    c.expect("<->", "'<->' and the connection's other end");
-    const b = { ...end(c), blankBefore: false, comments: [] };
-    const decl: ConnectionDecl = { kind: "connection", a, b, span: c.span(start) };
-    finish(c, "the connection");
-    return { decl, trailing: trailingOn(line.end + 1) };
-  }
+  if (atEnd(c)) c.fail("A connection is a field of one of its tables: `owner: Person <-> ownedLists[]`");
   const word = c.ident("a declaration (import, from, view, rule, mutation, table or enum)");
   if (word === "from" || word === "import") {
     // `from path import A, B as C` or `import path`.
@@ -1381,31 +1371,7 @@ function declaration(src: Source, first: number, last: number, diagnostics: Diag
     finish(c, "the import");
     return { decl, trailing: trailingOn(line.end + 1) };
   }
-  if (word === "use") {
-    // The older spelling, still read while trees move over (Beetle 001).
-    c.ws();
-    if (c.peek() !== '"') c.fail('Expected a path in quotes, such as use "data/schema.beetle"');
-    const path = plainString(c);
-    const decl: UseDecl = { kind: "use", path, span: c.span(start) };
-    if (c.accept("(")) {
-      decl.picks = [];
-      do {
-        c.ws();
-        const pickStart = c.pos;
-        const name = c.ident("a name to use, or view");
-        let as: string | undefined;
-        if (c.keyword("as")) {
-          c.ws();
-          as = c.ident("a name");
-        }
-        decl.picks.push({ name, as, span: c.span(pickStart) });
-      } while (c.accept(","));
-      c.expect(")", "',' or ')'");
-      decl.span = c.span(start);
-    }
-    finish(c, "the use");
-    return { decl, trailing: trailingOn(line.end + 1) };
-  }
+  if (word === "use") c.fail("Import with `import path` or `from path import names`");
   if (word === "view") {
     c.ws();
     const nameStart = c.pos;
@@ -1460,7 +1426,7 @@ function declaration(src: Source, first: number, last: number, diagnostics: Diag
     const decl: MutationDecl = { kind: "mutation", name, nameSpan, params: ps, rowAction, body, span: src.span(start, src.lines[last]!.end) };
     return { decl, trailing };
   }
-  if (word === "table" || word === "main" || word === "my" || word === "session") {
+  if (word === "table" || word === "main" || word === "connection" || word === "my" || word === "session") {
     const tableKind = word === "table" ? "data" : word;
     if (word !== "table" && !c.keyword("table")) c.fail(`Expected 'table' after '${word}'`);
     c.ws();

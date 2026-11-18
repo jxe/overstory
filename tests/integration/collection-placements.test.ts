@@ -18,19 +18,18 @@ import { collectionBasis, collectionTree, idRow, T0 } from "../support/collectio
 const TEST_AT = Date.UTC(2026, 10, 11);
 
 const GAMES = `main table Game:
-  name  Text
-  year  Int?
-  done  Bool?
-  tags  Text[]
-  lists List[]
+  name:  Text
+  year:  Int?
+  done:  Bool?
+  tags:  Text[]
+  lists: List[]
 
 table List:
-  name  Text
-  games Game[]
+  name:  Text
+  games: ordered Game[] <-> lists[]
 
-ordered List.games[] <-> Game.lists[]
 `;
-const ITEMS = "main table Item:\n  title Text\n  count Int\n  done  Bool?\n  note  Text?\n";
+const ITEMS = "main table Item:\n  title: Text\n  count: Int\n  done:  Bool?\n  note:  Text?\n";
 
 useSnapshotDatabase(sqliteSnapshots);
 let sandbox: string;

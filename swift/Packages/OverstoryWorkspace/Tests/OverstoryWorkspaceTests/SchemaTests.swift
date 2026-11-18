@@ -58,16 +58,15 @@ struct SchemaTests {
         let source = """
             // Lists.
             main table List:
-              name  Text
-              first Date = today
+              name:  Text
+              first: Date = today
+              owner: Person <-> lists[]
               seed:
                 Inbox { name: "Inbox" }
               @index(name)
 
-            List.owner <-> Person.lists[]
-
             my table Draft:
-              text Text
+              text: Text
 
             view ByOwner():
               <Rows for={l in List} group={l.owner}>
@@ -158,34 +157,34 @@ struct SchemaTests {
 
     @Test("Resolution: a connection table is keyed by its ends; 1:n is a column, n:m a join table")
     func resolution() throws {
-        let rating = compileCollectionSchema("table Game:\n  name Text\n\ntable Rating:\n  Person.ratings[]\n  Game.ratings[]\n  stars Number\n")
+        let rating = compileCollectionSchema("table Game:\n  name: Text\n\nconnection table Rating:\n  person: Person <-> ratings[]\n  game: Game <-> ratings[]\n  stars: Number\n")
         #expect(rating.diagnostics == [])
         #expect(rating.models.first { $0.name == "Rating" }?.key == ["person", "game"])
-        let storage = compileCollectionSchema("table Episode:\n  title Text\n\ntable Series:\n  title Text\n\nSeries.episodes[] <-> Episode.series\nPerson.games[] <-> Game.authors[]\n\ntable Game:\n  name Text\n")
+        let storage = compileCollectionSchema("table Episode:\n  title: Text\n  series: Series <-> episodes[]\n\ntable Series:\n  title: Text\n\ntable Game:\n  name: Text\n  authors: Person[] <-> games[]\n")
         #expect(storage.connections.map(\.storage) == [.column(on: "Episode", field: "series"), .array(on: "Game", field: "authors")])
         let tables = try schemaLayout(storage)
-        #expect(tables.map(\.name) == ["Episode", "Series", "Game", "Person_games"])
+        #expect(tables.map(\.name) == ["Episode", "Series", "Game", "Game_authors"])
     }
 
     @Test("re blocks annotate, header keys key, and one table is main")
     func layers() {
-        let result = compileCollectionSchema("main table Tag (list, id):\n  name Text\n\nTag.list <-> List.tags[]\n\ntable List:\n  name Text\n\nenum Status:\n  A\n  B\n\nre Status:\n  A @stored(\"a\")\n")
+        let result = compileCollectionSchema("main table Tag (list, id):\n  name: Text\n  list: List <-> tags[]\n\ntable List:\n  name: Text\n\nenum Status:\n  A\n  B\n\nre Status:\n  A @stored(\"a\")\n")
         #expect(result.diagnostics == [])
         let tag = result.models.first { $0.name == "Tag" }
         #expect(tag?.main == true)
         #expect(tag?.key == ["list", "id"])
         #expect(result.models.first { $0.name == "Status" }?.schemaRows.first?.stored == "a")
-        #expect(compileCollectionSchema("table A:\n  name Text ~label(\"Name\")\n").diagnostics.map(\.code).contains("presentation-attribute"))
+        #expect(compileCollectionSchema("table A:\n  name: Text ~label(\"Name\")\n").diagnostics.map(\.code).contains("presentation-attribute"))
     }
 
     @Test("Limits and syntax errors carry positions")
     func syntaxErrors() {
-        let broken = parseSchema("table Book:\n  title Text\n  author ?\n")
+        let broken = parseSchema("table Book:\n  title: Text\n  author: ?\n")
         #expect(broken.file == nil)
         #expect(broken.diagnostics.first?.code == "syntax")
         #expect(broken.diagnostics.first?.line == 3)
         let deep = String(repeating: "[", count: 40) + String(repeating: "]", count: 40)
-        #expect(parseSchema("table A:\n  name Text\n  ~views(\(deep))\n").diagnostics.first?.code == "limit")
+        #expect(parseSchema("table A:\n  name: Text\n  ~views(\(deep))\n").diagnostics.first?.code == "limit")
         #expect(parseSchema(String(repeating: "x", count: 1_100_000)).diagnostics.first?.code == "limit")
     }
 }

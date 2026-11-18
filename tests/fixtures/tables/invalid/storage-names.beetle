@@ -3,37 +3,35 @@
 // expect: attribute-arguments
 // expect: stored-on-fixed
 // expect: fold-end
-// expect: fold-end
 // expect: misplaced-attribute
 // @column names the column that stores a connection, so it goes on the end
 // whose model holds it: Episode here, not Series.
 table Episode:
-  title Text
+  title:  Text
+  guests: Person[] <-> episodes[] @column("guest_ids")
+  season: Season <-> episodes[] as array
 
 table Series:
-  title Text
+  title:    Text
+  episodes: Episode[] <-> series @column("episode_ids")
 
-Series.episodes[] @column("episode_ids") <-> Episode.series
 // An unfolded n:m is its own table; its columns aren't either end's.
-Episode.guests[] @column("guest_ids") <-> Person.episodes[]
 
 table Show:
-  name Text @column(name)
+  name: Text @column(name)
 
 enum Status:
   @table("statuses")
   Draft
 // Only an n:m folds, and only one end of it.
-Episode.season @fold <-> Season.episodes[]
 
 table Season:
-  number Int
-
-Episode.tags[] @fold <-> Tag.episodes[] @fold
+  number: Int
 
 table Tag:
-  name Text
+  name:     Text
+  episodes: Episode[] <-> tags[] as array
 
-table Credit:
-  Episode.credits[] @fold
-  Person.credits[]
+connection table Credit:
+  episode: Episode <-> credits[] @fold
+  person:  Person <-> credits[]

@@ -1,7 +1,5 @@
 // expect: unknown-model
 // expect: unknown-type
 table Book:
-  title  Text
-  author Author
-
-Book.author <-> Author.books[]
+  title:  Text
+  author: Author <-> books[]

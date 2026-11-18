@@ -17,7 +17,8 @@
 ] @keyword
 (table kind: _ @keyword)
 (modifier) @keyword
-(end "ordered" @keyword)
+(seed "seed" @keyword)
+(link ["ordered" "as" "array"] @keyword)
 ["not" "and" "or" "in" "excludes" "∈" "∉"] @keyword.operator
 (error_code) @keyword.exception
 
@@ -42,9 +43,7 @@
 (field_declaration
   type: (identifier) @type.builtin
   (#any-of? @type.builtin "Text" "Markdown" "Int" "Number" "Bool" "Date" "Duration" "Person"))
-(end table: (identifier) @type)
-(end field: (identifier) @property)
-(end as: (identifier) @property)
+(link inverse: (identifier) @property)
 (value name: (_) @constant)
 (schema_attribute sigil: "@" @preproc name: (identifier) @preproc)
 (schema_attribute sigil: "~" @string.regex name: (identifier) @string.regex)

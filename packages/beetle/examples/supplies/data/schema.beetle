@@ -5,45 +5,39 @@
 main table List:
   name:        Text
   about:       Markdown?
-  visibility:  Visibility
-  kind:        ListKind
+  visibility:  Visibility <-> lists[]
+  kind:        ListKind <-> lists[]
   openToEdits: Bool
-  owner:       Person
+  owner:       Person <-> ownedLists[]
   @index(owner, modified)  // my lists, newest first
 
-List.owner      <-> Person.ownedLists[]
-List.visibility <-> Visibility.lists[]
-List.kind       <-> ListKind.lists[]
-
 table Practice:
-  name:  unique Text
-  about: Markdown?
-
-Practice.authors[] <-> Person.practices[]
+  name:    unique Text
+  about:   Markdown?
+  authors: Person[] <-> practices[]
 
 // A connection table, because tags hang off it.
-table Item:
-  ordered List.items[]
-  Practice.items[]
+connection table Item:
+  list:     List <-> ordered items[]
+  practice: Practice <-> items[]
 
 // A tag's id is unique only within its list.
 table Tag (list, id):
-  name:  Text
-  color: Text?
+  name:      Text
+  color:     Text?
+  list:      List <-> tags[]
+  practices: Practice[] <-> tags[]
 
-Tag.list        <-> List.tags[]
-Tag.practices[] <-> Practice.tags[]
+connection table Reaction:
+  list:   List <-> reactions[]
+  person: Person <-> reactions[]
+  emoji:  Text
 
-table Reaction:
-  List.reactions[]
-  Person.reactions[]
-  emoji: Text
-
-table Contribution:
-  List.contributors[]
-  Person.contributions[]
-  first: Date = today  // a default, written only when the row is created
-  last:  Date
+connection table Contribution:
+  list:   List <-> contributors[]
+  person: Person <-> contributions[]
+  first:  Date = today  // a default, written only when the row is created
+  last:   Date
 
 enum Visibility:
   Public

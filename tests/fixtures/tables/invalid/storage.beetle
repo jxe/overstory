@@ -1,25 +1,23 @@
 // expect: storage-on-plain-model
-// expect: fold-target
 // expect: fold-and-table
 // expect: stored-on-fixed
 // expect: stored-on-fixed
 table Book:
-  title Text
+  title:    Text
+  statuses: Status[] <-> book
   @fold(Shelf)
 
 table Shelf:
-  name Text
+  name: Text
 
-table Placement:
-  Book.placements[]
-  Shelf.placements[]
-  @fold(Status)
+connection table Placement:
+  book:  Book <-> placements[]
+  shelf: Shelf <-> placements[] as array
   @table
 // An enum has no table to hold a column.
-Status.book <-> Book.statuses[]
 // Two models without tables have nowhere to keep their connection.
-Status.people[] <-> Person.statuses[]
 
 enum Status:
+  people: Person[] <-> statuses[]
   Draft
   Done

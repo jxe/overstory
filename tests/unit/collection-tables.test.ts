@@ -19,15 +19,14 @@ import { verifyStore } from "@ovst/beetle/tables/verify";
 const TEST_AT = Date.UTC(2026, 10, 11);
 
 const SCHEMA = `table Game:
-  name  Text
-  tags  Text[]
-  lists List[]
+  name:  Text
+  tags:  Text[]
+  lists: List[]
 
 table List:
-  name  Text
-  games Game[]
+  name:  Text
+  games: ordered Game[] <-> lists[]
 
-ordered List.games[] <-> Game.lists[]
 `;
 const FILES = {
   "Game.jsonl": '{"id":"g1","name":"Chess","tags":["board"]}\n{"id":"g2","name":"Go"}\n',

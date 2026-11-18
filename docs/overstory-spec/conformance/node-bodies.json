@@ -22,7 +22,7 @@
     "photo.beetle": "view():\n  <Text>photo</Text>\n",
     "data": {
       "collection": true,
-      "schema.beetle": "main table Item:\n  name Text\n"
+      "schema.beetle": "main table Item:\n  name: Text\n"
     }
   },
   "nodes": [
