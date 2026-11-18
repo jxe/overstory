@@ -1,7 +1,7 @@
 // Mutations that write what they can't.
 use "../supplies/data/schema.beetle"
 
-mutation bad(l List, p Practice):
+mutation bad(l: List, p: Practice):
   // expect: implicit-field
   l.modified = now
   // expect: missing-field
@@ -22,13 +22,13 @@ mutation bad(l List, p Practice):
   // expect: error-outside-if
   forbidden "never"
 
-mutation guarded(l List):
+mutation guarded(l: List):
   if me == null:
     // expect: error-not-alone
     unauthorized "Sign in"
     l.name = "x"
 
 // expect: row-action
-mutation edit(name Text) for List.edit:
+mutation edit(name: Text) for List.edit:
   if me == null:
     unauthorized

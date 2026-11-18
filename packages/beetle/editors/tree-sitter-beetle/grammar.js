@@ -53,7 +53,7 @@ module.exports = grammar({
         choice(seq(":", repeat(choice($._newline, seq(choice($.view_line, $.element), $._newline)))), $.data_record),
       )),
     parameters: ($) => seq("(", inner($, $.parameter), ")"),
-    parameter: ($) => seq(field("name", $.identifier), optional(field("type", $.type))),
+    parameter: ($) => seq(field("name", $.identifier), optional(seq(":", field("type", $.type)))),
     type: ($) => seq($.identifier, optional($.arity)),
     arity: (_) => choice("?", seq("[", "]")),
 

@@ -2,7 +2,7 @@
 // the UI views. Feeds?view=ListsByOwner&owner=… returns { "lists": [ … ] }.
 use "data/schema.beetle"
 
-view ListsByOwner(owner Person) {
+view ListsByOwner(owner: Person) {
   lists: {
     name
     size: count(l.items)

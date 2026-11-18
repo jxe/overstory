@@ -4,10 +4,10 @@ my table Lap:  // one viewer's rows, across the whole app
   at    Date
   label Text
 
-mutation lap(label Text):
+mutation lap(label: Text):
   Lap(at: now, label: label)
 
-view(minutes Int?):  // configuration is the view block's attributes
+view(minutes: Int?):  // configuration is the view block's attributes
   state running = false  // state x = v is a one-row session table
   state elapsed = 0
   every 1s → set(elapsed, running ? elapsed + 1 : elapsed)

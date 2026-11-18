@@ -3,9 +3,9 @@
 use "data/schema.beetle"
 use "parts/cards.beetle"
 
-rule curatedBy(l List, person Person):
+rule curatedBy(l: List, person: Person):
   l.owner == person
-rule curatedBy(l List, person Person):
+rule curatedBy(l: List, person: Person):
   person in l.contributors.person
 
 view(id):

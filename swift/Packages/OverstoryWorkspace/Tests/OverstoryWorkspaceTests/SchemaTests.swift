@@ -78,10 +78,10 @@ struct SchemaTests {
               lists: { name } for={l in List}
             }
 
-            rule canEdit(l List):
+            rule canEdit(l: List):
               l.owner == me
 
-            mutation rename(l List, name Text):
+            mutation rename(l: List, name: Text):
               l.name = name
 
             re List:

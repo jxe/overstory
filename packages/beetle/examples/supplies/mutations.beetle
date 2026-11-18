@@ -19,39 +19,39 @@
 // takes its table's default (Contribution.first Date = today in the schema).
 use "data/schema.beetle"
 
-rule editor(l List):
+rule editor(l: List):
   l.owner == me or l.openToEdits
 
 // ------------------------------------------------------------- shared steps
 
-mutation recordContributor(l List):
+mutation recordContributor(l: List):
   if l.owner != me:
     Contribution(list: l, person: me, last: today)
 
 // ------------------------------------------------------------- lists
 
-mutation createList(name Text, visibility Visibility):
+mutation createList(name: Text, visibility: Visibility):
   if me == null:
     unauthorized "This operation requires a Story user"
   List(owner: me, name: name, visibility: visibility, kind: Standard, openToEdits: false)
 
-mutation renameList(l List, name Text):
+mutation renameList(l: List, name: Text):
   if l.owner != me:
     forbidden "Only the owner can rename this list"
   l.name = name
 
-mutation setListSharing(l List, visibility Visibility, openToEdits Bool):
+mutation setListSharing(l: List, visibility: Visibility, openToEdits: Bool):
   if l.owner != me:
     forbidden "Only the owner can change sharing"
   l.visibility = visibility
   l.openToEdits = openToEdits
 
-mutation setListKind(l List, kind ListKind):
+mutation setListKind(l: List, kind: ListKind):
   if l.owner != me:
     forbidden "Only the owner can change the list kind"
   l.kind = kind
 
-mutation toggleListReaction(l List):
+mutation toggleListReaction(l: List):
   if me == null:
     unauthorized "This operation requires a Story user"
   if l.visibility != Public:
@@ -61,7 +61,7 @@ mutation toggleListReaction(l List):
   if l.reactions.person excludes me:
     Reaction(list: l, person: me, emoji: "👍")
 
-mutation duplicateList(original List):
+mutation duplicateList(original: List):
   if me == null:
     unauthorized "This operation requires a Story user"
   if original.visibility != Public and original.owner != me:
@@ -72,7 +72,7 @@ mutation duplicateList(original List):
 
 // ------------------------------------------------------------- membership and order
 
-mutation setListPractice(l List, p Practice, included Bool):
+mutation setListPractice(l: List, p: Practice, included: Bool):
   if not editor(l):
     forbidden "You cannot edit this list"
   if included and l.items.practice excludes p:
@@ -82,7 +82,7 @@ mutation setListPractice(l List, p Practice, included Bool):
     not Item(list: l, practice: p)
     recordContributor(l: l)
 
-mutation reorderList(l List, practices Practice[]):
+mutation reorderList(l: List, practices: Practice[]):
   if not editor(l):
     forbidden "You cannot edit this list"
   l.items = practices
@@ -90,19 +90,19 @@ mutation reorderList(l List, practices Practice[]):
 
 // ------------------------------------------------------------- tags
 
-mutation createListTag(l List, name Text, color Text?):
+mutation createListTag(l: List, name: Text, color: Text?):
   if l.owner != me:
     forbidden "Only the owner can create tags"
   Tag(list: l, name: name, color: color)
 
-mutation deleteListTag(l List, t Tag):
+mutation deleteListTag(l: List, t: Tag):
   if l.owner != me:
     forbidden "Only the owner can delete tags"
   if t.list != l:
     missing "Tag not found"
   not Tag(list: l, id: t.id)  // its taggings go with it
 
-mutation setPracticeTag(l List, p Practice, t Tag, included Bool):
+mutation setPracticeTag(l: List, p: Practice, t: Tag, included: Bool):
   if not editor(l):
     forbidden "You cannot edit this list"
   if l.items.practice excludes p:
@@ -117,7 +117,7 @@ mutation setPracticeTag(l List, p Practice, t Tag, included Bool):
 
 // ------------------------------------------------------------- practices
 
-mutation createPractice(name Text, about Markdown, addToList List?):
+mutation createPractice(name: Text, about: Markdown, addToList: List?):
   if me == null:
     unauthorized "This operation requires a Story user"
   if addToList != null and not editor(addToList):
@@ -127,7 +127,7 @@ mutation createPractice(name Text, about Markdown, addToList List?):
     Item(list: addToList, practice: practice)
     recordContributor(l: addToList)
 
-mutation updatePractice(p Practice, name Text, about Markdown):
+mutation updatePractice(p: Practice, name: Text, about: Markdown):
   if me == null:
     unauthorized "This operation requires a Story user"
   if count(p.authors) > 0 and p.authors excludes me:

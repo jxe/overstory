@@ -90,7 +90,7 @@ describe("beetle formatting", () => {
       "Tag.list <-> List.tags[]",
       "Tag.practices[]   <-> Practice.tags[]",
       "",
-      "mutation m(l List, longName Text):",
+      "mutation m(l: List, longName: Text):",
       "  if me == null:",
       "    unauthorized",
       "  List(name: longName, about: longName, visibility: Public, kind: Standard, openToEdits: true, owner: me)",
@@ -104,7 +104,7 @@ describe("beetle formatting", () => {
       "Tag.list        <-> List.tags[]",
       "Tag.practices[] <-> Practice.tags[]",
       "",
-      "mutation m(l List, longName Text):",
+      "mutation m(l: List, longName: Text):",
       "  if me == null:",
       "    unauthorized",
       "  List(name: longName, about: longName, visibility: Public, kind: Standard, openToEdits: true,",
@@ -114,8 +114,8 @@ describe("beetle formatting", () => {
   });
 
   test("a data view's record stays on one line only when it was written on one", () => {
-    const source = "view A(o Person) {\n  x: { name, size: count(l.items) }   orderBy={l.name} for={l in List}\n  // note\n\n  y: 1, z: { a: 2 }  if={ o != null }\n}\n";
-    expect(formatView(source)).toBe("view A(o Person) {\n  x: { name, size: count(l.items) } for={l in List} orderBy={l.name}\n  // note\n\n  y: 1\n  z: { a: 2 } if={o != null}\n}\n");
+    const source = "view A(o: Person) {\n  x: { name, size: count(l.items) }   orderBy={l.name} for={l in List}\n  // note\n\n  y: 1, z: { a: 2 }  if={ o != null }\n}\n";
+    expect(formatView(source)).toBe("view A(o: Person) {\n  x: { name, size: count(l.items) } for={l in List} orderBy={l.name}\n  // note\n\n  y: 1\n  z: { a: 2 } if={o != null}\n}\n");
   });
 
   test("a source with syntax errors isn't formatted", () => {

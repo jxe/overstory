@@ -79,7 +79,7 @@ function orderBy(terms: OrderTerm[]): string {
 }
 
 function params(ps: Param[]): string {
-  return `(${ps.map((p) => (p.type ? `${p.name} ${p.type.name}${arityText(p.type.arity)}` : p.name)).join(", ")})`;
+  return `(${ps.map((p) => (p.type ? `${p.name}: ${p.type.name}${arityText(p.type.arity)}` : p.name)).join(", ")})`;
 }
 
 // ---------------------------------------------------------------- elements

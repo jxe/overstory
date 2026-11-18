@@ -778,8 +778,8 @@ function params(c: Cursor): Param[] {
     const start = c.pos;
     const name = c.ident("a parameter name");
     let type: TypeRef | undefined;
-    if (c.lookingAt(":")) c.fail(`Write a parameter like a field: ${name} Type`);
-    if (c.nextIdent()) type = typeRef(c);
+    if (c.accept(":")) type = typeRef(c);
+    else if (c.nextIdent()) c.fail(`Write a parameter as it is called: ${name}: Type`);
     result.push({ name, type, span: c.span(start) });
   } while (c.accept(","));
   c.expect(")", "',' or ')'");

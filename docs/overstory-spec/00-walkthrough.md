@@ -151,7 +151,7 @@ read changed, and a new `result` with a new `outputHash` follows
 The same file declares a mutation:
 
 ```
-mutation addPractice(title Text):
+mutation addPractice(title: Text):
   if me == null:
     unauthorized
   if title == "":

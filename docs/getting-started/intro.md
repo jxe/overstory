@@ -210,7 +210,7 @@ language. A `.beetle` file holds a view, and the mutations it uses:
 // views/reading-room.beetle
 use "../essays/schema.beetle"
 
-mutation recommend(e Essay):
+mutation recommend(e: Essay):
   if me == null:
     unauthorized "Sign in to recommend an essay"
   Recommendation(essay: e, person: me)

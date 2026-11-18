@@ -4,7 +4,7 @@ use "../supplies/data/schema.beetle"
 use "../supplies/parts/cards.beetle" (PracticeCard, Missing)
 
 // expect: builtin-name
-rule count(x List):
+rule count(x: List):
   x.name == ""
 
 view(id):

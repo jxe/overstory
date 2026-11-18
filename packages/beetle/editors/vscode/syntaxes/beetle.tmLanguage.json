@@ -455,7 +455,7 @@
           "include": "#comment"
         },
         {
-          "match": "\\b([a-z_][A-Za-z0-9_]*)(?:\\s+(?:(Text|Markdown|Int|Number|Bool|Date|Duration|Person)|([A-Z][A-Za-z0-9_]*))(\\?|\\[\\])?)?",
+          "match": "\\b([a-z_][A-Za-z0-9_]*)(?:\\s*:\\s*(?:(Text|Markdown|Int|Number|Bool|Date|Duration|Person)|([A-Z][A-Za-z0-9_]*))(\\?|\\[\\])?)?",
           "captures": {
             "1": {
               "name": "variable.parameter.beetle"

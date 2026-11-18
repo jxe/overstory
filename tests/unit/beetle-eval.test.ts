@@ -14,15 +14,15 @@ const files = exampleFiles();
 // Facts the examples don't exercise.
 files["/supplies/more.beetle"] = `use "data/schema.beetle"
 
-mutation clash(l List, m List):
+mutation clash(l: List, m: List):
   l.name = "One"
   m.name = "Two"
 
-mutation renameAll(owner Person, prefix Text):
+mutation renameAll(owner: Person, prefix: Text):
   for l in List where l.owner == owner:
     l.name = prefix + l.name
 
-mutation existsAndNot(l List, p Practice):
+mutation existsAndNot(l: List, p: Practice):
   Item(list: l, practice: p)
   not Item(list: l, practice: p)
 
@@ -33,12 +33,12 @@ view SameOwner() {
   } for={l in List} orderBy={l.name}
 }
 
-rule mine(l List):
+rule mine(l: List):
   l.owner == me
-rule mine(l List):
+rule mine(l: List):
   me in l.contributors.person
 
-view Conditions(who Person, since Text, names Text[], minimum Int) {
+view Conditions(who: Person, since: Text, names: Text[], minimum: Int) {
   equal: { name } for={l in List} where={l.owner == who}
   notEqual: { name } for={l in List} where={l.owner != who}
   enumValue: { name } for={l in List} where={l.visibility == Public and not l.openToEdits}

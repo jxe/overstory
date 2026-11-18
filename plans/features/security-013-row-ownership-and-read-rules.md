@@ -44,7 +44,7 @@ administrator accepted.
   ([the Beetle host](../../docs/architecture/overstoryd/beetle-host.md)), reading every row the
   caller can read in the tree; a view's `rows` answer ships those rows to the device.
 - Supplies' ownership is an app rule its mutations call
-  (`rule editor(l List): l.owner == me or l.openToEdits` in
+  (`rule editor(l: List): l.owner == me or l.openToEdits` in
   `packages/beetle/examples/supplies/mutations.beetle`), not a boundary.
 - `docs/overstory-spec/conformance/resource-policy.json` covers grammar only.
 

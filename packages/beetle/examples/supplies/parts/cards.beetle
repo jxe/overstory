@@ -1,7 +1,7 @@
 // Views drawn as elements. Used with: use "parts/cards.beetle" (ListCard, PracticeCard)
 use "../data/schema.beetle"
 
-view ListCard(list List):
+view ListCard(list: List):
   <Card>
     <Row>
       <Link style="heading" to="List?id={list.id}">{list.name}</Link>
@@ -10,7 +10,7 @@ view ListCard(list List):
     <Markdown source={list.about} />
   </Card>
 
-view PracticeCard(p Practice):
+view PracticeCard(p: Practice):
   <Card>
     <Link style="heading" to="Practice?id={p.id}">{p.name}</Link>
     <Row>
@@ -20,7 +20,7 @@ view PracticeCard(p Practice):
     <Markdown source={p.about} lines={6} />
   </Card>
 
-view Avatar(person Person):
+view Avatar(person: Person):
   <Link to="Profile?id={person.id}">
     <Portrait src={person.portrait} name={person.name} />
     {person.name}
