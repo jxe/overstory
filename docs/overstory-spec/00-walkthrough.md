@@ -68,9 +68,9 @@ same tree ([snapshot](1.2-reading.md#2-reading-an-accepted-snapshot),
 Joe edits `notes.md`. Because `notes.md` is the page of the node `/notes`, and a
 `notes/` folder beside it would hold its children, the edit touches one node
 ([mapping](1.1-data-model.md#8-mapping-files-and-directories-to-nodes)).
-The laptop builds the new candidate root: a new page object, the directory that
+The laptop builds the new candidate root: a new properties object, the directory that
 holds `notes`, and a new root node object. It sends the page as an `ObjectDelta`
-against the previous page object and the small directory objects in full,
+against the previous properties object and the small directory objects in full,
 with `base` set to the accepted update id it last observed, a fresh `change`
 and `at`, and no trace (a snapshot). The server finds current equal to base and answers
 `201 accepted` with the new update's id and the request digest ([sparse transfer](1.3-updates-and-merging.md#13-sparse-transfer-with-object-deltas),
