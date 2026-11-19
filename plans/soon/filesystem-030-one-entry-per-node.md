@@ -22,7 +22,7 @@ flag day, so nothing converts old roots.
    protocol graphs and accepted state.
 2. **overstoryd:** acceptance, projections, path reads (the root node, the directories down to
    the parent, then the node's page, children and schema), the merge tool (a node's page, children and
-   base merge independently; rename and move carry all three), and the provenance index, which
+   page style merge independently; rename and move carry them all), and the provenance index, which
    is keyed by path. Views are served at their `.beetle` file's path with its extension.
 3. **Story Sync:** a scan reads `x.md` beside `x/`, or `x/_index.md`, as one node and records the
    page style; writes each page back where its page style says; writes an empty node as an empty `x.md`;
