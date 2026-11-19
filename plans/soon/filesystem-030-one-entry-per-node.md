@@ -27,7 +27,7 @@ flag day, so nothing converts old roots.
 3. **Story Sync:** a scan reads `x.md` beside `x/`, or `x/_index.md`, as one node and records the
    style; writes each page back where its style says; writes an empty node as an empty `x.md`;
    ignores empty folders; reports `shadowed-body` and `duplicate-node-representation`.
-   **Typed nodes and records** (spec 2026-11-18, same flag day): a node's `schema` names its
+   **Typed nodes** (spec 2026-11-18, same flag day): a node's `schema` names its
    schema file and its `children` then names the head log entry; the directory's `collection`
    reference, `modelFingerprint` and `version` go (the fingerprint is computed from the schema),
    and `schema.beetle` stops being a directory entry. Wire renames from rows to typed children: `children`/`childrenHash` in log entries,
