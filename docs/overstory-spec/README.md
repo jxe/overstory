@@ -17,7 +17,7 @@ already applies both, and presence in layer 4 is bounded by the access rules of 
 
 1. **Trees.** What a tree is and how it travels: the data model, reading,
    updates and merging, and locators.
-2. **Typed nodes.** Folders whose children are records, and Beetle, the language
+2. **Typed nodes.** Nodes whose children have declared types, and Beetle, the language
    their tables are declared in.
 3. **Views and mutations.** Beetle views and mutations, and how a host
    evaluates and runs them.
@@ -39,7 +39,7 @@ topology, private-state layout, and test machinery are reference choices.
 
 ## Specification map
 
-New readers should start with the non-normative [walkthrough](00-walkthrough.md), which follows one local profile identity through claiming an account, activating trees, editing, watching, adding records, and querying it from a page. The numbered files are the normative contract, in reading order.
+New readers should start with the non-normative [walkthrough](00-walkthrough.md), which follows one local profile identity through claiming an account, activating trees, editing, watching, adding children, and querying it from a page. The numbered files are the normative contract, in reading order.
 
 | Layer | File | Public contract |
 |---|---|---|
@@ -47,10 +47,10 @@ New readers should start with the non-normative [walkthrough](00-walkthrough.md)
 | | [reading](1.2-reading.md) | Reading the current tree, a snapshot, an object or a path; references and selectors; stream framing, errors and encodings |
 | | [updates and merging](1.3-updates-and-merging.md) | The update route, request identity, results and deltas; authored changes: traces, operations, property operations; exact-state preconditions, acceptance, and merging properties |
 | | [locators](1.4-locators.md) | References by TreeID, path and stable key; links written in Markdown; canonical names and domains; finding trees; reading at the canonical URL |
-| 2. Typed nodes | [records](2.1-records.md) | A folder whose children are records: what the tree holds, record identity and order, validation and merge |
+| 2. Typed nodes | [typed nodes](2.1-typed-nodes.md) | A node whose children have declared types: what the tree holds, child identity and order, validation and merge |
 | | [Beetle](2.2-beetle.md) | The language shared by schemas, views and mutations: syntax, `.beetle` files, imports, expressions and built-ins, limits and diagnostics, and the grammar |
 | | [Beetle tables](2.3-beetle-tables.md) | Tables and fields, enums, connections and keys; a typed node's `schema.beetle`, its storage layers, relational layout and fingerprint |
-| 3. Views and mutations | [views](3.1-views.md) | Elements, reading records, conditions and rules, expansion, view blocks in pages, state, actions and forms, data views, element types; handles and code versions; the `views` route with answer forms, plans and live dependencies; view addresses |
+| 3. Views and mutations | [views](3.1-views.md) | Elements, reading rows, conditions and rules, expansion, view blocks in pages, state, actions and forms, data views, element types; handles and code versions; the `views` route with answer forms, plans and live dependencies; view addresses |
 | | [mutations](3.2-mutations.md) | Facts and public errors, and the `mutate` route |
 | 4. Collaboration | [watching](4.1-watching.md) | The watch stream: resuming after an update, events, objects carried, and when it ends |
 | | [conflicts](4.2-conflicts.md) | Accepted unresolved state; reading conflicts; explicit resolution; accepted decisions and continued editing; format-aware merge rules |
@@ -59,7 +59,7 @@ New readers should start with the non-normative [walkthrough](00-walkthrough.md)
 | | [access control](5.2-access-control.md) | Resource rules, caller/code constraints, combined execution authority, authentication, guarded updates and watches; what views and mutations may read and write, user identity, consent and data disclosure |
 | | [federation](5.3-federation.md) | Home and placement hosts, placement accounts, invitations accepted as placements, published device keys, and visitor sessions |
 | 6. Clients | [working trees](6.1-working-trees.md), with [the update machine's runner](../implementing-sync-services/update-machine.md) | The three ways to hold a tree (Browse, Replica, alongside Story Sync), and the update machine a working tree runs: the change log, one prepared request in flight, one successor, validated apply, held rejections, exact ambiguous recovery, and editor capture |
-| | [placements on disk](6.2-placements-on-disk.md) | How a placement writes a tree into a folder: page frontmatter, tree membership and ignore files, and records as CSV, JSON, Markdown files or SQLite; local placements |
+| | [placements on disk](6.2-placements-on-disk.md) | How a placement writes a tree into a folder: page frontmatter, tree membership and ignore files, and children as CSV, JSON, Markdown files or SQLite; local placements |
 | | [the command line](6.3-command-line.md) | The `story` command as scripts, agents and runners call it: conventions, exit codes and environment; placing and moving folders; agent bundles, sessions, run requests and reporting; identity; sync state and its JSON |
 
 The specification map does not report implementation progress. See
@@ -133,7 +133,7 @@ inline mention links here; accepted implementation work is indexed under
 
 1. **Remote tree deletion.** Retiring an active remote tree, and with it its configuration, is invalid until a deletion lifecycle exists ([accounts and devices](5.1-accounts-and-devices.md#32-invariants)).
 2. **Cross-server plan discovery, delegated authorization, and server-to-server execution routing** ([mutations §3.1](3.2-mutations.md#31-relationship-to-tree-synchronization), [views §12.2](3.1-views.md#122-plans-and-live-dependencies)).
-3. **External non-tree side effects** need an effect and consent contract distinct from deterministic record mutations ([mutations](3.2-mutations.md)).
+3. **External non-tree side effects** need an effect and consent contract distinct from deterministic mutations ([mutations](3.2-mutations.md)).
 4. **Agents beside an app**: pages whose body is a prompt, with the app's views and mutations as their tools, run by a runner, and their transcripts ([Apps 002](../../plans/features/apps-002-agents-beside-an-app.md)).
 5. **A Markdown-readable link carrying both a stable key and a content fragment.** The `#overstory-key=` alias has no room for a heading; such a link uses the `;overstory-key=` path suffix, which Overstory resolves but other Markdown readers do not ([locators §2.1](1.4-locators.md#21-links-written-in-markdown)).
 6. **Aggregates beyond `count`, `sum`, `min` and `max`, pagination, and unbounded traversal** in views; today they are capability extensions ([views §12.2](3.1-views.md#122-plans-and-live-dependencies)).

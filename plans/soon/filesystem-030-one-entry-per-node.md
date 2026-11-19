@@ -30,11 +30,11 @@ flag day, so nothing converts old roots.
    **Typed nodes and records** (spec 2026-11-18, same flag day): a node's `schema` names its
    schema file and its `children` then names the head log entry; the directory's `collection`
    reference, `modelFingerprint` and `version` go (the fingerprint is computed from the schema),
-   and `schema.beetle` stops being a directory entry. Wire renames from rows to records:
-   `recordsHash`/`records` in log entries, `RecordChange { table, key, record }`, `TypedRecord`,
-   `recordCreate`/`recordDelete`, record targets `{ node, table, record }`, `record-fields-v1`,
-   `record-steps`/`records-steps`, a path read's `records: [{ table, record }]`, and a `field`
-   decision's `record`. Code names (`collection-schema`, `collections.*`) can follow later.
+   and `schema.beetle` stops being a directory entry. Wire renames from rows to typed children: `children`/`childrenHash` in log entries,
+   `ChildChange { table, key, child }`, `TypedChild`, `childCreate`/`childDelete`, child targets
+   `{ node, table, child }`, `child-fields-v1`, `child-steps`/`children-steps`, a path read's
+   `children: [{ table, child }]`, and a `field` decision's `child`. Beetle, views and mutations
+   keep "rows" for a table's contents. Code names (`collection-schema`, `collections.*`) can follow later.
    **Node shape** (spec 2026-11-19, same flag day): the page object becomes a properties object
    (ordered pairs, the body as the property `""`, last); `id` moves to the node entry; times and
    `style` move into the entry's `meta`; directories are canonical CBOR maps from name to entry;
